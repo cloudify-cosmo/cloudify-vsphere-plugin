@@ -114,6 +114,24 @@ def delete(ctx, server_client, **kwargs):
     server_client.delete_server(server)
 
 
+@operation
+@with_server_client
+def get_state(ctx, server_client, **kwargs):
+    server = get_server_by_context(server_client, ctx)
+    if server_client.is_server_guest_running(server):
+        ips = {}
+        manager_network_ip = None
+        management_network_name = ctx.properties['management_network_name']
+        for network in server.guest.net:
+            if management_network_name and network.network.lower() == management_network_name.lower():
+                manager_network_ip = network.ipAddress[0]
+            ips[network.network] = network.ipAddress[0]
+        ctx['networks'] = ips
+        ctx['ip'] = manager_network_ip
+        return True
+    return False
+
+
 def get_server_by_context(server_client, ctx):
     if VSPHERE_SERVER_ID in ctx:
         return server_client.get_server_by_id(ctx[VSPHERE_SERVER_ID])
