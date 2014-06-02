@@ -28,24 +28,49 @@ def create_new_server(ctx, server_client):
 
     vm_name = server['name']
     networks = []
+    management_set = False
+    use_dhcp = True
+    domain = None
+    dns_servers = None
 
-    if ('management_network_name' in ctx.properties) and \
-            ctx.properties['management_network_name']:
-        networks.append({'name': ctx.properties['management_network_name']})
+    if ('networking' in ctx.properties) and\
+            ctx.properties['networking']:
+        networking_properties = ctx.properties['networking']
+        use_dhcp = networking_properties['use_dhcp']
+        if 'domain' in networking_properties:
+            domain = networking_properties['domain']
+        if 'dns_servers' in networking_properties:
+            dns_servers = networking_properties['dns_servers']
+        if ('management_network' in networking_properties)\
+                and networking_properties['management_network']:
+            networks.append(networking_properties['management_network'])
+            management_set = True
 
     network_nodes_runtime_properties = ctx.capabilities.get_all().values()
-    if network_nodes_runtime_properties and \
-            'management_network_name' not in ctx.properties:
+    if network_nodes_runtime_properties and not management_set:
         # Known limitation
         raise RuntimeError("vSphere server with multi-NIC requires "
-                           "'management_network_name' which was not supplied")
+                           "'management_network' which was not supplied")
     network_client = vsphere_plugin_common.NetworkClient().get(
         config=ctx.properties.get('connection_config'))
-    nics = [
-        {'name': n['node_id']}
-        for n in network_nodes_runtime_properties
-        if network_client.get_port_group_by_name(n['node_id'])
-    ]
+    nics = None
+    if use_dhcp:
+        nics = [
+            {'name': n['node_id']}
+            for n in network_nodes_runtime_properties
+            if network_client.get_port_group_by_name(n['node_id'])
+        ]
+    else:
+        nics = [
+            {
+                'name': n['node_id'],
+                'network': n['network'],
+                'gateway': n['gateway'],
+                'ip': n['ip']
+            }
+            for n in network_nodes_runtime_properties
+            if network_client.get_port_group_by_name(n['node_id'])
+        ]
 
     if nics:
         networks.extend(nics)
@@ -65,7 +90,10 @@ def create_new_server(ctx, server_client):
                                          networks,
                                          resource_pool_name,
                                          template_name,
-                                         vm_name)
+                                         vm_name,
+                                         use_dhcp,
+                                         domain,
+                                         dns_servers)
 
     ctx[VSPHERE_SERVER_ID] = server._moId
 
@@ -121,7 +149,7 @@ def get_state(ctx, server_client, **kwargs):
     if server_client.is_server_guest_running(server):
         ips = {}
         manager_network_ip = None
-        management_network_name = ctx.properties['management_network_name']
+        management_network_name = ctx.properties['networking']['management_network']['name']
         for network in server.guest.net:
             if management_network_name and network.network.lower() == management_network_name.lower():
                 manager_network_ip = network.ipAddress[0]

@@ -21,16 +21,40 @@ server_config = _tests_config['server_test']
 
 class VsphereServerTest(common.TestCase):
 
+    @unittest.skip("not changed yet")
     def test_server(self):
         self.logger.debug("\nServer test started\n")
 
         name = self.name_prefix + 'server'
 
-        management_network_name = server_config['management_network_name']
+        networking = server_config["networking"]
+        use_dhcp = networking['use_dhcp']
+        management_network = networking['management_network']
+        management_network_name = management_network['name']
+        networking_properties = None
+        if use_dhcp:
+            networking_properties = {
+                'use_dhcp': use_dhcp,
+                'management_network': {
+                    'name': management_network_name
+                }
+            }
+        else:
+            networking_properties = {
+                'use_dhcp': use_dhcp,
+                'domain': networking['domain'],
+                'dns_servers': networking['dns_servers'],
+                'management_network': {
+                    'name': management_network_name,
+                    'network': management_network['network'],
+                    'gateway': management_network['gateway'],
+                    'ip': management_network['ip']
+                }
+            }
         ctx = MockCloudifyContext(
             node_id=name,
             properties={
-                'management_network_name': management_network_name,
+                'networking': networking_properties,
                 'server': {
                     'template': server_config['template'],
                     'cpus': server_config['cpu_count'],
@@ -110,8 +134,10 @@ class VsphereServerTest(common.TestCase):
 
         name = self.name_prefix + 'server_with_net'
 
+        networking = server_config["networking"]
+        use_dhcp = networking['use_dhcp']
         vswitch_name = server_config['vswitch_name']
-        test_networks = server_config['test_networks']
+        test_networks = networking['test_networks']
 
         capabilities = {}
 
@@ -122,16 +148,45 @@ class VsphereServerTest(common.TestCase):
                 net['vlan_id'],
                 vswitch_name
             )
-            capabilities['related_network_' + str(i)] =\
-                {'node_id': self.name_prefix + net['name']}
+            if use_dhcp:
+                capabilities['related_network_' + str(i)] =\
+                    {'node_id': self.name_prefix + net['name']}
+            else:
+                capabilities['related_network_' + str(i)] = {
+                    'node_id': self.name_prefix + net['name'],
+                    'network': net['network'],
+                    'gateway': net['gateway'],
+                    'ip': net['ip']
+                }
 
         context_capabilities = ContextCapabilities(capabilities)
 
-        management_network_name = server_config['management_network_name']
+        management_network = networking['management_network']
+        management_network_name = management_network['name']
+        networking_properties = None
+        if use_dhcp:
+            networking_properties = {
+                'use_dhcp': use_dhcp,
+                'management_network': {
+                    'name': management_network_name
+                }
+            }
+        else:
+            networking_properties = {
+                'use_dhcp': use_dhcp,
+                'domain': networking['domain'],
+                'dns_servers': networking['dns_servers'],
+                'management_network': {
+                    'name': management_network_name,
+                    'network': management_network['network'],
+                    'gateway': management_network['gateway'],
+                    'ip': management_network['ip']
+                }
+            }
         ctx = MockCloudifyContext(
             node_id=name,
             properties={
-                'management_network_name': management_network_name,
+                'networking': networking_properties,
                 'server': {
                     'template': server_config['template'],
                     'cpus': server_config['cpu_count'],

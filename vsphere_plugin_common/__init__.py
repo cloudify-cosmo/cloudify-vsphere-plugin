@@ -16,6 +16,7 @@ import atexit
 
 import cloudify.manager
 import cloudify.decorators
+from netaddr import IPNetwork
 
 
 TASK_CHECK_SLEEP = 15
@@ -142,9 +143,15 @@ class ServerClient(VsphereClient):
                       networks,
                       resource_pool_name,
                       template_name,
-                      vm_name):
+                      vm_name,
+                      use_dhcp=True,
+                      domain=None,
+                      dns_servers=None):
         host, datastore = self.place_vm(auto_placement)
+
         devices = []
+        adaptermaps = []
+
         datacenter = self._get_obj_by_name([vim.Datacenter],
                                            datacenter_name)
         destfolder = datacenter.vmFolder
@@ -158,6 +165,7 @@ class ServerClient(VsphereClient):
         relospec.pool = resource_pool
         if not auto_placement:
             relospec.host = host
+
         nicspec = vim.vm.device.VirtualDeviceSpec()
         for device in template_vm.config.hardware.device:
             if isinstance(device, vim.vm.device.VirtualVmxnet3):
@@ -165,18 +173,29 @@ class ServerClient(VsphereClient):
                 nicspec.operation = \
                     vim.vm.device.VirtualDeviceSpec.Operation.remove
                 devices.append(nicspec)
+
         for network in networks:
             network_name = network['name']
-            network = self._get_obj_by_name([vim.Network], network_name)
+            network_obj = self._get_obj_by_name([vim.Network], network_name)
             nicspec = vim.vm.device.VirtualDeviceSpec()
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
             nicspec.device = vim.vm.device.VirtualVmxnet3()
             nicspec.device.backing = \
                 vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
-            nicspec.device.backing.network = network
+            nicspec.device.backing.network = network_obj
             nicspec.device.backing.deviceName = network_name
             devices.append(nicspec)
+
+            if not use_dhcp:
+                dmz_network = IPNetwork(network["network"])
+                guest_map = vim.vm.customization.AdapterMapping()
+                guest_map.adapter = vim.vm.customization.IPSettings()
+                guest_map.adapter.ip = vim.vm.customization.FixedIp()
+                guest_map.adapter.ip.ipAddress = network['ip']
+                guest_map.adapter.gateway = network["gateway"]
+                guest_map.adapter.subnetMask = str(dmz_network.netmask)
+                adaptermaps.append(guest_map)
 
         # VM config spec
         vmconf = vim.vm.ConfigSpec()
@@ -191,6 +210,25 @@ class ServerClient(VsphereClient):
         clonespec.config = vmconf
         clonespec.powerOn = True
         clonespec.template = False
+
+        if adaptermaps:
+            # DNS settings
+            globalip = vim.vm.customization.GlobalIPSettings()
+            globalip.dnsSuffixList = dns_servers
+
+            # Hostname settings
+            ident = vim.vm.customization.LinuxPrep()
+            ident.domain = domain
+            ident.hostName =\
+                vim.vm.customization.VirtualMachineNameGenerator()
+
+            customspec = vim.vm.customization.Specification()
+            customspec.nicSettingMap = adaptermaps
+            customspec.globalIPSettings = globalip
+            customspec.identity = ident
+
+            clonespec.customization = customspec
+
         # fire the clone task
         task = template_vm.Clone(folder=destfolder,
                                  name=vm_name,
