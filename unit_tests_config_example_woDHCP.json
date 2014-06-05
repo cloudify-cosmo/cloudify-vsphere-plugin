@@ -1,0 +1,49 @@
+{
+  "network_test": {
+    "vlan_id": 111,
+    "vswitch_name": "vSwitch0"
+  },
+  "server_test": {
+    "template": "ubuntu12-64",
+    "cpu_count": 2,
+    "memory_in_mb": 2048,
+    "datacenter_name": "Datacenter",
+    "resource_pool_name": "Resources",
+    "auto_placement": false,
+    "vswitch_name": "vSwitch0",
+    "networking": {
+        "use_dhcp": false,
+        "domain": "example.com",
+        "dns_servers": "8.8.8.8,8.8.4.4",
+        "management_network": {
+            "name": "3194",
+            "network": "192.168.5.0/24",
+            "gateway": "192.168.5.1",
+            "ip": "192.168.5.2"
+        },
+        "test_networks": [
+            {
+                "name": "Test1",
+                "vlan_id": 111,
+                "network": "192.168.6.0/24",
+                "gateway": "192.168.6.1",
+                "ip": "192.168.6.2"
+            },
+            {
+                "name": "Test2",
+                "vlan_id": 112,
+                "network": "192.168.7.0/24",
+                "gateway": "192.168.7.1",
+                "ip": "192.168.7.2"
+            },
+            {
+                "name": "Test3",
+                "vlan_id": 113,
+                "network": "192.168.8.0/24",
+                "gateway": "192.168.8.1",
+                "ip": "192.168.8.2"
+            }
+        ]
+    }
+  }
+}

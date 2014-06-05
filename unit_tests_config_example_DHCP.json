@@ -1,0 +1,35 @@
+{
+  "network_test": {
+    "vlan_id": 111,
+    "vswitch_name": "vSwitch0"
+  },
+  "server_test": {
+    "template": "ubuntu12-64",
+    "cpu_count": 2,
+    "memory_in_mb": 2048,
+    "datacenter_name": "Datacenter",
+    "resource_pool_name": "Resources",
+    "auto_placement": false,
+    "vswitch_name": "vSwitch0",
+    "networking": {
+        "use_dhcp": true,
+        "management_network": {
+            "name": "3194"
+        },
+        "test_networks": [
+            {
+                "name": "Test1",
+                "vlan_id": 111
+            },
+            {
+                "name": "Test2",
+                "vlan_id": 112
+            },
+            {
+                "name": "Test3",
+                "vlan_id": 113
+            }
+        ]
+    }
+  }
+}
