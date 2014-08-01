@@ -149,9 +149,12 @@ def get_state(ctx, server_client, **kwargs):
     if server_client.is_server_guest_running(server):
         ips = {}
         manager_network_ip = None
-        management_network_name = ctx.properties['networking']['management_network']['name']
+        management_network_name =\
+            ctx.properties['networking']['management_network']['name'].lower()
         for network in server.guest.net:
-            if management_network_name and network.network.lower() == management_network_name.lower():
+            network_name = network.network.lower()
+            if management_network_name and\
+                    (network_name == management_network_name):
                 manager_network_ip = network.ipAddress[0]
             ips[network.network] = network.ipAddress[0]
         ctx['networks'] = ips

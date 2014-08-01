@@ -18,6 +18,8 @@ import cloudify.manager
 import cloudify.decorators
 from netaddr import IPNetwork
 
+import re
+
 
 TASK_CHECK_SLEEP = 15
 
@@ -88,6 +90,9 @@ class VsphereClient(object):
                                ' using specified username and password:'
                                ' url:{0}, username:{1}. {2}.'
                                .format(url, username, e.message))
+
+    def is_server_suspended(self, server):
+        return server.summary.runtime.powerState.lower() == "suspended"
 
     def _get_content(self):
         if "content" not in locals():
@@ -353,6 +358,151 @@ class NetworkClient(VsphereClient):
         return result
 
 
+class StorageClient(VsphereClient):
+
+    def create_storage(self, vm_name, storage_size):
+        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+
+        if self.is_server_suspended(vm):
+            raise RuntimeError('Error during trying to create storage:'
+                               ' invalid VM state - \'suspended\'')
+
+        devices = []
+        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+        virtual_device_spec.operation =\
+            vim.vm.device.VirtualDeviceSpec.Operation.add
+        virtual_device_spec.fileOperation =\
+            vim.vm.device.VirtualDeviceSpec.FileOperation.create
+
+        virtual_device_spec.device = vim.vm.device.VirtualDisk()
+        virtual_device_spec.device.capacityInKB = storage_size*1024*1024
+        virtual_device_spec.device.capacityInBytes =\
+            storage_size*1024*1024*1024
+        virtual_device_spec.device.backing =\
+            vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
+        virtual_device_spec.device.backing.diskMode = 'Persistent'
+        virtual_device_spec.device.backing.datastore = vm.datastore[0]
+
+        vm_devices = vm.config.hardware.device
+        vm_disk_filename = None
+        vm_disk_filename_increment = 0
+        vm_disk_filename_cur = None
+
+        for vm_device in vm_devices:
+            # Search all virtual disks
+            if isinstance(vm_device, vim.vm.device.VirtualDisk):
+                # Generate filename (add increment to VMDK base name)
+                vm_disk_filename_cur = vm_device.backing.fileName
+                p = re.compile('^(\[.*\]\s+.*\/.*)\.vmdk$')
+                m = p.match(vm_disk_filename_cur)
+                if vm_disk_filename is None:
+                    vm_disk_filename = m.group(1)
+                p = re.compile('^(.*)_([0-9]+)\.vmdk$')
+                m = p.match(vm_disk_filename_cur)
+                if m:
+                    if m.group(2) is not None:
+                        increment = int(m.group(2))
+                        vm_disk_filename = m.group(1)
+                        if increment > vm_disk_filename_increment:
+                            vm_disk_filename_increment = increment
+
+        # Exit error if VMDK filename undefined
+        if vm_disk_filename is None:
+            raise RuntimeError('Error during trying to create storage:'
+                               ' Invalid VMDK name - \'{0}\''
+                               .format(vm_disk_filename_cur))
+
+        # Set target VMDK filename
+        vm_disk_filename =\
+            vm_disk_filename +\
+            "_" + str(vm_disk_filename_increment + 1) +\
+            ".vmdk"
+
+        # Search virtual SCSI controller
+        controller = None
+        num_controller = 0
+        controller_types = (
+            vim.vm.device.VirtualBusLogicController,
+            vim.vm.device.VirtualLsiLogicController,
+            vim.vm.device.VirtualLsiLogicSASController,
+            vim.vm.device.ParaVirtualSCSIController)
+        for vm_device in vm_devices:
+            if isinstance(vm_device, controller_types):
+                num_controller += 1
+                controller = vm_device
+        if num_controller != 1:
+            raise RuntimeError('Error during trying to create storage:'
+                               ' SCSI controller cannot be found or'
+                               ' is present more than once')
+
+        controller_key = controller.key
+
+        # Set new unit number (7 cannot be used, and limit is 15)
+        unit_number = None
+        vm_vdisk_number = len(controller.device)
+        if vm_vdisk_number < 7:
+            unit_number = vm_vdisk_number
+        elif vm_vdisk_number == 15:
+            raise RuntimeError('Error during trying to create storage:'
+                               ' one SCSI controller cannot have more'
+                               ' than 15 virtual disks')
+        else:
+            unit_number = vm_vdisk_number + 1
+
+        virtual_device_spec.device.backing.fileName = vm_disk_filename
+        virtual_device_spec.device.controllerKey = controller_key
+        virtual_device_spec.device.unitNumber = unit_number
+        devices.append(virtual_device_spec)
+
+        config_spec = vim.vm.ConfigSpec()
+        config_spec.deviceChange = devices
+
+        task = vm.Reconfigure(spec=config_spec)
+        self._wait_for_task(task)
+        return vm_disk_filename
+
+    def delete_storage(self, vm_name, storage_file_name):
+        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+
+        if self.is_server_suspended(vm):
+            raise RuntimeError('Error during trying to create storage:'
+                               ' invalid VM state - \'suspended\'')
+
+        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+        virtual_device_spec.operation =\
+            vim.vm.device.VirtualDeviceSpec.Operation.remove
+        virtual_device_spec.fileOperation =\
+            vim.vm.device.VirtualDeviceSpec.FileOperation.destroy
+
+        devices = []
+
+        device_to_delete = None
+
+        for device in vm.config.hardware.device:
+            if isinstance(device, vim.vm.device.VirtualDisk)\
+                    and device.backing.fileName == storage_file_name:
+                device_to_delete = device
+
+        virtual_device_spec.device = device_to_delete
+
+        devices.append(virtual_device_spec)
+
+        config_spec = vim.vm.ConfigSpec()
+        config_spec.deviceChange = devices
+
+        task = vm.Reconfigure(spec=config_spec)
+        self._wait_for_task(task)
+
+    def get_storage(self, vm_name, storage_file_name):
+        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+        if vm:
+            for device in vm.config.hardware.device:
+                if isinstance(device, vim.vm.device.VirtualDisk)\
+                        and device.backing.fileName == storage_file_name:
+                    return device
+        return None
+
+
 def _find_instanceof_in_kw(cls, kw):
     ret = [v for v in kw.values() if isinstance(v, cls)]
     if not ret:
@@ -392,6 +542,20 @@ def with_network_client(f):
             config = None
         network_client = NetworkClient().get(config=config)
         kw['network_client'] = network_client
+        return f(*args, **kw)
+    return wrapper
+
+
+def with_storage_client(f):
+    @wraps(f)
+    def wrapper(*args, **kw):
+        ctx = _find_context_in_kw(kw)
+        if ctx:
+            config = ctx.properties.get('connection_config')
+        else:
+            config = None
+        storage_client = StorageClient().get(config=config)
+        kw['storage_client'] = storage_client
         return f(*args, **kw)
     return wrapper
 
@@ -504,3 +668,16 @@ class TestCase(unittest.TestCase):
     @with_server_client
     def is_server_stopped(self, server, server_client):
         return server_client.is_server_poweredoff(server)
+
+    @with_storage_client
+    def assertThereIsStorageAndGet(
+            self, vm_name, storage_file_name, storage_client):
+        storage = storage_client.get_storage(vm_name, storage_file_name)
+        self.assertIsNotNone(storage)
+        return storage
+
+    @with_storage_client
+    def assertThereIsNoStorage(
+            self, vm_name, storage_file_name, storage_client):
+        storage = storage_client.get_storage(vm_name, storage_file_name)
+        self.assertIsNone(storage)

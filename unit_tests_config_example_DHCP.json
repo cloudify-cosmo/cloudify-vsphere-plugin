@@ -31,5 +31,9 @@
             }
         ]
     }
+  },
+  "storage_test": {
+    "vm_name": "StorageTest",
+    "storage_size": 1
   }
 }

@@ -17,15 +17,14 @@ setup(
     packages=[
         'vsphere_plugin_common',
         'server_plugin',
-        'network_plugin'
+        'network_plugin',
+        'storage_plugin'
     ],
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
     install_requires=[
         "cloudify-plugins-common",
         "pyvmomi",
-        "atexit",
-        "time"
     ],
     test_requires=[
         "nose"
