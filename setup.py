@@ -21,5 +21,6 @@ setup(
     install_requires=[
         "cloudify-plugins-common>=3.0",
         "pyvmomi",
+        "netaddr",
     ]
 )
