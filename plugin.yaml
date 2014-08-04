@@ -24,7 +24,6 @@ types:
             - connection_config: {}
         interfaces:
             cloudify.interfaces.lifecycle:
-                - create: server_plugin.server.create
                 - start: server_plugin.server.start
                 - stop: server_plugin.server.stop
                 - shutdown_guest: server_plugin.server.shutdown_guest
