@@ -2,8 +2,10 @@ __author__ = 'Oleksandr_Raskosov'
 
 
 import unittest
-import server_plugin.server as server_plugin
-import vsphere_plugin_common as common
+from vsphere_plugin_common import (TestCase,
+                                   TestsConfig)
+import server_plugin.server
+
 import time
 
 from cloudify.context import ContextCapabilities
@@ -15,13 +17,12 @@ WAIT_FACTOR = 2
 WAIT_COUNT = 6
 
 
-_tests_config = common.TestsConfig().get()
+_tests_config = TestsConfig().get()
 server_config = _tests_config['server_test']
 
 
-class VsphereServerTest(common.TestCase):
+class VsphereServerTest(TestCase):
 
-    @unittest.skip("not changed yet")
     def test_server(self):
         self.logger.debug("\nServer test started\n")
 
@@ -71,19 +72,19 @@ class VsphereServerTest(common.TestCase):
         self.logger.debug("Check there is no server \'{0}\'".format(name))
         self.assertThereIsNoServer(name)
         self.logger.debug("Create server \'{0}\'".format(name))
-        server_plugin.create(ctx)
+        server_plugin.server.create(ctx)
         self.logger.debug("Check server \'{0}\' is created".format(name))
         server = self.assertThereIsOneServerAndGet(name)
         self.logger.debug("Check server \'{0}\' is started".format(name))
         self.assertServerIsStarted(server)
 
         self.logger.debug("Stop server \'{0}\'".format(name))
-        server_plugin.stop(ctx)
+        server_plugin.server.stop(ctx)
         self.logger.debug("Check server \'{0}\' is stopped".format(name))
         self.assertServerIsStopped(server)
 
         self.logger.debug("Start server \'{0}\'".format(name))
-        server_plugin.start(ctx)
+        server_plugin.server.start(ctx)
         self.logger.debug("Check server \'{0}\' is started".format(name))
         self.assertServerIsStarted(server)
 
@@ -98,7 +99,7 @@ class VsphereServerTest(common.TestCase):
             time.sleep(wait)
             wait *= WAIT_FACTOR
         self.logger.debug("Shutdown server \'{0}\' guest".format(name))
-        server_plugin.shutdown_guest(ctx)
+        server_plugin.server.shutdown_guest(ctx)
         wait = WAIT_START
         for attempt in range(1, WAIT_COUNT + 1):
             if not self.is_server_guest_running(server):
@@ -124,11 +125,12 @@ class VsphereServerTest(common.TestCase):
         self.assertServerIsStopped(server)
 
         self.logger.debug("Delete server \'{0}\'".format(name))
-        server_plugin.delete(ctx)
+        server_plugin.server.delete(ctx)
         self.logger.debug("Check there is no server \'{0}\'".format(name))
         self.assertThereIsNoServer(name)
         self.logger.debug("\nServer test finished\n")
 
+    @unittest.skip("not changed yet")
     def test_server_with_network(self):
         self.logger.debug("\nServer test with network started\n")
 
@@ -204,7 +206,7 @@ class VsphereServerTest(common.TestCase):
         self.logger.debug("Check there is no server \'{0}\'".format(name))
         self.assertThereIsNoServer(name)
         self.logger.debug("Create server \'{0}\'".format(name))
-        server_plugin.create(ctx)
+        server_plugin.server.create(ctx)
         self.logger.debug("Check server \'{0}\' is created".format(name))
         server = self.assertThereIsOneServerAndGet(name)
         self.logger.debug("Check server \'{0}\' connected networks"

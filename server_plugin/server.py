@@ -2,8 +2,8 @@ __author__ = 'Oleksandr_Raskosov'
 
 
 from cloudify.decorators import operation
-import vsphere_plugin_common
-from vsphere_plugin_common import with_server_client
+from vsphere_plugin_common import (with_server_client,
+                                   NetworkClient)
 
 
 VSPHERE_SERVER_ID = 'vsphere_server_id'
@@ -51,7 +51,7 @@ def create_new_server(ctx, server_client):
         # Known limitation
         raise RuntimeError("vSphere server with multi-NIC requires "
                            "'management_network' which was not supplied")
-    network_client = vsphere_plugin_common.NetworkClient().get(
+    network_client = NetworkClient().get(
         config=ctx.properties.get('connection_config'))
     nics = None
     if use_dhcp:
