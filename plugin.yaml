@@ -20,8 +20,8 @@ types:
         derived_from: cloudify.types.host
         properties:
             - server
-            - management_network_name: ''
-            - connection_config: {}
+            - networking
+            - connection_config
         interfaces:
             cloudify.interfaces.lifecycle:
                 - start: server_plugin.server.start

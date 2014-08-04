@@ -24,7 +24,7 @@ def create_new_server(ctx, server_client):
 
     if ('networking' in ctx.properties) and\
             ctx.properties['networking']:
-        networking_properties = ctx.properties['networking']
+        networking_properties = ctx.properties.get('networking')
         use_dhcp = networking_properties['use_dhcp']
         if 'domain' in networking_properties:
             domain = networking_properties['domain']
