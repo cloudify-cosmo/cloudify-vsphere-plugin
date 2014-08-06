@@ -9,11 +9,11 @@ plugins:
     server_plugin:
         derived_from: cloudify.plugins.manager_plugin
         properties:
-            url: https://github.com/AlexRaskosov/cloudify-vsphere-plugin-1/archive/develop.zip
+            url: http://37.58.121.34:8080/cloudify-vsphere-plugin-1-develop.zip
     network_plugin:
         derived_from: cloudify.plugins.manager_plugin
         properties:
-            url: https://github.com/AlexRaskosov/cloudify-vsphere-plugin-1/archive/develop.zip
+            url: http://37.58.121.34:8080/cloudify-vsphere-plugin-1-develop.zip
 
 types:
     cloudify.vsphere.server:
