@@ -72,7 +72,7 @@ class VsphereServerTest(TestCase):
         self.logger.debug("Check there is no server \'{0}\'".format(name))
         self.assertThereIsNoServer(name)
         self.logger.debug("Create server \'{0}\'".format(name))
-        server_plugin.server.create(ctx)
+        server_plugin.server.start(ctx)
         self.logger.debug("Check server \'{0}\' is created".format(name))
         server = self.assertThereIsOneServerAndGet(name)
         self.logger.debug("Check server \'{0}\' is started".format(name))
