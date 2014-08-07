@@ -281,39 +281,52 @@ class ServerClient(VsphereClient):
     def get_server_list(self):
         return self.get_obj_list([vim.VirtualMachine])
 
-    def place_vm(self, auto_placement):
+    def place_vm(self, auto_placement, except_datastores=[]):
         selected_datastore = None
         selected_host = None
         selected_host_memory = 0
         selected_host_memory_used = 0
         datastore_list = self.get_obj_list([vim.Datastore])
+        if len(except_datastores) == len(datastore_list):
+            raise RuntimeError("Error during trying to place VM:"
+                               " datastore and host can't be selected")
         for datastore in datastore_list:
-            if selected_datastore is None:
-                selected_datastore = datastore
-            elif datastore.info.freeSpace > selected_datastore.info.freeSpace:
-                selected_datastore = datastore
+            if datastore._moId not in except_datastores:
+                if selected_datastore is None:
+                    selected_datastore = datastore
+                elif datastore.info.freeSpace > selected_datastore.info.freeSpace:
+                    selected_datastore = datastore
+
+        if selected_datastore is None:
+            raise RuntimeError("Error during placing VM: no datastore found")
 
         if auto_placement:
             return None, selected_datastore
 
         for host_mount in selected_datastore.host:
             host = host_mount.key
-            if selected_host is None:
-                selected_host = host
-            else:
-                host_memory = host.hardware.memorySize
-                host_memory_used = 0
-                for vm in host.vm:
-                    if not vm.summary.config.template:
-                        host_memory_used += vm.summary.config.memorySizeMb
-
-                host_memory_delta = host_memory - host_memory_used
-                selected_host_memory_delta =\
-                    selected_host_memory - selected_host_memory_used
-                if host_memory_delta > selected_host_memory_delta:
+            if host.overallStatus != vim.ManagedEntity.Status.red:
+                if selected_host is None:
                     selected_host = host
-                    selected_host_memory = host_memory
-                    selected_host_memory_used = host_memory_used
+                else:
+                    host_memory = host.hardware.memorySize
+                    host_memory_used = 0
+                    for vm in host.vm:
+                        if not vm.summary.config.template:
+                            host_memory_used += vm.summary.config.memorySizeMB
+
+                    host_memory_delta = host_memory - host_memory_used
+                    selected_host_memory_delta =\
+                        selected_host_memory - selected_host_memory_used
+                    if host_memory_delta > selected_host_memory_delta:
+                        selected_host = host
+                        selected_host_memory = host_memory
+                        selected_host_memory_used = host_memory_used
+
+        if selected_host is None:
+            except_datastores.append(selected_datastore._moId)
+            return self.place_vm(auto_placement, except_datastores)
+
         return selected_host, selected_datastore
 
     def _wait_vm_running(self, task):
