@@ -34,6 +34,10 @@ def create_new_server(ctx, server_client):
                 and networking_properties['management_network']:
             networks.append(networking_properties['management_network'])
             management_set = True
+        if 'connected_networks' in networking_properties:
+            cntd_networks = networking_properties['connected_networks']
+            for x in cntd_networks['name'].split(','):
+                networks.append({'name': x.strip()})
 
     network_nodes_runtime_properties = ctx.capabilities.get_all().values()
     if network_nodes_runtime_properties and not management_set:
