@@ -18,7 +18,8 @@ __author__ = 'Oleksandr_Raskosov'
 
 
 from cloudify.decorators import operation
-from vsphere_plugin_common import with_network_client
+from vsphere_plugin_common import (with_network_client,
+                                   transform_resource_name)
 
 
 @operation
@@ -28,6 +29,7 @@ def create(ctx, network_client, **kwargs):
         'name': ctx.node_id,
     }
     network.update(ctx.properties['network'])
+    transform_resource_name(network, ctx)
 
     port_group_name = network['name']
     vlan_id = network['vlan_id']

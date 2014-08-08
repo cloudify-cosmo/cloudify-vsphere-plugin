@@ -30,6 +30,7 @@ from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
 import atexit
 
+import cloudify
 import cloudify.manager
 import cloudify.decorators
 from netaddr import IPNetwork
@@ -40,6 +41,33 @@ import re
 TASK_CHECK_SLEEP = 15
 
 PREFIX_RANDOM_CHARS = 3
+
+
+def transform_resource_name(res, ctx):
+
+    if isinstance(res, basestring):
+        res = {'name': res}
+
+    if not isinstance(res, dict):
+        raise ValueError("transform_resource_name() expects either string or "
+                         "dict as the first parameter")
+
+    pfx = ctx.bootstrap_context.resources_prefix
+
+    if not pfx:
+        return res['name']
+
+    name = res['name']
+    res['name'] = pfx + name
+
+    if name.startswith(pfx):
+        ctx.logger.warn("Prefixing resource '{0}' with '{1}' but it "
+                        "already has this prefix".format(name, pfx))
+    else:
+        ctx.logger.info("Transformed resource name '{0}' to '{1}'".format(
+                        name, res['name']))
+
+    return res['name']
 
 
 class Config(object):
@@ -308,9 +336,11 @@ class ServerClient(VsphereClient):
                                " datastore and host can't be selected")
         for datastore in datastore_list:
             if datastore._moId not in except_datastores:
+                dtstr_free_spc = datastore.info.freeSpace
+                selected_dtstr_free_spc = selected_datastore.info.freeSpace
                 if selected_datastore is None:
                     selected_datastore = datastore
-                elif datastore.info.freeSpace > selected_datastore.info.freeSpace:
+                elif dtstr_free_spc > selected_dtstr_free_spc:
                     selected_datastore = datastore
 
         if selected_datastore is None:

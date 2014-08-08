@@ -19,17 +19,22 @@ __author__ = 'Oleksandr_Raskosov'
 
 from cloudify.decorators import operation
 from vsphere_plugin_common import (with_server_client,
-                                   NetworkClient)
+                                   NetworkClient,
+                                   transform_resource_name)
 
 
 VSPHERE_SERVER_ID = 'vsphere_server_id'
 
 
 def create_new_server(ctx, server_client):
+    def rename(name):
+        return transform_resource_name(name, ctx)
+
     server = {
         'name': ctx.node_id,
     }
     server.update(ctx.properties['server'])
+    transform_resource_name(server, ctx)
 
     vm_name = server['name']
     networks = []
@@ -48,12 +53,13 @@ def create_new_server(ctx, server_client):
             dns_servers = networking_properties['dns_servers']
         if ('management_network' in networking_properties)\
                 and networking_properties['management_network']:
-            networks.append(networking_properties['management_network'])
+            networks.append(
+                rename(networking_properties['management_network']))
             management_set = True
         if 'connected_networks' in networking_properties:
             cntd_networks = networking_properties['connected_networks']
             for x in cntd_networks.split(','):
-                networks.append({'name': x.strip()})
+                networks.append({'name': rename(x.strip())})
 
     network_nodes_runtime_properties = ctx.capabilities.get_all().values()
     if network_nodes_runtime_properties and not management_set:

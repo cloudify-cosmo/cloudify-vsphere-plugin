@@ -18,7 +18,8 @@ __author__ = 'Oleksandr_Raskosov'
 
 
 from cloudify.decorators import operation
-from vsphere_plugin_common import with_storage_client
+from vsphere_plugin_common import (with_storage_client,
+                                   transform_resource_name)
 
 
 VSPHERE_STORAGE_FILE_NAME = 'vsphere_storage_file_name'
@@ -31,6 +32,7 @@ def create(ctx, storage_client, **kwargs):
         'name': ctx.node_id,
     }
     storage.update(ctx.properties['storage'])
+    transform_resource_name(storage, ctx)
 
     storage_size = storage['storage_size']
     capabilities = ctx.capabilities.get_all().values()
