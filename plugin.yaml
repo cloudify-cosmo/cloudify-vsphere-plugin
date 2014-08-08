@@ -41,6 +41,19 @@ types:
                 - create: network_plugin.network.create
                 - delete: network_plugin.network.delete
 
+    cloudify.vsphere.storage:
+        derived_from: cloudify.types.volume
+        properties:
+            - storage
+            - connection_config: {}
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                - create: storage_plugin.storage.create
+                - delete: storage_plugin.storage.delete
+
 relationships:
     cloudify.vsphere.server_connected_to_network:
+        derived_from: cloudify.relationships.connected_to
+
+    cloudify.vsphere.storage_connected_to_server:
         derived_from: cloudify.relationships.connected_to
