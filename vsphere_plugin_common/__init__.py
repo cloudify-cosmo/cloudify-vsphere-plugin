@@ -337,11 +337,12 @@ class ServerClient(VsphereClient):
         for datastore in datastore_list:
             if datastore._moId not in except_datastores:
                 dtstr_free_spc = datastore.info.freeSpace
-                selected_dtstr_free_spc = selected_datastore.info.freeSpace
                 if selected_datastore is None:
                     selected_datastore = datastore
-                elif dtstr_free_spc > selected_dtstr_free_spc:
-                    selected_datastore = datastore
+                else:
+                    selected_dtstr_free_spc = selected_datastore.info.freeSpace
+                    if dtstr_free_spc > selected_dtstr_free_spc:
+                        selected_datastore = datastore
 
         if selected_datastore is None:
             raise RuntimeError("Error during placing VM: no datastore found")
