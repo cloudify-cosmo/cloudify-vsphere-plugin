@@ -40,6 +40,7 @@ def create_new_server(ctx, server_client):
     networks = []
     management_set = False
     use_dhcp = True
+    switch_distributed = False
     domain = None
     dns_servers = None
 
@@ -47,6 +48,8 @@ def create_new_server(ctx, server_client):
             ctx.properties['networking']:
         networking_properties = ctx.properties.get('networking')
         use_dhcp = networking_properties['use_dhcp']
+        if 'switch_distributed' in networking_properties:
+            switch_distributed = networking_properties['switch_distributed']
         if 'domain' in networking_properties:
             domain = networking_properties['domain']
         if 'dns_servers' in networking_properties:
@@ -106,6 +109,7 @@ def create_new_server(ctx, server_client):
                                          resource_pool_name,
                                          template_name,
                                          vm_name,
+                                         switch_distributed,
                                          use_dhcp,
                                          domain,
                                          dns_servers)

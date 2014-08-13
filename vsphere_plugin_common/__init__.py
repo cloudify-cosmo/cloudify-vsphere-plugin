@@ -193,6 +193,7 @@ class ServerClient(VsphereClient):
                       resource_pool_name,
                       template_name,
                       vm_name,
+                      switch_distributed=False,
                       use_dhcp=True,
                       domain=None,
                       dns_servers=None):
@@ -225,15 +226,30 @@ class ServerClient(VsphereClient):
 
         for network in networks:
             network_name = network['name']
-            network_obj = self._get_obj_by_name([vim.Network], network_name)
+            if switch_distributed:
+                network_obj = self._get_obj_by_name(
+                    [vim.dvs.DistributedVirtualPortgroup], network_name)
+            else:
+                network_obj = self._get_obj_by_name([vim.Network], network_name)
             nicspec = vim.vm.device.VirtualDeviceSpec()
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
             nicspec.device = vim.vm.device.VirtualVmxnet3()
-            nicspec.device.backing = \
-                vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
-            nicspec.device.backing.network = network_obj
-            nicspec.device.backing.deviceName = network_name
+            if switch_distributed:
+                info = vim.vm.device.VirtualEthernetCard\
+                    .DistributedVirtualPortBackingInfo()
+                nicspec.device.backing = info
+                nicspec.device.backing.port =\
+                    vim.dvs.PortConnection()
+                nicspec.device.backing.port.switchUuid =\
+                    network_obj.config.distributedVirtualSwitch.uuid
+                nicspec.device.backing.port.portgroupKey =\
+                    network_obj.key
+            else:
+                nicspec.device.backing = \
+                    vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
+                nicspec.device.backing.network = network_obj
+                nicspec.device.backing.deviceName = network_name
             devices.append(nicspec)
 
             if not use_dhcp:
