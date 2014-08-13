@@ -193,7 +193,7 @@ class ServerClient(VsphereClient):
                       resource_pool_name,
                       template_name,
                       vm_name,
-                      switch_distributed=False,
+                      switch_distributed,
                       use_dhcp=True,
                       domain=None,
                       dns_servers=None):
