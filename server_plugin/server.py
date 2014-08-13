@@ -56,8 +56,8 @@ def create_new_server(ctx, server_client):
             dns_servers = networking_properties['dns_servers']
         if ('management_network' in networking_properties)\
                 and networking_properties['management_network']:
-            networks.append(
-                rename(networking_properties['management_network']))
+            networks.append({'name': rename(networking_properties[
+                'management_network'])})
             management_set = True
         if 'connected_networks' in networking_properties:
             cntd_networks = networking_properties['connected_networks']
