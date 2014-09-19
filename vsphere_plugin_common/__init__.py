@@ -392,6 +392,15 @@ class ServerClient(VsphereClient):
 
         return selected_host, selected_datastore
 
+    def resize_server(self, server, cpus=None, memory=None):
+        config = vim.vm.ConfigSpec()
+        if cpus:
+            config.numCPUs = cpus
+        if memory:
+            config.memoryMB = memory
+        task = server.ReconfigVM_Task(config)
+        self._wait_for_task(task)
+
     def _wait_vm_running(self, task):
         self._wait_for_task(task)
         while not task.info.result.guest.guestState == "running"\

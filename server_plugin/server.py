@@ -181,6 +181,27 @@ def get_state(ctx, server_client, **kwargs):
     return False
 
 
+@operation
+@with_server_client
+def resize(ctx, server_client, **kwargs):
+    server = get_server_by_context(server_client, ctx)
+    if server is None:
+        raise RuntimeError(
+            "Cannot resize server - server doesn't exist for node: {0}"
+            .format(ctx.node_id))
+
+    update = {
+        'cpus': ctx.runtime_properties.get('cpus'),
+        'memory': ctx.runtime_properties.get('memory')
+        }
+
+    if any(update.values()):
+        server_client.resize_server(server, **update)
+    else:
+        # TODO(ochyrko): what to do here?
+        pass
+
+
 def get_server_by_context(server_client, ctx):
     if VSPHERE_SERVER_ID in ctx:
         return server_client.get_server_by_id(ctx[VSPHERE_SERVER_ID])
