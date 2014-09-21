@@ -1,57 +1,75 @@
+#########
+# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  * See the License for the specific language governing permissions and
+#  * limitations under the License.
+
+
 __author__ = 'Oleksandr_Raskosov'
 
 
 from cloudify.decorators import operation
-import vsphere_plugin_common
-from vsphere_plugin_common import with_server_client
+from vsphere_plugin_common import (with_server_client,
+                                   NetworkClient,
+                                   transform_resource_name)
 
 
 VSPHERE_SERVER_ID = 'vsphere_server_id'
 
 
-@operation
-@with_server_client
-def create(ctx, server_client, **kwargs):
-    server = get_server_by_context(server_client, ctx)
-    if server is not None:
-        server.start()
-        return
-
-    create_new_server(ctx, server_client)
-
-
 def create_new_server(ctx, server_client):
+    def rename(name):
+        return transform_resource_name(name, ctx)
+
     server = {
         'name': ctx.node_id,
     }
     server.update(ctx.properties['server'])
+    transform_resource_name(server, ctx)
 
     vm_name = server['name']
     networks = []
     management_set = False
     use_dhcp = True
+    switch_distributed = False
     domain = None
     dns_servers = None
 
     if ('networking' in ctx.properties) and\
             ctx.properties['networking']:
-        networking_properties = ctx.properties['networking']
+        networking_properties = ctx.properties.get('networking')
         use_dhcp = networking_properties['use_dhcp']
+        if 'switch_distributed' in networking_properties:
+            switch_distributed = networking_properties['switch_distributed']
         if 'domain' in networking_properties:
             domain = networking_properties['domain']
         if 'dns_servers' in networking_properties:
             dns_servers = networking_properties['dns_servers']
         if ('management_network' in networking_properties)\
                 and networking_properties['management_network']:
-            networks.append(networking_properties['management_network'])
+            networks.append({'name': rename(networking_properties[
+                'management_network'])})
             management_set = True
+        if 'connected_networks' in networking_properties:
+            cntd_networks = networking_properties['connected_networks']
+            for x in cntd_networks.split(','):
+                networks.append({'name': rename(x.strip())})
 
     network_nodes_runtime_properties = ctx.capabilities.get_all().values()
     if network_nodes_runtime_properties and not management_set:
         # Known limitation
         raise RuntimeError("vSphere server with multi-NIC requires "
                            "'management_network' which was not supplied")
-    network_client = vsphere_plugin_common.NetworkClient().get(
+    network_client = NetworkClient().get(
         config=ctx.properties.get('connection_config'))
     nics = None
     if use_dhcp:
@@ -91,6 +109,7 @@ def create_new_server(ctx, server_client):
                                          resource_pool_name,
                                          template_name,
                                          vm_name,
+                                         switch_distributed,
                                          use_dhcp,
                                          domain,
                                          dns_servers)
@@ -102,11 +121,10 @@ def create_new_server(ctx, server_client):
 @with_server_client
 def start(ctx, server_client, **kwargs):
     server = get_server_by_context(server_client, ctx)
-    if server is None:
-        raise RuntimeError(
-            "Cannot start server - server doesn't exist for node: {0}"
-            .format(ctx.node_id))
-    server_client.start_server(server)
+    if server is not None:
+        server_client.start_server(server)
+
+    create_new_server(ctx, server_client)
 
 
 @operation
@@ -149,9 +167,12 @@ def get_state(ctx, server_client, **kwargs):
     if server_client.is_server_guest_running(server):
         ips = {}
         manager_network_ip = None
-        management_network_name = ctx.properties['networking']['management_network']['name']
+        management_network_name =\
+            ctx.properties['networking']['management_network']['name'].lower()
         for network in server.guest.net:
-            if management_network_name and network.network.lower() == management_network_name.lower():
+            network_name = network.network.lower()
+            if management_network_name and\
+                    (network_name == management_network_name):
                 manager_network_ip = network.ipAddress[0]
             ips[network.network] = network.ipAddress[0]
         ctx['networks'] = ips

@@ -1,8 +1,25 @@
+#########
+# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  * See the License for the specific language governing permissions and
+#  * limitations under the License.
+
+
 __author__ = 'Oleksandr_Raskosov'
 
 
 from cloudify.decorators import operation
-from vsphere_plugin_common import with_network_client
+from vsphere_plugin_common import (with_network_client,
+                                   transform_resource_name)
 
 
 @operation
@@ -12,6 +29,7 @@ def create(ctx, network_client, **kwargs):
         'name': ctx.node_id,
     }
     network.update(ctx.properties['network'])
+    transform_resource_name(network, ctx)
 
     port_group_name = network['name']
     vlan_id = network['vlan_id']

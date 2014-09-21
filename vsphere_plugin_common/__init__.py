@@ -1,3 +1,19 @@
+#########
+# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#       http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  * See the License for the specific language governing permissions and
+#  * limitations under the License.
+
+
 __author__ = 'Oleksandr_Raskosov'
 
 
@@ -14,14 +30,44 @@ from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
 import atexit
 
+import cloudify
 import cloudify.manager
 import cloudify.decorators
 from netaddr import IPNetwork
+
+import re
 
 
 TASK_CHECK_SLEEP = 15
 
 PREFIX_RANDOM_CHARS = 3
+
+
+def transform_resource_name(res, ctx):
+
+    if isinstance(res, basestring):
+        res = {'name': res}
+
+    if not isinstance(res, dict):
+        raise ValueError("transform_resource_name() expects either string or "
+                         "dict as the first parameter")
+
+    pfx = ctx.bootstrap_context.resources_prefix
+
+    if not pfx:
+        return res['name']
+
+    name = res['name']
+    res['name'] = pfx + name
+
+    if name.startswith(pfx):
+        ctx.logger.warn("Prefixing resource '{0}' with '{1}' but it "
+                        "already has this prefix".format(name, pfx))
+    else:
+        ctx.logger.info("Transformed resource name '{0}' to '{1}'".format(
+                        name, res['name']))
+
+    return res['name']
 
 
 class Config(object):
@@ -89,6 +135,9 @@ class VsphereClient(object):
                                ' url:{0}, username:{1}. {2}.'
                                .format(url, username, e.message))
 
+    def is_server_suspended(self, server):
+        return server.summary.runtime.powerState.lower() == "suspended"
+
     def _get_content(self):
         if "content" not in locals():
             self.content = self.si.RetrieveContent()
@@ -144,6 +193,7 @@ class ServerClient(VsphereClient):
                       resource_pool_name,
                       template_name,
                       vm_name,
+                      switch_distributed,
                       use_dhcp=True,
                       domain=None,
                       dns_servers=None):
@@ -176,15 +226,30 @@ class ServerClient(VsphereClient):
 
         for network in networks:
             network_name = network['name']
-            network_obj = self._get_obj_by_name([vim.Network], network_name)
+            if switch_distributed:
+                network_obj = self._get_obj_by_name(
+                    [vim.dvs.DistributedVirtualPortgroup], network_name)
+            else:
+                network_obj = self._get_obj_by_name([vim.Network], network_name)
             nicspec = vim.vm.device.VirtualDeviceSpec()
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
             nicspec.device = vim.vm.device.VirtualVmxnet3()
-            nicspec.device.backing = \
-                vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
-            nicspec.device.backing.network = network_obj
-            nicspec.device.backing.deviceName = network_name
+            if switch_distributed:
+                info = vim.vm.device.VirtualEthernetCard\
+                    .DistributedVirtualPortBackingInfo()
+                nicspec.device.backing = info
+                nicspec.device.backing.port =\
+                    vim.dvs.PortConnection()
+                nicspec.device.backing.port.switchUuid =\
+                    network_obj.config.distributedVirtualSwitch.uuid
+                nicspec.device.backing.port.portgroupKey =\
+                    network_obj.key
+            else:
+                nicspec.device.backing = \
+                    vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
+                nicspec.device.backing.network = network_obj
+                nicspec.device.backing.deviceName = network_name
             devices.append(nicspec)
 
             if not use_dhcp:
@@ -276,39 +341,55 @@ class ServerClient(VsphereClient):
     def get_server_list(self):
         return self.get_obj_list([vim.VirtualMachine])
 
-    def place_vm(self, auto_placement):
+    def place_vm(self, auto_placement, except_datastores=[]):
         selected_datastore = None
         selected_host = None
         selected_host_memory = 0
         selected_host_memory_used = 0
         datastore_list = self.get_obj_list([vim.Datastore])
+        if len(except_datastores) == len(datastore_list):
+            raise RuntimeError("Error during trying to place VM:"
+                               " datastore and host can't be selected")
         for datastore in datastore_list:
-            if selected_datastore is None:
-                selected_datastore = datastore
-            elif datastore.info.freeSpace > selected_datastore.info.freeSpace:
-                selected_datastore = datastore
+            if datastore._moId not in except_datastores:
+                dtstr_free_spc = datastore.info.freeSpace
+                if selected_datastore is None:
+                    selected_datastore = datastore
+                else:
+                    selected_dtstr_free_spc = selected_datastore.info.freeSpace
+                    if dtstr_free_spc > selected_dtstr_free_spc:
+                        selected_datastore = datastore
+
+        if selected_datastore is None:
+            raise RuntimeError("Error during placing VM: no datastore found")
 
         if auto_placement:
             return None, selected_datastore
 
         for host_mount in selected_datastore.host:
             host = host_mount.key
-            if selected_host is None:
-                selected_host = host
-            else:
-                host_memory = host.hardware.memorySize
-                host_memory_used = 0
-                for vm in host.vm:
-                    if not vm.summary.config.template:
-                        host_memory_used += vm.summary.config.memorySizeMb
-
-                host_memory_delta = host_memory - host_memory_used
-                selected_host_memory_delta =\
-                    selected_host_memory - selected_host_memory_used
-                if host_memory_delta > selected_host_memory_delta:
+            if host.overallStatus != vim.ManagedEntity.Status.red:
+                if selected_host is None:
                     selected_host = host
-                    selected_host_memory = host_memory
-                    selected_host_memory_used = host_memory_used
+                else:
+                    host_memory = host.hardware.memorySize
+                    host_memory_used = 0
+                    for vm in host.vm:
+                        if not vm.summary.config.template:
+                            host_memory_used += vm.summary.config.memorySizeMB
+
+                    host_memory_delta = host_memory - host_memory_used
+                    selected_host_memory_delta =\
+                        selected_host_memory - selected_host_memory_used
+                    if host_memory_delta > selected_host_memory_delta:
+                        selected_host = host
+                        selected_host_memory = host_memory
+                        selected_host_memory_used = host_memory_used
+
+        if selected_host is None:
+            except_datastores.append(selected_datastore._moId)
+            return self.place_vm(auto_placement, except_datastores)
+
         return selected_host, selected_datastore
 
     def _wait_vm_running(self, task):
@@ -353,6 +434,151 @@ class NetworkClient(VsphereClient):
         return result
 
 
+class StorageClient(VsphereClient):
+
+    def create_storage(self, vm_name, storage_size):
+        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+
+        if self.is_server_suspended(vm):
+            raise RuntimeError('Error during trying to create storage:'
+                               ' invalid VM state - \'suspended\'')
+
+        devices = []
+        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+        virtual_device_spec.operation =\
+            vim.vm.device.VirtualDeviceSpec.Operation.add
+        virtual_device_spec.fileOperation =\
+            vim.vm.device.VirtualDeviceSpec.FileOperation.create
+
+        virtual_device_spec.device = vim.vm.device.VirtualDisk()
+        virtual_device_spec.device.capacityInKB = storage_size*1024*1024
+        virtual_device_spec.device.capacityInBytes =\
+            storage_size*1024*1024*1024
+        virtual_device_spec.device.backing =\
+            vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
+        virtual_device_spec.device.backing.diskMode = 'Persistent'
+        virtual_device_spec.device.backing.datastore = vm.datastore[0]
+
+        vm_devices = vm.config.hardware.device
+        vm_disk_filename = None
+        vm_disk_filename_increment = 0
+        vm_disk_filename_cur = None
+
+        for vm_device in vm_devices:
+            # Search all virtual disks
+            if isinstance(vm_device, vim.vm.device.VirtualDisk):
+                # Generate filename (add increment to VMDK base name)
+                vm_disk_filename_cur = vm_device.backing.fileName
+                p = re.compile('^(\[.*\]\s+.*\/.*)\.vmdk$')
+                m = p.match(vm_disk_filename_cur)
+                if vm_disk_filename is None:
+                    vm_disk_filename = m.group(1)
+                p = re.compile('^(.*)_([0-9]+)\.vmdk$')
+                m = p.match(vm_disk_filename_cur)
+                if m:
+                    if m.group(2) is not None:
+                        increment = int(m.group(2))
+                        vm_disk_filename = m.group(1)
+                        if increment > vm_disk_filename_increment:
+                            vm_disk_filename_increment = increment
+
+        # Exit error if VMDK filename undefined
+        if vm_disk_filename is None:
+            raise RuntimeError('Error during trying to create storage:'
+                               ' Invalid VMDK name - \'{0}\''
+                               .format(vm_disk_filename_cur))
+
+        # Set target VMDK filename
+        vm_disk_filename =\
+            vm_disk_filename +\
+            "_" + str(vm_disk_filename_increment + 1) +\
+            ".vmdk"
+
+        # Search virtual SCSI controller
+        controller = None
+        num_controller = 0
+        controller_types = (
+            vim.vm.device.VirtualBusLogicController,
+            vim.vm.device.VirtualLsiLogicController,
+            vim.vm.device.VirtualLsiLogicSASController,
+            vim.vm.device.ParaVirtualSCSIController)
+        for vm_device in vm_devices:
+            if isinstance(vm_device, controller_types):
+                num_controller += 1
+                controller = vm_device
+        if num_controller != 1:
+            raise RuntimeError('Error during trying to create storage:'
+                               ' SCSI controller cannot be found or'
+                               ' is present more than once')
+
+        controller_key = controller.key
+
+        # Set new unit number (7 cannot be used, and limit is 15)
+        unit_number = None
+        vm_vdisk_number = len(controller.device)
+        if vm_vdisk_number < 7:
+            unit_number = vm_vdisk_number
+        elif vm_vdisk_number == 15:
+            raise RuntimeError('Error during trying to create storage:'
+                               ' one SCSI controller cannot have more'
+                               ' than 15 virtual disks')
+        else:
+            unit_number = vm_vdisk_number + 1
+
+        virtual_device_spec.device.backing.fileName = vm_disk_filename
+        virtual_device_spec.device.controllerKey = controller_key
+        virtual_device_spec.device.unitNumber = unit_number
+        devices.append(virtual_device_spec)
+
+        config_spec = vim.vm.ConfigSpec()
+        config_spec.deviceChange = devices
+
+        task = vm.Reconfigure(spec=config_spec)
+        self._wait_for_task(task)
+        return vm_disk_filename
+
+    def delete_storage(self, vm_name, storage_file_name):
+        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+
+        if self.is_server_suspended(vm):
+            raise RuntimeError('Error during trying to create storage:'
+                               ' invalid VM state - \'suspended\'')
+
+        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+        virtual_device_spec.operation =\
+            vim.vm.device.VirtualDeviceSpec.Operation.remove
+        virtual_device_spec.fileOperation =\
+            vim.vm.device.VirtualDeviceSpec.FileOperation.destroy
+
+        devices = []
+
+        device_to_delete = None
+
+        for device in vm.config.hardware.device:
+            if isinstance(device, vim.vm.device.VirtualDisk)\
+                    and device.backing.fileName == storage_file_name:
+                device_to_delete = device
+
+        virtual_device_spec.device = device_to_delete
+
+        devices.append(virtual_device_spec)
+
+        config_spec = vim.vm.ConfigSpec()
+        config_spec.deviceChange = devices
+
+        task = vm.Reconfigure(spec=config_spec)
+        self._wait_for_task(task)
+
+    def get_storage(self, vm_name, storage_file_name):
+        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+        if vm:
+            for device in vm.config.hardware.device:
+                if isinstance(device, vim.vm.device.VirtualDisk)\
+                        and device.backing.fileName == storage_file_name:
+                    return device
+        return None
+
+
 def _find_instanceof_in_kw(cls, kw):
     ret = [v for v in kw.values() if isinstance(v, cls)]
     if not ret:
@@ -392,6 +618,20 @@ def with_network_client(f):
             config = None
         network_client = NetworkClient().get(config=config)
         kw['network_client'] = network_client
+        return f(*args, **kw)
+    return wrapper
+
+
+def with_storage_client(f):
+    @wraps(f)
+    def wrapper(*args, **kw):
+        ctx = _find_context_in_kw(kw)
+        if ctx:
+            config = ctx.properties.get('connection_config')
+        else:
+            config = None
+        storage_client = StorageClient().get(config=config)
+        kw['storage_client'] = storage_client
         return f(*args, **kw)
     return wrapper
 
@@ -504,3 +744,16 @@ class TestCase(unittest.TestCase):
     @with_server_client
     def is_server_stopped(self, server, server_client):
         return server_client.is_server_poweredoff(server)
+
+    @with_storage_client
+    def assertThereIsStorageAndGet(
+            self, vm_name, storage_file_name, storage_client):
+        storage = storage_client.get_storage(vm_name, storage_file_name)
+        self.assertIsNotNone(storage)
+        return storage
+
+    @with_storage_client
+    def assertThereIsNoStorage(
+            self, vm_name, storage_file_name, storage_client):
+        storage = storage_client.get_storage(vm_name, storage_file_name)
+        self.assertIsNone(storage)
