@@ -230,7 +230,8 @@ class ServerClient(VsphereClient):
                 network_obj = self._get_obj_by_name(
                     [vim.dvs.DistributedVirtualPortgroup], network_name)
             else:
-                network_obj = self._get_obj_by_name([vim.Network], network_name)
+                network_obj = self._get_obj_by_name([vim.Network],
+                                                    network_name)
             nicspec = vim.vm.device.VirtualDeviceSpec()
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
@@ -398,7 +399,7 @@ class ServerClient(VsphereClient):
             config.numCPUs = cpus
         if memory:
             config.memoryMB = memory
-        task = server.ReconfigVM_Task(config)
+        task = server.Reconfigure(spec=config)
         self._wait_for_task(task)
 
     def _wait_vm_running(self, task):
@@ -586,6 +587,47 @@ class StorageClient(VsphereClient):
                         and device.backing.fileName == storage_file_name:
                     return device
         return None
+
+    def resize_storage(self, vm_name, storage_filename, storage_size):
+        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+
+        if self.is_server_suspended(vm):
+            raise RuntimeError('Error during trying to resize storage:'
+                               ' invalid VM state - \'suspended\'')
+
+        disk = None
+        devices = vm.config.hardware.device
+        for device in devices:
+            if (isinstance(device, vim.vm.device.VirtualDisk)
+                    and device.backing.fileName == storage_filename):
+                disk = device
+
+        if disk is None:
+            raise RuntimeError('Error during trying to resize storage:'
+                               ' storage not found')
+
+        updated_devices = []
+        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+        virtual_device_spec.operation =\
+            vim.vm.device.VirtualDeviceSpec.Operation.edit
+        virtual_device_spec.fileOperation =\
+            vim.vm.device.VirtualDeviceSpec.FileOperation.replace
+
+        virtual_device_spec.device = vim.vm.device.VirtualDisk()
+        virtual_device_spec.device.capacityInKB = storage_size*1024*1024
+        virtual_device_spec.device.capacityInBytes =\
+            storage_size*1024*1024*1024
+        virtual_device_spec.device.backing = disk.backing
+
+        virtual_device_spec.device.controllerKey = disk.controllerKey
+        virtual_device_spec.device.unitNumber = disk.unitNumber
+        updated_devices.append(virtual_device_spec)
+
+        config_spec = vim.vm.ConfigSpec()
+        config_spec.deviceChange = updated_devices
+
+        task = vm.Reconfigure(spec=config_spec)
+        self._wait_for_task(task)
 
 
 def _find_instanceof_in_kw(cls, kw):

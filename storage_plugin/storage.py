@@ -61,3 +61,23 @@ def delete(ctx, storage_client, **kwargs):
                            ' storage should be connected only to one VM')
     vm_name = capabilities[0]['node_id']
     storage_client.delete_storage(vm_name, ctx[VSPHERE_STORAGE_FILE_NAME])
+
+
+@operation
+@with_storage_client
+def resize(ctx, storage_client, **kwargs):
+    capabilities = ctx.capabilities.get_all().values()
+    if not capabilities:
+        raise RuntimeError('Error during trying to resize storage:'
+                           ' storage should be related to a VM,'
+                           ' but capabilities are empty')
+    if len(capabilities) > 1:
+        raise RuntimeError('Error during trying to resize storage:'
+                           ' storage should be connected only to one VM')
+    vm_name = capabilities[0]['node_id']
+    storage_size = ctx.runtime_properties.get('storage_size')
+    if not storage_size:
+        raise RuntimeError('Error during trying to resize storage:'
+                           ' new storage size wasn\'t specified')
+    storage_client.resize_storage(vm_name, ctx[VSPHERE_STORAGE_FILE_NAME],
+                                  storage_size)
