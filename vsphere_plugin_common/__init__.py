@@ -179,7 +179,8 @@ class VsphereClient(object):
         while task.info.state == vim.TaskInfo.State.running:
             time.sleep(TASK_CHECK_SLEEP)
         if not task.info.state == vim.TaskInfo.State.success:
-            raise RuntimeError("Error during executing task on vSphere.")
+            raise RuntimeError("Error during executing task on vSphere: '{0}'"
+                               .format(task.info.error))
 
 
 class ServerClient(VsphereClient):
@@ -269,6 +270,7 @@ class ServerClient(VsphereClient):
         vmconf.memoryMB = memory
         vmconf.cpuHotAddEnabled = True
         vmconf.memoryHotAddEnabled = True
+        vmconf.cpuHotRemoveEnabled = True
         vmconf.deviceChange = devices
         # Clone spec
         clonespec = vim.vm.CloneSpec()
@@ -395,6 +397,7 @@ class ServerClient(VsphereClient):
 
     def resize_server(self, server, cpus=None, memory=None):
         config = vim.vm.ConfigSpec()
+
         if cpus:
             config.numCPUs = cpus
         if memory:
@@ -569,6 +572,10 @@ class StorageClient(VsphereClient):
                     and device.backing.fileName == storage_file_name:
                 device_to_delete = device
 
+        if device_to_delete is None:
+            raise RuntimeError('Error during trying to delete storage:'
+                               ' storage not found')
+
         virtual_device_spec.device = device_to_delete
 
         devices.append(virtual_device_spec)
@@ -595,14 +602,14 @@ class StorageClient(VsphereClient):
             raise RuntimeError('Error during trying to resize storage:'
                                ' invalid VM state - \'suspended\'')
 
-        disk = None
+        disk_to_resize = None
         devices = vm.config.hardware.device
         for device in devices:
             if (isinstance(device, vim.vm.device.VirtualDisk)
                     and device.backing.fileName == storage_filename):
-                disk = device
+                disk_to_resize = device
 
-        if disk is None:
+        if disk_to_resize is None:
             raise RuntimeError('Error during trying to resize storage:'
                                ' storage not found')
 
@@ -610,17 +617,12 @@ class StorageClient(VsphereClient):
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
         virtual_device_spec.operation =\
             vim.vm.device.VirtualDeviceSpec.Operation.edit
-        virtual_device_spec.fileOperation =\
-            vim.vm.device.VirtualDeviceSpec.FileOperation.replace
 
-        virtual_device_spec.device = vim.vm.device.VirtualDisk()
+        virtual_device_spec.device = disk_to_resize
         virtual_device_spec.device.capacityInKB = storage_size*1024*1024
         virtual_device_spec.device.capacityInBytes =\
             storage_size*1024*1024*1024
-        virtual_device_spec.device.backing = disk.backing
 
-        virtual_device_spec.device.controllerKey = disk.controllerKey
-        virtual_device_spec.device.unitNumber = disk.unitNumber
         updated_devices.append(virtual_device_spec)
 
         config_spec = vim.vm.ConfigSpec()

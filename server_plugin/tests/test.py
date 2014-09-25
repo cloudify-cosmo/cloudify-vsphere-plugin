@@ -39,8 +39,8 @@ server_config = _tests_config['server_test']
 
 class VsphereServerTest(TestCase):
 
-    def test_server(self):
-        self.logger.debug("\nServer test started\n")
+    def setUp(self):
+        super(VsphereServerTest, self).setUp()
 
         name = self.name_prefix + 'server'
 
@@ -68,7 +68,7 @@ class VsphereServerTest(TestCase):
                     'ip': management_network['ip']
                 }
             }
-        ctx = MockCloudifyContext(
+        self.ctx = MockCloudifyContext(
             node_id=name,
             properties={
                 'networking': networking_properties,
@@ -85,23 +85,31 @@ class VsphereServerTest(TestCase):
             },
         )
 
-        self.logger.debug("Check there is no server \'{0}\'".format(name))
-        self.assertThereIsNoServer(name)
-        self.logger.debug("Create server \'{0}\'".format(name))
-        server_plugin.server.start(ctx)
-        self.logger.debug("Check server \'{0}\' is created".format(name))
-        server = self.assertThereIsOneServerAndGet(name)
-        self.logger.debug("Check server \'{0}\' is started".format(name))
+    def test_server(self):
+        self.logger.debug("\nServer test started\n")
+
+        self.logger.debug("Check there is no server \'{0}\'"
+                          .format(self.ctx.node_id))
+        self.assertThereIsNoServer(self.ctx.node_id)
+        self.logger.debug("Create server \'{0}\'".format(self.ctx.node_id))
+        server_plugin.server.start(self.ctx)
+        self.logger.debug("Check server \'{0}\' is created"
+                          .format(self.ctx.node_id))
+        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        self.logger.debug("Check server \'{0}\' is started"
+                          .format(self.ctx.node_id))
         self.assertServerIsStarted(server)
 
-        self.logger.debug("Stop server \'{0}\'".format(name))
-        server_plugin.server.stop(ctx)
-        self.logger.debug("Check server \'{0}\' is stopped".format(name))
+        self.logger.debug("Stop server \'{0}\'".format(self.ctx.node_id))
+        server_plugin.server.stop(self.ctx)
+        self.logger.debug("Check server \'{0}\' is stopped"
+                          .format(self.ctx.node_id))
         self.assertServerIsStopped(server)
 
-        self.logger.debug("Start server \'{0}\'".format(name))
-        server_plugin.server.start(ctx)
-        self.logger.debug("Check server \'{0}\' is started".format(name))
+        self.logger.debug("Start server \'{0}\'".format(self.ctx.node_id))
+        server_plugin.server.start(self.ctx)
+        self.logger.debug("Check server \'{0}\' is started"
+                          .format(self.ctx.node_id))
         self.assertServerIsStarted(server)
 
         wait = WAIT_START
@@ -111,11 +119,12 @@ class VsphereServerTest(TestCase):
             self.logger.debug(
                 "Waiting for server \'{0}\' to run guest. "
                 "Attempt #{1}, sleeping for {2} seconds".format(
-                    name, attempt, wait))
+                    self.ctx.node_id, attempt, wait))
             time.sleep(wait)
             wait *= WAIT_FACTOR
-        self.logger.debug("Shutdown server \'{0}\' guest".format(name))
-        server_plugin.server.shutdown_guest(ctx)
+        self.logger.debug("Shutdown server \'{0}\' guest"
+                          .format(self.ctx.node_id))
+        server_plugin.server.shutdown_guest(self.ctx)
         wait = WAIT_START
         for attempt in range(1, WAIT_COUNT + 1):
             if not self.is_server_guest_running(server):
@@ -123,10 +132,11 @@ class VsphereServerTest(TestCase):
             self.logger.debug(
                 "Waiting for server \'{0}\' to shutdown guest. "
                 "Attempt #{1}, sleeping for {2} seconds".format(
-                    name, attempt, wait))
+                    self.ctx.node_id, attempt, wait))
             time.sleep(wait)
             wait *= WAIT_FACTOR
-        self.logger.debug("Check server \'{0}\' guest is stopped".format(name))
+        self.logger.debug("Check server \'{0}\' guest is stopped"
+                          .format(self.ctx.node_id))
         self.assertServerGuestIsStopped(server)
         for attempt in range(1, WAIT_COUNT + 1):
             if self.is_server_stopped(server):
@@ -134,17 +144,64 @@ class VsphereServerTest(TestCase):
             self.logger.debug(
                 "Waiting for server \'{0}\' is stopped. "
                 "Attempt #{1}, sleeping for {2} seconds".format(
-                    name, attempt, wait))
+                    self.ctx.node_id, attempt, wait))
             time.sleep(wait)
             wait *= WAIT_FACTOR
-        self.logger.debug("Check server \'{0}\' is stopped".format(name))
+        self.logger.debug("Check server \'{0}\' is stopped"
+                          .format(self.ctx.node_id))
         self.assertServerIsStopped(server)
 
-        self.logger.debug("Delete server \'{0}\'".format(name))
-        server_plugin.server.delete(ctx)
-        self.logger.debug("Check there is no server \'{0}\'".format(name))
-        self.assertThereIsNoServer(name)
+        self.logger.debug("Delete server \'{0}\'".format(self.ctx.node_id))
+        server_plugin.server.delete(self.ctx)
+        self.logger.debug("Check there is no server \'{0}\'"
+                          .format(self.ctx.node_id))
+        self.assertThereIsNoServer(self.ctx.node_id)
         self.logger.debug("\nServer test finished\n")
+
+    def test_server_resize_up(self):
+        old_cpus = self.ctx.properties['server']['cpus']
+        old_memory = self.ctx.properties['server']['memory']
+        new_cpus = old_cpus + 1
+        new_memory = old_memory + 64
+
+        server_plugin.server.start(self.ctx)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        self.assertEqual(old_cpus, server.config.hardware.numCPU)
+        self.assertEqual(old_memory, server.config.hardware.memoryMB)
+        self.ctx.runtime_properties['cpus'] = new_cpus
+        self.ctx.runtime_properties['memory'] = new_memory
+
+        server_plugin.server.stop(self.ctx)
+
+        server_plugin.server.resize(self.ctx)
+
+        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        self.assertEqual(new_cpus, server.config.hardware.numCPU)
+        self.assertEqual(new_memory, server.config.hardware.memoryMB)
+
+    def test_server_resize_down(self):
+        old_cpus = self.ctx.properties['server']['cpus']
+        self.assertTrue(
+            old_cpus > 1,
+            "To test server shrink we need more than 1 cpu predefined")
+        old_memory = self.ctx.properties['server']['memory']
+        new_cpus = old_cpus - 1
+        new_memory = old_memory - 64
+
+        server_plugin.server.start(self.ctx)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        self.assertEqual(old_cpus, server.config.hardware.numCPU)
+        self.assertEqual(old_memory, server.config.hardware.memoryMB)
+        self.ctx.runtime_properties['cpus'] = new_cpus
+        self.ctx.runtime_properties['memory'] = new_memory
+
+        server_plugin.server.stop(self.ctx)
+
+        server_plugin.server.resize(self.ctx)
+
+        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        self.assertEqual(new_cpus, server.config.hardware.numCPU)
+        self.assertEqual(new_memory, server.config.hardware.memoryMB)
 
     @unittest.skip("not changed yet")
     def test_server_with_network(self):
@@ -229,7 +286,3 @@ class VsphereServerTest(TestCase):
                           .format(name))
         self.assertEquals(len(test_networks)+1, len(server.network))
         self.logger.debug("\nServer test with network finished\n")
-
-
-if __name__ == '__main__':
-    unittest.main()
