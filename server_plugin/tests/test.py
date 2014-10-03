@@ -238,7 +238,8 @@ class VsphereServerTest(TestCase):
                     'ip': net['ip']
                 }
 
-        context_capabilities = ContextCapabilities(capabilities)
+        endpoint = None
+        context_capabilities = ContextCapabilities(endpoint, capabilities)
 
         management_network = networking['management_network']
         management_network_name = management_network['name']
