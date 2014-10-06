@@ -1,0 +1,225 @@
+tosca_definitions_version: cloudify_dsl_1_0
+
+imports:
+    - http://www.getcloudify.org/spec/cloudify/3.1/types.yaml
+    - http://127.0.0.1/cloudify-vsphere-plugin/plugin.yaml
+    - http://www.getcloudify.org/spec/fabric-plugin/1.1/plugin.yaml
+
+
+inputs:
+    vsphere_username:
+        default: ''
+        type: string
+
+    vsphere_password:
+        default: ''
+        type: string
+
+    vsphere_url:
+        default: ''
+        type: string
+
+    vsphere_port:
+        default: 443
+        type: string
+
+    vsphere_datacenter_name:
+        default: Datacenter
+        type: string
+
+    vsphere_resource_pool_name:
+        default: Resources
+        type: string
+
+    manager_server_name:
+        default: cloudify-management-server
+        type: string
+
+    manager_server_cpus:
+        default: 2
+        type: string
+
+    manager_server_memory:
+        default: 4096
+        type: string
+
+    external_network_name:
+        default: management
+        type: string
+
+    external_network_use_dhcp:
+        default: true
+        type: boolean
+
+    external_network_cidr:
+        default: ''
+        type: string
+
+    external_network_gateway:
+        default: ''
+        type: string
+
+    external_network_ip:
+        default: ''
+        type: string
+
+    external_network_switch_distributed:
+        default: false
+        type: boolean
+
+    management_network_name:
+        default: management
+        type: string
+
+    management_network_use_dhcp:
+        default: true
+        type: boolean
+
+    management_network_cidr:
+        default: ''
+        type: string
+
+    management_network_gateway:
+        default: ''
+        type: string
+
+    management_network_ip:
+        default: ''
+        type: string
+
+    management_network_switch_distributed:
+        default: false
+        type: boolean
+
+    manager_public_key_name:
+        type: string
+
+    agent_public_key_name:
+        type: string
+
+    manager_server_user:
+        default: ubuntu
+        type: string
+
+    manager_server_user_home:
+        default: /home/ubuntu
+        type: string
+
+    manager_private_key_path:
+        default: ~/.ssh/cloudify-manager-kp.pem
+        type: string
+
+    agent_private_key_path:
+        default: ~/.ssh/cloudify-agent-kp.pem
+        type: string
+
+    cloudify_packages:
+        default:
+            server:
+                components_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/nightly/cloudify-components_amd64.deb
+                core_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/nightly/cloudify-core_amd64.deb
+                ui_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/nightly/cloudify-ui_amd64.deb
+            agents:
+                ubuntu_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/nightly/cloudify-ubuntu-agent_amd64.deb
+                centos_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/nightly/cloudify-centos-agent_amd64.deb
+                windows_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/nightly/cloudify-windows-agent_amd64.deb
+
+    cloudify:
+        default:
+            resources_prefix: ''
+
+            cloudify_agent:
+                min_workers: 2
+                max_workers: 5
+                remote_execution_port: 22
+                user: ubuntu
+
+            workflows:
+                task_retries: -1  # this means forever
+                task_retry_interval: 30
+
+            policy_engine:
+                start_timeout: 30
+
+
+node_templates:
+    manager_server:
+        type: cloudify.vsphere.server
+        properties:
+            networking:
+                external_network:
+                    switch_distributed: { get_input: management_network_switch_distributed }
+                    use_dhcp: { get_input: management_network_use_dhcp }
+                    network: { get_input: management_network_cidr }
+                    gateway: { get_input: management_network_gateway }
+                    ip: { get_input: management_network_ip}
+                    name: { get_input: management_network_name }
+                management_network:
+                    switch_distributed: { get_input: management_network_switch_distributed }
+                    use_dhcp: { get_input: management_network_use_dhcp }
+                    network: { get_input: management_network_cidr }
+                    gateway: { get_input: management_network_gateway }
+                    ip: { get_input: management_network_ip}
+                    name: { get_input: management_network_name }
+            server:
+                name: { get_input: manager_server_name }
+                template: { get_input: manager_server_template }
+                cpus: { get_input: manager_server_cpus }
+                memory: { get_input: manager_server_memory }
+
+    connection_configuration:
+        type: connection_configuration
+        properties:
+            connection_config:
+                username: { get_input: vsphere_username }
+                password: { get_input: vsphere_password }
+                url: { get_input: vsphere_url }
+                port: { get_input: vsphere_port }
+                datacenter_name: { get_input: vsphere_datacenter_name }
+                resource_pool_name: { get_input: vsphere_resource_pool_name }
+                auto_placement: { get_input: vsphere_auto_placement }
+
+    manager:
+        type: cloudify.types.cloudify_manager
+        properties:
+            cloudify: { get_input: cloudify }
+
+        relationships:
+            - target: manager_server
+              type: cloudify.relationships.contained_in
+
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                -   configure:
+                        mapping: fabric.fabric_plugin.tasks.run_task
+                        properties:
+                            tasks_file: scripts/configure.py
+                            task_name: configure
+                            task_properties:
+                                connection_config: { get_property: [connection_configuration, connection_config] }
+                                manager_public_key_name: { get_input: manager_public_key_name }
+                                agent_public_key_name: { get_input: agent_public_key_name }
+                            fabric_env:
+                                user: { get_input: manager_server_user }
+                                key_filename: { get_input: manager_private_key_path }
+                -   start:
+                        mapping: fabric.fabric_plugin.tasks.run_module_task
+                        properties:
+                            task_mapping: cloudify_cli.bootstrap.tasks.bootstrap
+                            task_properties:
+                                cloudify_packages: { get_input: cloudify_packages }
+                                agent_local_key_path: { get_input: agent_private_key_path }
+                            fabric_env:
+                                user: { get_input: manager_server_user }
+                                key_filename: { get_input: manager_private_key_path }
+
+node_types:
+    connection_configuration:
+        derived_from: cloudify.types.base
+        properties:
+            connection_config: {}
+
+
+outputs:
+    manager_ip:
+        value: { get_attribute: [manager_server, public_ip] }

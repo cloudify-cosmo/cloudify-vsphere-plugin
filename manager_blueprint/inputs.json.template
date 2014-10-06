@@ -1,0 +1,8 @@
+{
+    "vsphere_username": "",
+    "vsphere_password": "",
+    "vsphere_url": "",
+    "vsphere_port": "",
+    "manager_public_key_name": "",
+    "agent_public_key_name": ""
+}
