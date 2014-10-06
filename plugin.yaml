@@ -3,17 +3,12 @@
 ##################################################################################
 
 imports:
-    - "http://www.getcloudify.org/spec/cloudify/3.0/types.yaml"
+    - "http://www.getcloudify.org/spec/cloudify/3.1/types.yaml"
 
 plugins:
-    server_plugin:
-        derived_from: cloudify.plugins.manager_plugin
-        properties:
-            url: http://37.58.121.34:8080/cloudify-vsphere-plugin-1-develop.zip
-    network_plugin:
-        derived_from: cloudify.plugins.manager_plugin
-        properties:
-            url: http://37.58.121.34:8080/cloudify-vsphere-plugin-1-develop.zip
+    vsphere:
+        executor: central_deployment_agent
+        source: http://127.0.0.1/cloudify-vsphere-plugin/archive/develop.zip
 
 types:
     cloudify.vsphere.server:
@@ -24,12 +19,12 @@ types:
             - connection_config
         interfaces:
             cloudify.interfaces.lifecycle:
-                - start: server_plugin.server.start
-                - stop: server_plugin.server.stop
-                - shutdown_guest: server_plugin.server.shutdown_guest
-                - delete: server_plugin.server.delete
+                - start: vsphere.server_plugin.server.start
+                - stop: vsphere.server_plugin.server.stop
+                - shutdown_guest: vsphere.server_plugin.server.shutdown_guest
+                - delete: vsphere.server_plugin.server.delete
             cloudify.interfaces.host:
-                - get_state: server_plugin.server.get_state
+                - get_state: vsphere.server_plugin.server.get_state
 
     cloudify.vsphere.network:
         derived_from: cloudify.types.network
@@ -38,8 +33,8 @@ types:
             - connection_config: {}
         interfaces:
             cloudify.interfaces.lifecycle:
-                - create: network_plugin.network.create
-                - delete: network_plugin.network.delete
+                - create: vsphere.network_plugin.network.create
+                - delete: vsphere.network_plugin.network.delete
 
     cloudify.vsphere.storage:
         derived_from: cloudify.types.volume
@@ -48,8 +43,8 @@ types:
             - connection_config: {}
         interfaces:
             cloudify.interfaces.lifecycle:
-                - create: storage_plugin.storage.create
-                - delete: storage_plugin.storage.delete
+                - create: vsphere.storage_plugin.storage.create
+                - delete: vsphere.storage_plugin.storage.delete
 
 relationships:
     cloudify.vsphere.server_connected_to_network:
