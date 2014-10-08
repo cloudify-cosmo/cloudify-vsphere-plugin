@@ -13,10 +13,6 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 from cloudify import ctx
 from cloudify.decorators import operation
 from vsphere_plugin_common import (with_network_client,

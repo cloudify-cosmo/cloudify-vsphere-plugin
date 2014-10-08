@@ -13,10 +13,6 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 import mock
 import unittest
 from vsphere_plugin_common import (TestCase,

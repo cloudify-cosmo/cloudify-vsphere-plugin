@@ -13,10 +13,6 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 from functools import wraps
 import json
 import os
@@ -196,8 +192,6 @@ class ServerClient(VsphereClient):
                       resource_pool_name,
                       template_name,
                       vm_name,
-                      switch_distributed,
-                      use_dhcp=True,
                       domain=None,
                       dns_servers=None):
         host, datastore = self.place_vm(auto_placement)
@@ -229,6 +223,8 @@ class ServerClient(VsphereClient):
 
         for network in networks:
             network_name = network['name']
+            switch_distributed = network['switch_distributed']
+            use_dhcp = network['use_dhcp']
             if switch_distributed:
                 network_obj = self._get_obj_by_name(
                     [vim.dvs.DistributedVirtualPortgroup], network_name)
@@ -257,13 +253,13 @@ class ServerClient(VsphereClient):
             devices.append(nicspec)
 
             if not use_dhcp:
-                dmz_network = IPNetwork(network["network"])
+                nw = IPNetwork(network["network"])
                 guest_map = vim.vm.customization.AdapterMapping()
                 guest_map.adapter = vim.vm.customization.IPSettings()
                 guest_map.adapter.ip = vim.vm.customization.FixedIp()
                 guest_map.adapter.ip.ipAddress = network['ip']
                 guest_map.adapter.gateway = network["gateway"]
-                guest_map.adapter.subnetMask = str(dmz_network.netmask)
+                guest_map.adapter.subnetMask = str(nw.netmask)
                 adaptermaps.append(guest_map)
 
         # VM config spec
@@ -406,6 +402,11 @@ class ServerClient(VsphereClient):
             config.memoryMB = memory
         task = server.Reconfigure(spec=config)
         self._wait_for_task(task)
+
+    def get_server_ip(self, vm, network_name):
+        for network in vm.guest.net:
+            if network_name.lower() == network.network.lower():
+                return network.ipAddress[0]
 
     def _wait_vm_running(self, task):
         self._wait_for_task(task)

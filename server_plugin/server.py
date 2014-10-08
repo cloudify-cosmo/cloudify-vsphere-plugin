@@ -13,10 +13,6 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
@@ -26,6 +22,7 @@ from vsphere_plugin_common import (with_server_client,
 
 
 VSPHERE_SERVER_ID = 'vsphere_server_id'
+PUBLIC_IP = 'public_ip'
 
 
 def create_new_server(server_client):
@@ -41,30 +38,36 @@ def create_new_server(server_client):
     vm_name = server['name']
     networks = []
     management_set = False
-    use_dhcp = True
-    switch_distributed = False
     domain = None
     dns_servers = None
+    networking = ctx.properties.get('networking')
 
-    if ('networking' in ctx.properties) and\
-            ctx.properties['networking']:
-        networking_properties = ctx.properties.get('networking')
-        use_dhcp = networking_properties['use_dhcp']
-        if 'switch_distributed' in networking_properties:
-            switch_distributed = networking_properties['switch_distributed']
-        if 'domain' in networking_properties:
-            domain = networking_properties['domain']
-        if 'dns_servers' in networking_properties:
-            dns_servers = networking_properties['dns_servers']
-        if ('management_network' in networking_properties)\
-                and networking_properties['management_network']:
-            networks.append({'name': rename(networking_properties[
-                'management_network'])})
-            management_set = True
-        if 'connected_networks' in networking_properties:
-            cntd_networks = networking_properties['connected_networks']
-            for x in cntd_networks.split(','):
-                networks.append({'name': rename(x.strip())})
+    if networking:
+        domain = networking.get('domain')
+        dns_servers = networking.get('dns_servers')
+        connected_networks = networking.get('connected_networks', [])
+
+        if len([network for network in connected_networks
+                if network.get('external', False)]) > 1:
+            raise RuntimeError("No more that one external network can be"
+                               " specified")
+        if len([network for network in connected_networks
+                if network.get('management', False)]) > 1:
+            raise RuntimeError("No more that one management network can be"
+                               " specified")
+
+        for network in connected_networks:
+            if network.get('management', False):
+                management_set = True
+            networks.append(
+                {'name': rename(network['name'].strip()),
+                 'external': network.get('external', False),
+                 'switch_distributed': network.get('switch_distributed', False),
+                 'use_dhcp': network.get('use_dhcp', True),
+                 'network': network.get('network'),
+                 'gateway': network.get('gateway'),
+                 'ip': network.get('ip'),
+                 })
 
     network_nodes_runtime_properties = ctx.capabilities.get_all().values()
     if network_nodes_runtime_properties and not management_set:
@@ -73,24 +76,20 @@ def create_new_server(server_client):
                            "'management_network' which was not supplied")
     network_client = NetworkClient().get(
         config=ctx.properties.get('connection_config'))
-    nics = None
-    if use_dhcp:
-        nics = [
-            {'name': n['node_id']}
-            for n in network_nodes_runtime_properties
-            if network_client.get_port_group_by_name(n['node_id'])
-        ]
-    else:
-        nics = [
-            {
-                'name': n['node_id'],
-                'network': n['network'],
-                'gateway': n['gateway'],
-                'ip': n['ip']
-            }
-            for n in network_nodes_runtime_properties
-            if network_client.get_port_group_by_name(n['node_id'])
-        ]
+
+    nics = [
+        {
+            'name': n['node_id'],
+            'external': n.get('external', False),
+            'switch_distributed': n.get('switch_distributed', False),
+            'use_dhcp': n.get('use_dhcp', True),
+            'network': n.get('network'),
+            'gateway': n.get('gateway'),
+            'ip': n.get('ip')
+        }
+        for n in network_nodes_runtime_properties
+        if network_client.get_port_group_by_name(n['node_id'])
+    ]
 
     if nics:
         networks.extend(nics)
@@ -111,12 +110,15 @@ def create_new_server(server_client):
                                          resource_pool_name,
                                          template_name,
                                          vm_name,
-                                         switch_distributed,
-                                         use_dhcp,
                                          domain,
                                          dns_servers)
 
     ctx[VSPHERE_SERVER_ID] = server._moId
+
+    public_ips = [server_client.get_server_ip(server, network['name'])
+                  for network in networks if network['external']]
+    if len(public_ips) > 0:
+        ctx[PUBLIC_IP] = public_ips[0]
 
 
 @operation

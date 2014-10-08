@@ -147,20 +147,23 @@ node_templates:
         type: cloudify.vsphere.server
         properties:
             networking:
-                external_network:
-                    switch_distributed: { get_input: management_network_switch_distributed }
-                    use_dhcp: { get_input: management_network_use_dhcp }
-                    network: { get_input: management_network_cidr }
-                    gateway: { get_input: management_network_gateway }
-                    ip: { get_input: management_network_ip}
-                    name: { get_input: management_network_name }
-                management_network:
-                    switch_distributed: { get_input: management_network_switch_distributed }
-                    use_dhcp: { get_input: management_network_use_dhcp }
-                    network: { get_input: management_network_cidr }
-                    gateway: { get_input: management_network_gateway }
-                    ip: { get_input: management_network_ip}
-                    name: { get_input: management_network_name }
+                connected_networks:
+                    -
+                        management: true
+                        switch_distributed: { get_input: management_network_switch_distributed }
+                        use_dhcp: { get_input: management_network_use_dhcp }
+                        network: { get_input: management_network_cidr }
+                        gateway: { get_input: management_network_gateway }
+                        ip: { get_input: management_network_ip}
+                        name: { get_input: management_network_name }
+                    -
+                        external: true
+                        switch_distributed: { get_input: external_network_switch_distributed }
+                        use_dhcp: { get_input: external_network_use_dhcp }
+                        network: { get_input: external_network_cidr }
+                        gateway: { get_input: external_network_gateway }
+                        ip: { get_input: external_network_ip}
+                        name: { get_input: external_network_name }
             server:
                 name: { get_input: manager_server_name }
                 template: { get_input: manager_server_template }

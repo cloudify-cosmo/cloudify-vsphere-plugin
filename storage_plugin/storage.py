@@ -13,16 +13,11 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
 from vsphere_plugin_common import (with_storage_client,
                                    transform_resource_name)
-
 
 VSPHERE_STORAGE_FILE_NAME = 'vsphere_storage_file_name'
 

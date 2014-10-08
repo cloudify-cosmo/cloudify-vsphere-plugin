@@ -13,10 +13,6 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 import mock
 import storage_plugin.storage as storage_plugin
 import vsphere_plugin_common as common
