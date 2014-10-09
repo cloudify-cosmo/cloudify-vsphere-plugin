@@ -42,7 +42,7 @@ def create(storage_client, **kwargs):
                            ' storage should be connected only to one VM')
     vm_name = capabilities[0]['node_id']
     storage_file_name = storage_client.create_storage(vm_name, storage_size)
-    ctx[VSPHERE_STORAGE_FILE_NAME] = storage_file_name
+    ctx.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_file_name
 
 
 @operation
@@ -57,7 +57,8 @@ def delete(storage_client, **kwargs):
         raise RuntimeError('Error during trying to create storage:'
                            ' storage should be connected only to one VM')
     vm_name = capabilities[0]['node_id']
-    storage_client.delete_storage(vm_name, ctx[VSPHERE_STORAGE_FILE_NAME])
+    storage_client.delete_storage(
+        vm_name, ctx.runtime_properties[VSPHERE_STORAGE_FILE_NAME])
 
 
 @operation

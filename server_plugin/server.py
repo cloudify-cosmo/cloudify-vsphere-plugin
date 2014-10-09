@@ -113,7 +113,7 @@ def create_new_server(server_client):
                                          domain,
                                          dns_servers)
 
-    ctx[VSPHERE_SERVER_ID] = server._moId
+    ctx.runtime_properties[VSPHERE_SERVER_ID] = server._moId
 
     public_ips = [server_client.get_server_ip(server, network['name'])
                   for network in networks if network['external']]
@@ -212,6 +212,7 @@ def resize(server_client, **kwargs):
 
 
 def get_server_by_context(server_client):
-    if VSPHERE_SERVER_ID in ctx:
-        return server_client.get_server_by_id(ctx[VSPHERE_SERVER_ID])
+    if VSPHERE_SERVER_ID in ctx.runtime_properties:
+        return server_client.get_server_by_id(
+            ctx.runtime_properties[VSPHERE_SERVER_ID])
     return server_client.get_server_by_name(ctx.node_id)

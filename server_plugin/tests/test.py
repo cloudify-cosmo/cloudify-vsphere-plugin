@@ -19,6 +19,7 @@ from vsphere_plugin_common import (TestCase,
                                    TestsConfig)
 import server_plugin.server
 
+import socket
 import time
 
 from cloudify.context import ContextCapabilities
@@ -41,34 +42,10 @@ class VsphereServerTest(TestCase):
 
         name = self.name_prefix + 'server'
 
-        networking = server_config["networking"]
-        use_dhcp = networking['use_dhcp']
-        management_network = networking['management_network']
-        management_network_name = management_network['name']
-        networking_properties = None
-        if use_dhcp:
-            networking_properties = {
-                'use_dhcp': use_dhcp,
-                'management_network': {
-                    'name': management_network_name
-                }
-            }
-        else:
-            networking_properties = {
-                'use_dhcp': use_dhcp,
-                'domain': networking['domain'],
-                'dns_servers': networking['dns_servers'],
-                'management_network': {
-                    'name': management_network_name,
-                    'network': management_network['network'],
-                    'gateway': management_network['gateway'],
-                    'ip': management_network['ip']
-                }
-            }
         self.ctx = MockCloudifyContext(
             node_id=name,
             properties={
-                'networking': networking_properties,
+                'networking': server_config["networking"],
                 'server': {
                     'template': server_config['template'],
                     'cpus': server_config['cpu_count'],
@@ -85,31 +62,29 @@ class VsphereServerTest(TestCase):
         ctx_patch.start()
         self.addCleanup(ctx_patch.stop())
 
-    def test_server(self):
-        self.logger.debug("\nServer test started\n")
-
-        self.logger.debug("Check there is no server \'{0}\'"
-                          .format(self.ctx.node_id))
+    def test_server_create_delete(self):
         self.assertThereIsNoServer(self.ctx.node_id)
-        self.logger.debug("Create server \'{0}\'".format(self.ctx.node_id))
-        server_plugin.server.start()
-        self.logger.debug("Check server \'{0}\' is created"
-                          .format(self.ctx.node_id))
+        server_plugin.server.start(self.ctx)
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
-        self.logger.debug("Check server \'{0}\' is started"
-                          .format(self.ctx.node_id))
         self.assertServerIsStarted(server)
 
-        self.logger.debug("Stop server \'{0}\'".format(self.ctx.node_id))
-        server_plugin.server.stop()
-        self.logger.debug("Check server \'{0}\' is stopped"
-                          .format(self.ctx.node_id))
+        server_plugin.server.delete(self.ctx)
+        self.assertThereIsNoServer(self.ctx.node_id)
+
+    def test_server_start_stop(self):
+        server_plugin.server.start(self.ctx)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        self.assertServerIsStarted(server)
+
+        server_plugin.server.stop(self.ctx)
         self.assertServerIsStopped(server)
 
-        self.logger.debug("Start server \'{0}\'".format(self.ctx.node_id))
-        server_plugin.server.start()
-        self.logger.debug("Check server \'{0}\' is started"
-                          .format(self.ctx.node_id))
+        server_plugin.server.start(self.ctx)
+        self.assertServerIsStarted(server)
+
+    def test_server_shutdown_guest(self):
+        server_plugin.server.start(self.ctx)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
         self.assertServerIsStarted(server)
 
         wait = WAIT_START
@@ -151,12 +126,19 @@ class VsphereServerTest(TestCase):
                           .format(self.ctx.node_id))
         self.assertServerIsStopped(server)
 
-        self.logger.debug("Delete server \'{0}\'".format(self.ctx.node_id))
-        server_plugin.server.delete()
-        self.logger.debug("Check there is no server \'{0}\'"
-                          .format(self.ctx.node_id))
-        self.assertThereIsNoServer(self.ctx.node_id)
-        self.logger.debug("\nServer test finished\n")
+    def test_server_with_public_ip(self):
+        server_plugin.server.start(self.ctx)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        self.assertServerIsStarted(server)
+        self.assertTrue(server_plugin.server.PUBLIC_IP
+                        in self.ctx.runtime_properties)
+        ip_valid = True
+        try:
+            socket.inet_aton(
+                self.ctx.runtime_properties[server_plugin.server.PUBLIC_IP])
+        except socket.error:
+            ip_valid = False
+        self.assertTrue(ip_valid)
 
     def test_server_resize_up(self):
         old_cpus = self.ctx.properties['server']['cpus']

@@ -252,7 +252,12 @@ class ServerClient(VsphereClient):
                 nicspec.device.backing.deviceName = network_name
             devices.append(nicspec)
 
-            if not use_dhcp:
+            if use_dhcp:
+                guest_map = vim.vm.customization.AdapterMapping()
+                guest_map.adapter = vim.vm.customization.IPSettings()
+                guest_map.adapter.ip = vim.vm.customization.DhcpIpGenerator()
+                adaptermaps.append(guest_map)
+            else:
                 nw = IPNetwork(network["network"])
                 guest_map = vim.vm.customization.AdapterMapping()
                 guest_map.adapter = vim.vm.customization.IPSettings()

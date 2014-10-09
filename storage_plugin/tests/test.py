@@ -71,7 +71,8 @@ class VsphereStorageTest(common.TestCase):
 
         storage_plugin.create()
 
-        storage_file_name = self.ctx[VSPHERE_STORAGE_FILE_NAME]
+        storage_file_name = \
+            self.ctx.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
         self.logger.debug("Check storage \'{0}\' is created"
                           .format(storage_file_name))
         storage = self.assertThereIsStorageAndGet(vm_name, storage_file_name)
@@ -96,7 +97,8 @@ class VsphereStorageTest(common.TestCase):
 
         storage_plugin.resize()
 
-        storage_file_name = self.ctx[VSPHERE_STORAGE_FILE_NAME]
+        storage_file_name = \
+            self.ctx.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
 
         storage = self.assertThereIsStorageAndGet(vm_name, storage_file_name)
         self.assertEqual(new_storage_size*1024*1024, storage.capacityInKB)
