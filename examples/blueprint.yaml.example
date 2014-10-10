@@ -10,24 +10,25 @@ blueprint:
         properties:
             networking:
                 domain: example.com
-                dns_servers: [8.8.8.8]
+                dns_servers: ['8.8.8.8']
                 connected_networks:
                     -
+                        name: example_management_network
                         management: true
                         switch_distributed: false
                         use_dhcp: true
-                        network: ''
-                        gateway: ''
-                        ip: ''
-                        name: example_management_network
                     -
+                        name: example_external_network
                         external: true
                         switch_distributed: true
                         use_dhcp: false
                         network: 10.0.0.0/24
                         gateway: 10.0.0.1
                         ip: 10.0.0.2
-                        name: example_external_network
+                    -
+                        name: example_other_network
+                        switch_distributed: true
+                        use_dhcp: true
             server:
                 name: { get_input: manager_server_name }
                 template: { get_input: manager_server_template }

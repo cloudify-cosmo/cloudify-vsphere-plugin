@@ -132,10 +132,10 @@ class VsphereServerTest(TestCase):
         self.assertServerIsStarted(server)
         self.assertTrue(server_plugin.server.PUBLIC_IP
                         in self.ctx.runtime_properties)
+        ip = self.ctx.runtime_properties[server_plugin.server.PUBLIC_IP]
         ip_valid = True
         try:
-            socket.inet_aton(
-                self.ctx.runtime_properties[server_plugin.server.PUBLIC_IP])
+            socket.inet_aton(ip)
         except socket.error:
             ip_valid = False
         self.assertTrue(ip_valid)
@@ -184,88 +184,3 @@ class VsphereServerTest(TestCase):
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
         self.assertEqual(new_cpus, server.config.hardware.numCPU)
         self.assertEqual(new_memory, server.config.hardware.memoryMB)
-
-    @unittest.skip("not changed yet")
-    def test_server_with_network(self):
-        self.logger.debug("\nServer test with network started\n")
-
-        name = self.name_prefix + 'server_with_net'
-
-        networking = server_config["networking"]
-        use_dhcp = networking['use_dhcp']
-        vswitch_name = server_config['vswitch_name']
-        test_networks = networking['test_networks']
-
-        capabilities = {}
-
-        self.logger.debug("Create test networks")
-        for i, net in enumerate(test_networks):
-            self.create_network(
-                self.name_prefix + net['name'],
-                net['vlan_id'],
-                vswitch_name
-            )
-            if use_dhcp:
-                capabilities['related_network_' + str(i)] =\
-                    {'node_id': self.name_prefix + net['name']}
-            else:
-                capabilities['related_network_' + str(i)] = {
-                    'node_id': self.name_prefix + net['name'],
-                    'network': net['network'],
-                    'gateway': net['gateway'],
-                    'ip': net['ip']
-                }
-
-        endpoint = None
-        context_capabilities = ContextCapabilities(endpoint, capabilities)
-
-        management_network = networking['management_network']
-        management_network_name = management_network['name']
-        networking_properties = None
-        if use_dhcp:
-            networking_properties = {
-                'use_dhcp': use_dhcp,
-                'management_network': {
-                    'name': management_network_name
-                }
-            }
-        else:
-            networking_properties = {
-                'use_dhcp': use_dhcp,
-                'domain': networking['domain'],
-                'dns_servers': networking['dns_servers'],
-                'management_network': {
-                    'name': management_network_name,
-                    'network': management_network['network'],
-                    'gateway': management_network['gateway'],
-                    'ip': management_network['ip']
-                }
-            }
-        ctx = MockCloudifyContext(
-            node_id=name,
-            properties={
-                'networking': networking_properties,
-                'server': {
-                    'template': server_config['template'],
-                    'cpus': server_config['cpu_count'],
-                    'memory': server_config['memory_in_mb']
-                },
-                'connection_config': {
-                    'datacenter_name': server_config['datacenter_name'],
-                    'resource_pool_name': server_config['resource_pool_name'],
-                    'auto_placement': server_config['auto_placement']
-                }
-            },
-            capabilities=context_capabilities
-        )
-
-        self.logger.debug("Check there is no server \'{0}\'".format(name))
-        self.assertThereIsNoServer(name)
-        self.logger.debug("Create server \'{0}\'".format(name))
-        server_plugin.server.create(ctx)
-        self.logger.debug("Check server \'{0}\' is created".format(name))
-        server = self.assertThereIsOneServerAndGet(name)
-        self.logger.debug("Check server \'{0}\' connected networks"
-                          .format(name))
-        self.assertEquals(len(test_networks)+1, len(server.network))
-        self.logger.debug("\nServer test with network finished\n")

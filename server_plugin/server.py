@@ -118,7 +118,7 @@ def create_new_server(server_client):
     public_ips = [server_client.get_server_ip(server, network['name'])
                   for network in networks if network['external']]
     if len(public_ips) > 0:
-        ctx[PUBLIC_IP] = public_ips[0]
+        ctx.runtime_properties[PUBLIC_IP] = public_ips[0]
 
 
 @operation
@@ -171,8 +171,11 @@ def get_state(server_client, **kwargs):
     if server_client.is_server_guest_running(server):
         ips = {}
         manager_network_ip = None
-        management_network_name =\
-            ctx.properties['networking']['management_network']['name'].lower()
+        management_network_name = \
+            [network['name'] for network
+             in ctx.properties['networking'].get('connected_networks', [])
+             if network.get('management', False)][0]
+
         for network in server.guest.net:
             network_name = network.network.lower()
             if management_network_name and\

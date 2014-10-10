@@ -14,17 +14,17 @@
         "domain": "test.com",
         "dns_server": ["8.8.8.8"],
         "connected_networks":
-        [{"name": "Management",
+        [{"name": "DMZ",
           "external": true,
           "switch_distributed": true,
           "use_dhcp": true},
-         {"name": "DMZ",
+         {"name": "Management",
           "external": false,
           "switch_distributed": false,
           "use_dhcp": false,
           "network": "10.0.0.0/24",
           "gateway": "10.0.0.1",
-          "ip": "10.0.0.2" }
+          "ip": "10.0.0.2"}
         ]
     }
   },
