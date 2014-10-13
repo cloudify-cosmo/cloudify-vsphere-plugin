@@ -68,6 +68,9 @@ def transform_resource_name(res, ctx):
 
 
 class Config(object):
+
+    CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.json'
+
     def get(self):
         which = self.__class__.which
         env_name = which.upper() + '_CONFIG_PATH'
