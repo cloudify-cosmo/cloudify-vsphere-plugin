@@ -35,6 +35,9 @@ inputs:
         default: cloudify-management-server
         type: string
 
+    manager_server_template:
+        type: string
+
     manager_server_cpus:
         default: 2
         type: string
@@ -44,7 +47,7 @@ inputs:
         type: string
 
     external_network_name:
-        default: management
+        default: DMZ
         type: string
 
     external_network_use_dhcp:
@@ -68,7 +71,7 @@ inputs:
         type: boolean
 
     management_network_name:
-        default: management
+        default: Management
         type: string
 
     management_network_use_dhcp:
