@@ -30,9 +30,9 @@ def create_new_server(server_client):
         return transform_resource_name(name, ctx)
 
     server = {
-        'name': ctx.node_id,
+        'name': ctx.node.id,
     }
-    server.update(ctx.properties['server'])
+    server.update(ctx.node.properties['server'])
     transform_resource_name(server, ctx)
 
     vm_name = server['name']
@@ -40,7 +40,7 @@ def create_new_server(server_client):
     management_set = False
     domain = None
     dns_servers = None
-    networking = ctx.properties.get('networking')
+    networking = ctx.node.properties.get('networking')
 
     if networking:
         domain = networking.get('domain')
@@ -75,7 +75,7 @@ def create_new_server(server_client):
         raise RuntimeError("vSphere server with multi-NIC requires "
                            "'management_network' which was not supplied")
     network_client = NetworkClient().get(
-        config=ctx.properties.get('connection_config'))
+        config=ctx.node.properties.get('connection_config'))
 
     nics = [
         {
@@ -94,7 +94,7 @@ def create_new_server(server_client):
     if nics:
         networks.extend(nics)
 
-    connection_config = ctx.properties.get('connection_config')
+    connection_config = ctx.node.properties.get('connection_config')
     datacenter_name = connection_config['datacenter_name']
     resource_pool_name = connection_config['resource_pool_name']
     auto_placement = connection_config['auto_placement']
@@ -113,12 +113,12 @@ def create_new_server(server_client):
                                          domain,
                                          dns_servers)
 
-    ctx.runtime_properties[VSPHERE_SERVER_ID] = server._moId
+    ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server._moId
 
     public_ips = [server_client.get_server_ip(server, network['name'])
                   for network in networks if network['external']]
     if len(public_ips) > 0:
-        ctx.runtime_properties[PUBLIC_IP] = public_ips[0]
+        ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
 
 
 @operation
@@ -138,7 +138,7 @@ def shutdown_guest(server_client, **kwargs):
     if server is None:
         raise RuntimeError(
             "Cannot shutdown server guest - server doesn't exist for node: {0}"
-            .format(ctx.node_id))
+            .format(ctx.node.id))
     server_client.shutdown_server_guest(server)
 
 
@@ -149,7 +149,7 @@ def stop(server_client, **kwargs):
     if server is None:
         raise RuntimeError(
             "Cannot stop server - server doesn't exist for node: {0}"
-            .format(ctx.node_id))
+            .format(ctx.node.id))
     server_client.stop_server(server)
 
 
@@ -160,7 +160,7 @@ def delete(server_client, **kwargs):
     if server is None:
         raise RuntimeError(
             "Cannot delete server - server doesn't exist for node: {0}"
-            .format(ctx.node_id))
+            .format(ctx.node.id))
     server_client.delete_server(server)
 
 
@@ -173,7 +173,7 @@ def get_state(server_client, **kwargs):
         manager_network_ip = None
         management_network_name = \
             [network['name'] for network
-             in ctx.properties['networking'].get('connected_networks', [])
+             in ctx.node.properties['networking'].get('connected_networks', [])
              if network.get('management', False)][0]
 
         for network in server.guest.net:
@@ -196,11 +196,11 @@ def resize(server_client, **kwargs):
     if server is None:
         raise cfy_exc.NonRecoverableError(
             "Cannot resize server - server doesn't exist for node: {0}"
-            .format(ctx.node_id))
+            .format(ctx.node.id))
 
     update = {
-        'cpus': ctx.runtime_properties.get('cpus'),
-        'memory': ctx.runtime_properties.get('memory')
+        'cpus': ctx.instance.runtime_properties.get('cpus'),
+        'memory': ctx.instance.runtime_properties.get('memory')
         }
 
     if any(update.values()):
@@ -215,7 +215,7 @@ def resize(server_client, **kwargs):
 
 
 def get_server_by_context(server_client):
-    if VSPHERE_SERVER_ID in ctx.runtime_properties:
+    if VSPHERE_SERVER_ID in ctx.instance.runtime_properties:
         return server_client.get_server_by_id(
-            ctx.runtime_properties[VSPHERE_SERVER_ID])
-    return server_client.get_server_by_name(ctx.node_id)
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+    return server_client.get_server_by_name(ctx.node.id)

@@ -26,9 +26,9 @@ VSPHERE_STORAGE_FILE_NAME = 'vsphere_storage_file_name'
 @with_storage_client
 def create(storage_client, **kwargs):
     storage = {
-        'name': ctx.node_id,
+        'name': ctx.node.id,
     }
-    storage.update(ctx.properties['storage'])
+    storage.update(ctx.node.properties['storage'])
     transform_resource_name(storage, ctx)
 
     storage_size = storage['storage_size']
@@ -42,7 +42,8 @@ def create(storage_client, **kwargs):
                            ' storage should be connected only to one VM')
     vm_name = capabilities[0]['node_id']
     storage_file_name = storage_client.create_storage(vm_name, storage_size)
-    ctx.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_file_name
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
+        storage_file_name
 
 
 @operation
@@ -58,7 +59,7 @@ def delete(storage_client, **kwargs):
                            ' storage should be connected only to one VM')
     vm_name = capabilities[0]['node_id']
     storage_client.delete_storage(
-        vm_name, ctx.runtime_properties[VSPHERE_STORAGE_FILE_NAME])
+        vm_name, ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME])
 
 
 @operation
@@ -75,10 +76,12 @@ def resize(storage_client, **kwargs):
             ' connected only to one VM')
 
     vm_name = capabilities[0]['node_id']
-    storage_size = ctx.runtime_properties.get('storage_size')
+    storage_size = ctx.instance.runtime_properties.get('storage_size')
     if not storage_size:
         raise cfy_exc.NonRecoverableError(
             'Error during trying to resize storage: new storage size wasn\'t'
             ' specified')
-    storage_client.resize_storage(vm_name, ctx[VSPHERE_STORAGE_FILE_NAME],
-                                  storage_size)
+    storage_client.resize_storage(
+        vm_name,
+        ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME],
+        storage_size)

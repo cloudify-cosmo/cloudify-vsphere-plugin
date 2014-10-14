@@ -36,6 +36,7 @@ class VsphereNetworkTest(common.TestCase):
 
         ctx = MockCloudifyContext(
             node_id=name,
+            node_name=name,
             properties={
                 'network': {
                     'vlan_id': network_config['vlan_id'],

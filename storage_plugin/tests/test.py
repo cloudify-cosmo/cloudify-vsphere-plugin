@@ -47,6 +47,7 @@ class VsphereStorageTest(common.TestCase):
 
         self.ctx = MockCloudifyContext(
             node_id=name,
+            node_name=name,
             properties={
                 'storage': {
                     'storage_size': storage_size
@@ -66,13 +67,13 @@ class VsphereStorageTest(common.TestCase):
         super(VsphereStorageTest, self).tearDown()
 
     def test_storage_create_delete(self):
-        storage_size = self.ctx.properties['storage']['storage_size']
+        storage_size = self.ctx.node.properties['storage']['storage_size']
         vm_name = self.ctx.capabilities.get_all().values()[0]['node_id']
 
         storage_plugin.create()
 
         storage_file_name = \
-            self.ctx.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
+            self.ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
         self.logger.debug("Check storage \'{0}\' is created"
                           .format(storage_file_name))
         storage = self.assertThereIsStorageAndGet(vm_name, storage_file_name)
@@ -88,17 +89,17 @@ class VsphereStorageTest(common.TestCase):
 
     def test_storage_resize(self):
         vm_name = self.ctx.capabilities.get_all().values()[0]['node_id']
-        storage_size = self.ctx.properties['storage']['storage_size']
+        storage_size = self.ctx.node.properties['storage']['storage_size']
         new_storage_size = storage_size + 1
 
         storage_plugin.create()
 
-        self.ctx.runtime_properties['storage_size'] = new_storage_size
+        self.ctx.instance.runtime_properties['storage_size'] = new_storage_size
 
         storage_plugin.resize()
 
         storage_file_name = \
-            self.ctx.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
+            self.ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
 
         storage = self.assertThereIsStorageAndGet(vm_name, storage_file_name)
         self.assertEqual(new_storage_size*1024*1024, storage.capacityInKB)

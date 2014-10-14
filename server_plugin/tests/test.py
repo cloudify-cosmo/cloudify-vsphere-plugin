@@ -14,7 +14,6 @@
 #  * limitations under the License.
 
 import mock
-import unittest
 from vsphere_plugin_common import (TestCase,
                                    TestsConfig)
 import server_plugin.server
@@ -22,14 +21,10 @@ import server_plugin.server
 import socket
 import time
 
-from cloudify.context import ContextCapabilities
 from cloudify.mocks import MockCloudifyContext
 
-
-WAIT_START = 10
-WAIT_FACTOR = 2
-WAIT_COUNT = 6
-
+WAIT_TIMEOUT = 10
+WAIT_COUNT = 20
 
 _tests_config = TestsConfig().get()
 server_config = _tests_config['server_test']
@@ -44,6 +39,7 @@ class VsphereServerTest(TestCase):
 
         self.ctx = MockCloudifyContext(
             node_id=name,
+            node_name=name,
             properties={
                 'networking': server_config["networking"],
                 'server': {
@@ -63,76 +59,57 @@ class VsphereServerTest(TestCase):
         self.addCleanup(ctx_patch.stop())
 
     def test_server_create_delete(self):
-        self.assertThereIsNoServer(self.ctx.node_id)
-        server_plugin.server.start(self.ctx)
-        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        self.assertThereIsNoServer(self.ctx.node.id)
+        server_plugin.server.start()
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
         self.assertServerIsStarted(server)
 
-        server_plugin.server.delete(self.ctx)
-        self.assertThereIsNoServer(self.ctx.node_id)
+        server_plugin.server.delete()
+        self.assertThereIsNoServer(self.ctx.node.id)
 
     def test_server_start_stop(self):
-        server_plugin.server.start(self.ctx)
-        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        server_plugin.server.start()
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
         self.assertServerIsStarted(server)
 
-        server_plugin.server.stop(self.ctx)
+        server_plugin.server.stop()
         self.assertServerIsStopped(server)
 
-        server_plugin.server.start(self.ctx)
+        server_plugin.server.start()
         self.assertServerIsStarted(server)
 
     def test_server_shutdown_guest(self):
-        server_plugin.server.start(self.ctx)
-        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        server_plugin.server.start()
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
         self.assertServerIsStarted(server)
 
-        wait = WAIT_START
-        for attempt in range(1, WAIT_COUNT + 1):
+        for _ in range(WAIT_COUNT):
             if self.is_server_guest_running(server):
                 break
-            self.logger.debug(
-                "Waiting for server \'{0}\' to run guest. "
-                "Attempt #{1}, sleeping for {2} seconds".format(
-                    self.ctx.node_id, attempt, wait))
-            time.sleep(wait)
-            wait *= WAIT_FACTOR
-        self.logger.debug("Shutdown server \'{0}\' guest"
-                          .format(self.ctx.node_id))
+            time.sleep(WAIT_TIMEOUT)
+
         server_plugin.server.shutdown_guest()
-        wait = WAIT_START
-        for attempt in range(1, WAIT_COUNT + 1):
+
+        for _ in range(WAIT_COUNT):
             if not self.is_server_guest_running(server):
                 break
-            self.logger.debug(
-                "Waiting for server \'{0}\' to shutdown guest. "
-                "Attempt #{1}, sleeping for {2} seconds".format(
-                    self.ctx.node_id, attempt, wait))
-            time.sleep(wait)
-            wait *= WAIT_FACTOR
-        self.logger.debug("Check server \'{0}\' guest is stopped"
-                          .format(self.ctx.node_id))
+            time.sleep(WAIT_TIMEOUT)
+
         self.assertServerGuestIsStopped(server)
-        for attempt in range(1, WAIT_COUNT + 1):
+        for _ in range(WAIT_COUNT):
             if self.is_server_stopped(server):
                 break
-            self.logger.debug(
-                "Waiting for server \'{0}\' is stopped. "
-                "Attempt #{1}, sleeping for {2} seconds".format(
-                    self.ctx.node_id, attempt, wait))
-            time.sleep(wait)
-            wait *= WAIT_FACTOR
-        self.logger.debug("Check server \'{0}\' is stopped"
-                          .format(self.ctx.node_id))
+            time.sleep(WAIT_TIMEOUT)
+
         self.assertServerIsStopped(server)
 
     def test_server_with_public_ip(self):
-        server_plugin.server.start(self.ctx)
-        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        server_plugin.server.start()
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
         self.assertServerIsStarted(server)
         self.assertTrue(server_plugin.server.PUBLIC_IP
-                        in self.ctx.runtime_properties)
-        ip = self.ctx.runtime_properties[server_plugin.server.PUBLIC_IP]
+                        in self.ctx.instance.runtime_properties)
+        ip = self.ctx.instance.runtime_properties[server_plugin.server.PUBLIC_IP]
         ip_valid = True
         try:
             socket.inet_aton(ip)
@@ -141,8 +118,8 @@ class VsphereServerTest(TestCase):
         self.assertTrue(ip_valid)
 
     def test_server_resize_up(self):
-        old_cpus = self.ctx.properties['server']['cpus']
-        old_memory = self.ctx.properties['server']['memory']
+        old_cpus = self.ctx.node.properties['server']['cpus']
+        old_memory = self.ctx.node.properties['server']['memory']
         new_cpus = old_cpus + 1
         new_memory = old_memory + 64
 
@@ -150,23 +127,23 @@ class VsphereServerTest(TestCase):
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
         self.assertEqual(old_cpus, server.config.hardware.numCPU)
         self.assertEqual(old_memory, server.config.hardware.memoryMB)
-        self.ctx.runtime_properties['cpus'] = new_cpus
-        self.ctx.runtime_properties['memory'] = new_memory
+        self.ctx.instance.runtime_properties['cpus'] = new_cpus
+        self.ctx.instance.runtime_properties['memory'] = new_memory
 
         server_plugin.server.stop()
 
         server_plugin.server.resize()
 
-        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
         self.assertEqual(new_cpus, server.config.hardware.numCPU)
         self.assertEqual(new_memory, server.config.hardware.memoryMB)
 
     def test_server_resize_down(self):
-        old_cpus = self.ctx.properties['server']['cpus']
+        old_cpus = self.ctx.node.properties['server']['cpus']
         self.assertTrue(
             old_cpus > 1,
             "To test server shrink we need more than 1 cpu predefined")
-        old_memory = self.ctx.properties['server']['memory']
+        old_memory = self.ctx.node.properties['server']['memory']
         new_cpus = old_cpus - 1
         new_memory = old_memory - 64
 
@@ -174,13 +151,36 @@ class VsphereServerTest(TestCase):
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
         self.assertEqual(old_cpus, server.config.hardware.numCPU)
         self.assertEqual(old_memory, server.config.hardware.memoryMB)
-        self.ctx.runtime_properties['cpus'] = new_cpus
-        self.ctx.runtime_properties['memory'] = new_memory
+        self.ctx.instance.runtime_properties['cpus'] = new_cpus
+        self.ctx.instance.runtime_properties['memory'] = new_memory
 
         server_plugin.server.stop()
 
         server_plugin.server.resize()
 
-        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
         self.assertEqual(new_cpus, server.config.hardware.numCPU)
         self.assertEqual(new_memory, server.config.hardware.memoryMB)
+
+    def test_get_state(self):
+        server_plugin.server.start()
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
+        self.assertServerIsStarted(server)
+        guest_is_running = False
+
+        for _ in range(WAIT_COUNT):
+            if self.is_server_guest_running(server):
+                guest_is_running = True
+                break
+        self.assertTrue(guest_is_running)
+
+        state = server_plugin.server.get_state()
+        self.assertTrue(state)
+        self.assertTrue('networks' in self.ctx)
+        self.assertTrue('ip' in self.ctx)
+        ip_valid = True
+        try:
+            socket.inet_aton(self.ctx['ip'])
+        except socket.error:
+            ip_valid = False
+        self.assertTrue(ip_valid)
