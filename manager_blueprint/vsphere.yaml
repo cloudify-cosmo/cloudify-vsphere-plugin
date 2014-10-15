@@ -1,9 +1,9 @@
 tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
-    - http://www.getcloudify.org/spec/cloudify/3.1/types.yaml
-    - http://127.0.0.1/cloudify-vsphere-plugin/plugin.yaml
-    - http://www.getcloudify.org/spec/fabric-plugin/1.1/plugin.yaml
+    - http://www.getcloudify.org/spec/cloudify/3.1m4/types.yaml
+    - /home/ochyrko/workspace/vsphere-port/cloudify-vsphere-plugin/plugin.yaml
+    - http://www.getcloudify.org/spec/fabric-plugin/1.1m4/plugin.yaml
 
 
 inputs:
@@ -30,6 +30,10 @@ inputs:
     vsphere_resource_pool_name:
         default: Resources
         type: string
+
+    vsphere_auto_placement:
+        default: false
+        type: boolean
 
     manager_server_name:
         default: cloudify-management-server
@@ -172,6 +176,7 @@ node_templates:
                 template: { get_input: manager_server_template }
                 cpus: { get_input: manager_server_cpus }
                 memory: { get_input: manager_server_memory }
+            connection_config: { get_property: [connection_configuration, connection_config] }
 
     connection_configuration:
         type: connection_configuration

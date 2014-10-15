@@ -3,20 +3,21 @@
 ##################################################################################
 
 imports:
-    - "http://www.getcloudify.org/spec/cloudify/3.1/types.yaml"
+    - http://www.getcloudify.org/spec/cloudify/3.1m4/types.yaml
 
 plugins:
     vsphere:
         executor: central_deployment_agent
-        source: http://127.0.0.1/cloudify-vsphere-plugin/archive/develop.zip
+        source: /home/cloudify-vsphere-plugin-3.1-port.zip
 
-types:
+node_types:
     cloudify.vsphere.server:
         derived_from: cloudify.types.host
         properties:
-            - server
-            - networking
-            - connection_config
+            server: {}
+            networking: {}
+            connection_config:
+                default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
                 - start: vsphere.server_plugin.server.start
@@ -29,8 +30,9 @@ types:
     cloudify.vsphere.network:
         derived_from: cloudify.types.network
         properties:
-            - network
-            - connection_config: {}
+            network: {}
+            connection_config:
+                default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
                 - create: vsphere.network_plugin.network.create
@@ -39,8 +41,9 @@ types:
     cloudify.vsphere.storage:
         derived_from: cloudify.types.volume
         properties:
-            - storage
-            - connection_config: {}
+            storage: {}
+            connection_config:
+                default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
                 - create: vsphere.storage_plugin.storage.create
