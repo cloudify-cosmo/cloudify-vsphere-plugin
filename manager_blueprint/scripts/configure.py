@@ -27,8 +27,7 @@ import server_plugin.server as vsphere_server
 import vsphere_plugin_common
 
 
-def configure(vsphere_config, manager_public_key_name,
-              agent_public_key_name):
+def configure(vsphere_config):
 
     manager_public_ip = _get_public_ip()
     _copy_vsphere_configuration_to_manager(manager_public_ip, vsphere_config)
@@ -39,7 +38,8 @@ def _get_public_ip():
                             in ctx.capabilities.get_all().iteritems()
                             if k.startswith('manager_server')][0]
     manager_public_ip = server_runtime_props[vsphere_server.PUBLIC_IP]
-    ctx.runtime_properties[PUBLIC_IP_RUNTIME_PROPERTY] = manager_public_ip
+    ctx.instance.runtime_properties[PUBLIC_IP_RUNTIME_PROPERTY] = \
+        manager_public_ip
     return manager_public_ip
 
 
@@ -49,5 +49,6 @@ def _copy_vsphere_configuration_to_manager(manager_public_ip,
     with open(tmp, 'w') as f:
         json.dump(vsphere_config, f)
     with fabric_ctx_managers_settings(host_string=manager_public_ip):
-        fabric.api.put(tmp,
-                       vsphere_plugin_common.CONNECTION_CONFIG_PATH_DEFAULT)
+        fabric.api.put(
+            tmp,
+            vsphere_plugin_common.Config.CONNECTION_CONFIG_PATH_DEFAULT)

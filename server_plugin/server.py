@@ -173,17 +173,18 @@ def get_state(server_client, **kwargs):
         manager_network_ip = None
         management_network_name = \
             [network['name'] for network
-             in ctx.node.properties['networking'].get('connected_networks', [])
+             in ctx.node.properties['networking'].get(
+                 'connected_networks', [])
              if network.get('management', False)][0]
 
         for network in server.guest.net:
-            network_name = network.network.lower()
-            if management_network_name and\
+            network_name = network.network
+            if management_network_name and \
                     (network_name == management_network_name):
                 manager_network_ip = network.ipAddress[0]
-            ips[network.network] = network.ipAddress[0]
-        ctx['networks'] = ips
-        ctx['ip'] = manager_network_ip
+            ips[network_name] = network.ipAddress[0]
+        ctx.instance.runtime_properties['networks'] = ips
+        ctx.instance.runtime_properties['ip'] = manager_network_ip
         return True
     return False
 

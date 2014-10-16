@@ -72,6 +72,7 @@ class Config(object):
     CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.json'
 
     def get(self):
+        cfg = {}
         which = self.__class__.which
         env_name = which.upper() + '_CONFIG_PATH'
         default_location_tpl = '~/' + which + '_config.json'
@@ -81,12 +82,8 @@ class Config(object):
             with open(config_path) as f:
                 cfg = json.loads(f.read())
         except IOError:
-            raise RuntimeError(
-                "Failed to read {0} configuration from file '{1}'."
-                "The configuration is looked up in {2}. If defined, "
-                "environment variable "
-                "{3} overrides that location.".format(
-                    which, config_path, default_location_tpl, env_name))
+            pass
+
         return cfg
 
 
@@ -270,7 +267,6 @@ class ServerClient(VsphereClient):
                 guest_map.adapter.subnetMask = str(nw.netmask)
                 adaptermaps.append(guest_map)
 
-        # VM config spec
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
         vmconf.memoryMB = memory
@@ -278,7 +274,7 @@ class ServerClient(VsphereClient):
         vmconf.memoryHotAddEnabled = True
         vmconf.cpuHotRemoveEnabled = True
         vmconf.deviceChange = devices
-        # Clone spec
+
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
         clonespec.config = vmconf
@@ -286,24 +282,23 @@ class ServerClient(VsphereClient):
         clonespec.template = False
 
         if adaptermaps:
-            # DNS settings
-            globalip = vim.vm.customization.GlobalIPSettings()
-            globalip.dnsSuffixList = dns_servers
-
-            # Hostname settings
-            ident = vim.vm.customization.LinuxPrep()
-            ident.domain = domain
-            ident.hostName =\
-                vim.vm.customization.VirtualMachineNameGenerator()
-
             customspec = vim.vm.customization.Specification()
             customspec.nicSettingMap = adaptermaps
-            customspec.globalIPSettings = globalip
+
+            ident = vim.vm.customization.LinuxPrep()
+            if domain:
+                ident.domain = domain
+            ident.hostName = \
+                vim.vm.customization.VirtualMachineNameGenerator()
             customspec.identity = ident
+
+            globalip = vim.vm.customization.GlobalIPSettings()
+            if dns_servers:
+                globalip.dnsSuffixList = dns_servers
+            customspec.globalIPSettings = globalip
 
             clonespec.customization = customspec
 
-        # fire the clone task
         task = template_vm.Clone(folder=destfolder,
                                  name=vm_name,
                                  spec=clonespec)
@@ -664,7 +659,7 @@ def with_server_client(f):
     def wrapper(*args, **kw):
         ctx = _find_context_in_kw(kw)
         if ctx:
-            config = ctx.properties.get('connection_config')
+            config = ctx.node.properties.get('connection_config')
         else:
             config = None
         server_client = ServerClient().get(config=config)
@@ -678,7 +673,7 @@ def with_network_client(f):
     def wrapper(*args, **kw):
         ctx = _find_context_in_kw(kw)
         if ctx:
-            config = ctx.properties.get('connection_config')
+            config = ctx.node.properties.get('connection_config')
         else:
             config = None
         network_client = NetworkClient().get(config=config)
@@ -692,7 +687,7 @@ def with_storage_client(f):
     def wrapper(*args, **kw):
         ctx = _find_context_in_kw(kw)
         if ctx:
-            config = ctx.properties.get('connection_config')
+            config = ctx.node.properties.get('connection_config')
         else:
             config = None
         storage_client = StorageClient().get(config=config)

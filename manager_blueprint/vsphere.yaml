@@ -1,9 +1,9 @@
 tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
-    - http://www.getcloudify.org/spec/cloudify/3.1m4/types.yaml
-    - /home/ochyrko/workspace/vsphere-port/cloudify-vsphere-plugin/plugin.yaml
-    - http://www.getcloudify.org/spec/fabric-plugin/1.1m4/plugin.yaml
+    - http://www.getcloudify.org/spec/cloudify/3.1m5/types.yaml
+    - /home/plugin.yaml
+    - http://www.getcloudify.org/spec/fabric-plugin/1.1m5/plugin.yaml
 
 
 inputs:
@@ -98,12 +98,6 @@ inputs:
         default: false
         type: boolean
 
-    manager_public_key_name:
-        type: string
-
-    agent_public_key_name:
-        type: string
-
     manager_server_user:
         default: ubuntu
         type: string
@@ -153,6 +147,7 @@ node_templates:
     manager_server:
         type: cloudify.vsphere.server
         properties:
+            install_agent: false
             networking:
                 connected_networks:
                     -
@@ -207,9 +202,7 @@ node_templates:
                             tasks_file: scripts/configure.py
                             task_name: configure
                             task_properties:
-                                connection_config: { get_property: [connection_configuration, connection_config] }
-                                manager_public_key_name: { get_input: manager_public_key_name }
-                                agent_public_key_name: { get_input: agent_public_key_name }
+                                vsphere_config: { get_property: [connection_configuration, connection_config] }
                             fabric_env:
                                 user: { get_input: manager_server_user }
                                 key_filename: { get_input: manager_private_key_path }
