@@ -176,11 +176,11 @@ class VsphereServerTest(TestCase):
 
         state = server_plugin.server.get_state()
         self.assertTrue(state)
-        self.assertTrue('networks' in self.ctx)
-        self.assertTrue('ip' in self.ctx)
+        self.assertTrue('networks' in self.ctx.instance.runtime_properties)
+        self.assertTrue('ip' in self.ctx.instance.runtime_properties)
         ip_valid = True
         try:
-            socket.inet_aton(self.ctx['ip'])
+            socket.inet_aton(self.ctx.instance.runtime_properties['ip'])
         except socket.error:
             ip_valid = False
         self.assertTrue(ip_valid)
