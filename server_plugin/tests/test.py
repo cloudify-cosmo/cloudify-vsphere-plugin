@@ -172,6 +172,7 @@ class VsphereServerTest(TestCase):
             if self.is_server_guest_running(server):
                 guest_is_running = True
                 break
+            time.sleep(WAIT_TIMEOUT)
         self.assertTrue(guest_is_running)
 
         state = server_plugin.server.get_state()
