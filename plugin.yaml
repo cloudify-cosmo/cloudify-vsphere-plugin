@@ -20,12 +20,22 @@ node_types:
                 default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
-                - start: vsphere.server_plugin.server.start
-                - stop: vsphere.server_plugin.server.stop
-                - shutdown_guest: vsphere.server_plugin.server.shutdown_guest
-                - delete: vsphere.server_plugin.server.delete
+                start:
+                    implementation: vsphere.server_plugin.server.start
+                    inputs: {}
+                stop:
+                    implementation: vsphere.server_plugin.server.stop
+                    inputs: {}
+                shutdown_guest:
+                    implementation: vsphere.server_plugin.server.shutdown_guest
+                    inputs: {}
+                delete:
+                    implementation: vsphere.server_plugin.server.delete
+                    inputs: {}
             cloudify.interfaces.host:
-                - get_state: vsphere.server_plugin.server.get_state
+                get_state:
+                    implementation: vsphere.server_plugin.server.get_state
+                    inputs: {}
 
     cloudify.vsphere.network:
         derived_from: cloudify.types.network
@@ -35,8 +45,12 @@ node_types:
                 default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
-                - create: vsphere.network_plugin.network.create
-                - delete: vsphere.network_plugin.network.delete
+                create:
+                    implementation: vsphere.network_plugin.network.create
+                    inputs: {}
+                delete:
+                    implementation: vsphere.network_plugin.network.delete
+                    inputs: {}
 
     cloudify.vsphere.storage:
         derived_from: cloudify.types.volume
@@ -46,12 +60,9 @@ node_types:
                 default: {}
         interfaces:
             cloudify.interfaces.lifecycle:
-                - create: vsphere.storage_plugin.storage.create
-                - delete: vsphere.storage_plugin.storage.delete
-
-relationships:
-    cloudify.vsphere.server_connected_to_network:
-        derived_from: cloudify.relationships.connected_to
-
-    cloudify.vsphere.storage_connected_to_server:
-        derived_from: cloudify.relationships.connected_to
+                create:
+                    implementation: vsphere.storage_plugin.storage.create
+                    inputs: {}
+                delete:
+                    implementation: vsphere.storage_plugin.storage.delete
+                    inputs: {}
