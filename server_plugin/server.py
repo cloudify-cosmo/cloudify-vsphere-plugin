@@ -59,15 +59,29 @@ def create_new_server(server_client):
         for network in connected_networks:
             if network.get('management', False):
                 management_set = True
-            networks.append(
-                {'name': rename(network['name'].strip()),
-                 'external': network.get('external', False),
-                 'switch_distributed': network.get('switch_distributed', False),
-                 'use_dhcp': network.get('use_dhcp', True),
-                 'network': network.get('network'),
-                 'gateway': network.get('gateway'),
-                 'ip': network.get('ip'),
-                 })
+            if network.get('external', False):
+                networks.insert(
+                    0,
+                    {'name': rename(network['name'].strip()),
+                     'external': True,
+                     'switch_distributed': network.get('switch_distributed',
+                                                       False),
+                     'use_dhcp': network.get('use_dhcp', True),
+                     'network': network.get('network'),
+                     'gateway': network.get('gateway'),
+                     'ip': network.get('ip'),
+                     })
+            else:
+                networks.append(
+                    {'name': rename(network['name'].strip()),
+                     'external': False,
+                     'switch_distributed': network.get('switch_distributed',
+                                                       False),
+                     'use_dhcp': network.get('use_dhcp', True),
+                     'network': network.get('network'),
+                     'gateway': network.get('gateway'),
+                     'ip': network.get('ip'),
+                     })
 
     network_nodes_runtime_properties = ctx.capabilities.get_all().values()
     if network_nodes_runtime_properties and not management_set:
