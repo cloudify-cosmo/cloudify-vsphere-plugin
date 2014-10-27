@@ -17,6 +17,7 @@
 __author__ = 'Oleksandr_Raskosov'
 
 
+import mock
 import unittest
 from vsphere_plugin_common import (TestCase,
                                    TestsConfig)
@@ -84,6 +85,9 @@ class VsphereServerTest(TestCase):
                 }
             },
         )
+        ctx_patch = mock.patch('server_plugin.server.ctx', self.ctx)
+        ctx_patch.start()
+        self.addCleanup(ctx_patch.stop())
 
     def test_server(self):
         self.logger.debug("\nServer test started\n")
@@ -92,7 +96,7 @@ class VsphereServerTest(TestCase):
                           .format(self.ctx.node_id))
         self.assertThereIsNoServer(self.ctx.node_id)
         self.logger.debug("Create server \'{0}\'".format(self.ctx.node_id))
-        server_plugin.server.start(self.ctx)
+        server_plugin.server.start()
         self.logger.debug("Check server \'{0}\' is created"
                           .format(self.ctx.node_id))
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
@@ -101,13 +105,13 @@ class VsphereServerTest(TestCase):
         self.assertServerIsStarted(server)
 
         self.logger.debug("Stop server \'{0}\'".format(self.ctx.node_id))
-        server_plugin.server.stop(self.ctx)
+        server_plugin.server.stop()
         self.logger.debug("Check server \'{0}\' is stopped"
                           .format(self.ctx.node_id))
         self.assertServerIsStopped(server)
 
         self.logger.debug("Start server \'{0}\'".format(self.ctx.node_id))
-        server_plugin.server.start(self.ctx)
+        server_plugin.server.start()
         self.logger.debug("Check server \'{0}\' is started"
                           .format(self.ctx.node_id))
         self.assertServerIsStarted(server)
@@ -124,7 +128,7 @@ class VsphereServerTest(TestCase):
             wait *= WAIT_FACTOR
         self.logger.debug("Shutdown server \'{0}\' guest"
                           .format(self.ctx.node_id))
-        server_plugin.server.shutdown_guest(self.ctx)
+        server_plugin.server.shutdown_guest()
         wait = WAIT_START
         for attempt in range(1, WAIT_COUNT + 1):
             if not self.is_server_guest_running(server):
@@ -152,7 +156,7 @@ class VsphereServerTest(TestCase):
         self.assertServerIsStopped(server)
 
         self.logger.debug("Delete server \'{0}\'".format(self.ctx.node_id))
-        server_plugin.server.delete(self.ctx)
+        server_plugin.server.delete()
         self.logger.debug("Check there is no server \'{0}\'"
                           .format(self.ctx.node_id))
         self.assertThereIsNoServer(self.ctx.node_id)
@@ -164,16 +168,16 @@ class VsphereServerTest(TestCase):
         new_cpus = old_cpus + 1
         new_memory = old_memory + 64
 
-        server_plugin.server.start(self.ctx)
+        server_plugin.server.start()
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
         self.assertEqual(old_cpus, server.config.hardware.numCPU)
         self.assertEqual(old_memory, server.config.hardware.memoryMB)
         self.ctx.runtime_properties['cpus'] = new_cpus
         self.ctx.runtime_properties['memory'] = new_memory
 
-        server_plugin.server.stop(self.ctx)
+        server_plugin.server.stop()
 
-        server_plugin.server.resize(self.ctx)
+        server_plugin.server.resize()
 
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
         self.assertEqual(new_cpus, server.config.hardware.numCPU)
@@ -188,16 +192,16 @@ class VsphereServerTest(TestCase):
         new_cpus = old_cpus - 1
         new_memory = old_memory - 64
 
-        server_plugin.server.start(self.ctx)
+        server_plugin.server.start()
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
         self.assertEqual(old_cpus, server.config.hardware.numCPU)
         self.assertEqual(old_memory, server.config.hardware.memoryMB)
         self.ctx.runtime_properties['cpus'] = new_cpus
         self.ctx.runtime_properties['memory'] = new_memory
 
-        server_plugin.server.stop(self.ctx)
+        server_plugin.server.stop()
 
-        server_plugin.server.resize(self.ctx)
+        server_plugin.server.resize()
 
         server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
         self.assertEqual(new_cpus, server.config.hardware.numCPU)

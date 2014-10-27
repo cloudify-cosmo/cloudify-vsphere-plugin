@@ -30,6 +30,7 @@ from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
 import atexit
 
+from cloudify import exceptions as cfy_exc
 import cloudify
 import cloudify.manager
 import cloudify.decorators
@@ -179,8 +180,9 @@ class VsphereClient(object):
         while task.info.state == vim.TaskInfo.State.running:
             time.sleep(TASK_CHECK_SLEEP)
         if not task.info.state == vim.TaskInfo.State.success:
-            raise RuntimeError("Error during executing task on vSphere: '{0}'"
-                               .format(task.info.error))
+            raise cfy_exc.NonRecoverableError(
+                "Error during executing task on vSphere: '{0}'"
+                .format(task.info.error))
 
 
 class ServerClient(VsphereClient):
@@ -573,8 +575,8 @@ class StorageClient(VsphereClient):
                 device_to_delete = device
 
         if device_to_delete is None:
-            raise RuntimeError('Error during trying to delete storage:'
-                               ' storage not found')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to delete storage: storage not found')
 
         virtual_device_spec.device = device_to_delete
 
@@ -599,8 +601,9 @@ class StorageClient(VsphereClient):
         vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
 
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to resize storage:'
-                               ' invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to resize storage: invalid VM state'
+                ' - \'suspended\'')
 
         disk_to_resize = None
         devices = vm.config.hardware.device
@@ -610,8 +613,8 @@ class StorageClient(VsphereClient):
                 disk_to_resize = device
 
         if disk_to_resize is None:
-            raise RuntimeError('Error during trying to resize storage:'
-                               ' storage not found')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to resize storage: storage not found')
 
         updated_devices = []
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()

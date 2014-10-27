@@ -17,6 +17,7 @@
 __author__ = 'Oleksandr_Raskosov'
 
 
+import mock
 import unittest
 import network_plugin.network as network_plugin
 import vsphere_plugin_common as common
@@ -46,9 +47,12 @@ class VsphereNetworkTest(common.TestCase):
                 }
             },
         )
+        ctx_patch = mock.patch('network_plugin.network.ctx', ctx)
+        ctx_patch.start()
+        self.addCleanup(ctx_patch.stop())
 
         self.logger.debug("Create network \'{0}\'".format(name))
-        network_plugin.create(ctx)
+        network_plugin.create()
 
         self.logger.debug("Check network \'{0}\' is created".format(name))
         net = self.assertThereIsOneAndGetMetaNetwork(name)
@@ -57,7 +61,7 @@ class VsphereNetworkTest(common.TestCase):
         self.assertEqual(network_config['vlan_id'], net['vlanId'])
 
         self.logger.debug("Delete network \'{0}\'".format(name))
-        network_plugin.delete(ctx)
+        network_plugin.delete()
         self.logger.debug("Check network \'{0}\' is deleted".format(name))
         self.assertThereIsNoNetwork(name)
         self.logger.debug("\nNetwork test finished\n")

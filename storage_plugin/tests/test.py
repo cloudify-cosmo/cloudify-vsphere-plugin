@@ -43,7 +43,8 @@ class VsphereStorageTest(common.TestCase):
         storage_size = int(storage_config['storage_size'])
 
         capability = {'node_id': vm_name}
-        context_capabilities_m = ContextCapabilities()
+        endpoint = None
+        context_capabilities_m = ContextCapabilities(endpoint)
         get_all_m = mock.Mock()
         get_all_m.values = mock.Mock(return_value=[capability])
         context_capabilities_m.get_all = mock.Mock(return_value=get_all_m)
@@ -57,10 +58,13 @@ class VsphereStorageTest(common.TestCase):
             },
             capabilities=context_capabilities_m
         )
+        ctx_patch = mock.patch('storage_plugin.storage.ctx', self.ctx)
+        ctx_patch.start()
+        self.addCleanup(ctx_patch.stop)
 
     def tearDown(self):
         try:
-            storage_plugin.delete(self.ctx)
+            storage_plugin.delete()
         except Exception:
             pass
         super(VsphereStorageTest, self).tearDown()
@@ -68,7 +72,8 @@ class VsphereStorageTest(common.TestCase):
     def test_storage_create_delete(self):
         storage_size = self.ctx.properties['storage']['storage_size']
         vm_name = self.ctx.capabilities.get_all().values()[0]['node_id']
-        storage_plugin.create(self.ctx)
+
+        storage_plugin.create()
 
         storage_file_name = self.ctx[VSPHERE_STORAGE_FILE_NAME]
         self.logger.debug("Check storage \'{0}\' is created"
@@ -79,7 +84,7 @@ class VsphereStorageTest(common.TestCase):
         self.assertEqual(storage_size*1024*1024, storage.capacityInKB)
 
         self.logger.debug("Delete storage \'{0}\'".format(storage_file_name))
-        storage_plugin.delete(self.ctx)
+        storage_plugin.delete()
         self.logger.debug("Check storage \'{0}\' is deleted"
                           .format(storage_file_name))
         self.assertThereIsNoStorage(vm_name, storage_file_name)
@@ -89,11 +94,11 @@ class VsphereStorageTest(common.TestCase):
         storage_size = self.ctx.properties['storage']['storage_size']
         new_storage_size = storage_size + 1
 
-        storage_plugin.create(self.ctx)
+        storage_plugin.create()
 
         self.ctx.runtime_properties['storage_size'] = new_storage_size
 
-        storage_plugin.resize(self.ctx)
+        storage_plugin.resize()
 
         storage_file_name = self.ctx[VSPHERE_STORAGE_FILE_NAME]
 

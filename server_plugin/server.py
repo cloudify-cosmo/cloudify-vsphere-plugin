@@ -17,7 +17,9 @@
 __author__ = 'Oleksandr_Raskosov'
 
 
+from cloudify import ctx
 from cloudify.decorators import operation
+from cloudify import exceptions as cfy_exc
 from vsphere_plugin_common import (with_server_client,
                                    NetworkClient,
                                    transform_resource_name)
@@ -26,7 +28,7 @@ from vsphere_plugin_common import (with_server_client,
 VSPHERE_SERVER_ID = 'vsphere_server_id'
 
 
-def create_new_server(ctx, server_client):
+def create_new_server(server_client):
     def rename(name):
         return transform_resource_name(name, ctx)
 
@@ -119,18 +121,18 @@ def create_new_server(ctx, server_client):
 
 @operation
 @with_server_client
-def start(ctx, server_client, **kwargs):
-    server = get_server_by_context(server_client, ctx)
-    if server is not None:
+def start(server_client, **kwargs):
+    server = get_server_by_context(server_client)
+    if server is None:
+        create_new_server(server_client)
+    else:
         server_client.start_server(server)
-
-    create_new_server(ctx, server_client)
 
 
 @operation
 @with_server_client
-def shutdown_guest(ctx, server_client, **kwargs):
-    server = get_server_by_context(server_client, ctx)
+def shutdown_guest(server_client, **kwargs):
+    server = get_server_by_context(server_client)
     if server is None:
         raise RuntimeError(
             "Cannot shutdown server guest - server doesn't exist for node: {0}"
@@ -140,8 +142,8 @@ def shutdown_guest(ctx, server_client, **kwargs):
 
 @operation
 @with_server_client
-def stop(ctx, server_client, **kwargs):
-    server = get_server_by_context(server_client, ctx)
+def stop(server_client, **kwargs):
+    server = get_server_by_context(server_client)
     if server is None:
         raise RuntimeError(
             "Cannot stop server - server doesn't exist for node: {0}"
@@ -151,8 +153,8 @@ def stop(ctx, server_client, **kwargs):
 
 @operation
 @with_server_client
-def delete(ctx, server_client, **kwargs):
-    server = get_server_by_context(server_client, ctx)
+def delete(server_client, **kwargs):
+    server = get_server_by_context(server_client)
     if server is None:
         raise RuntimeError(
             "Cannot delete server - server doesn't exist for node: {0}"
@@ -162,8 +164,8 @@ def delete(ctx, server_client, **kwargs):
 
 @operation
 @with_server_client
-def get_state(ctx, server_client, **kwargs):
-    server = get_server_by_context(server_client, ctx)
+def get_state(server_client, **kwargs):
+    server = get_server_by_context(server_client)
     if server_client.is_server_guest_running(server):
         ips = {}
         manager_network_ip = None
@@ -183,10 +185,11 @@ def get_state(ctx, server_client, **kwargs):
 
 @operation
 @with_server_client
-def resize(ctx, server_client, **kwargs):
-    server = get_server_by_context(server_client, ctx)
+def resize(server_client, **kwargs):
+    ctx.logger.info("Resizing server")
+    server = get_server_by_context(server_client)
     if server is None:
-        raise RuntimeError(
+        raise cfy_exc.NonRecoverableError(
             "Cannot resize server - server doesn't exist for node: {0}"
             .format(ctx.node_id))
 
@@ -196,13 +199,17 @@ def resize(ctx, server_client, **kwargs):
         }
 
     if any(update.values()):
+        ctx.logger.info("Server new parameters: cpus - {0}, memory - {1}"
+                        .format(update['cpus'] or 'no changes',
+                                update['memory'] or 'no changes')
+                        )
         server_client.resize_server(server, **update)
     else:
-        # TODO(ochyrko): what to do here?
-        pass
+        raise cfy_exc.NonRecoverableError(
+            "Server resize parameters should be specified")
 
 
-def get_server_by_context(server_client, ctx):
+def get_server_by_context(server_client):
     if VSPHERE_SERVER_ID in ctx:
         return server_client.get_server_by_id(ctx[VSPHERE_SERVER_ID])
     return server_client.get_server_by_name(ctx.node_id)
