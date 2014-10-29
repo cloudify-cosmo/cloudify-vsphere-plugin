@@ -30,6 +30,7 @@ from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
 import atexit
 
+from cloudify import exceptions as cfy_exc
 import cloudify
 import cloudify.manager
 import cloudify.decorators
@@ -179,7 +180,9 @@ class VsphereClient(object):
         while task.info.state == vim.TaskInfo.State.running:
             time.sleep(TASK_CHECK_SLEEP)
         if not task.info.state == vim.TaskInfo.State.success:
-            raise RuntimeError("Error during executing task on vSphere.")
+            raise cfy_exc.NonRecoverableError(
+                "Error during executing task on vSphere: '{0}'"
+                .format(task.info.error))
 
 
 class ServerClient(VsphereClient):
@@ -230,7 +233,8 @@ class ServerClient(VsphereClient):
                 network_obj = self._get_obj_by_name(
                     [vim.dvs.DistributedVirtualPortgroup], network_name)
             else:
-                network_obj = self._get_obj_by_name([vim.Network], network_name)
+                network_obj = self._get_obj_by_name([vim.Network],
+                                                    network_name)
             nicspec = vim.vm.device.VirtualDeviceSpec()
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
@@ -268,6 +272,7 @@ class ServerClient(VsphereClient):
         vmconf.memoryMB = memory
         vmconf.cpuHotAddEnabled = True
         vmconf.memoryHotAddEnabled = True
+        vmconf.cpuHotRemoveEnabled = True
         vmconf.deviceChange = devices
         # Clone spec
         clonespec = vim.vm.CloneSpec()
@@ -391,6 +396,16 @@ class ServerClient(VsphereClient):
             return self.place_vm(auto_placement, except_datastores)
 
         return selected_host, selected_datastore
+
+    def resize_server(self, server, cpus=None, memory=None):
+        config = vim.vm.ConfigSpec()
+
+        if cpus:
+            config.numCPUs = cpus
+        if memory:
+            config.memoryMB = memory
+        task = server.Reconfigure(spec=config)
+        self._wait_for_task(task)
 
     def _wait_vm_running(self, task):
         self._wait_for_task(task)
@@ -559,6 +574,10 @@ class StorageClient(VsphereClient):
                     and device.backing.fileName == storage_file_name:
                 device_to_delete = device
 
+        if device_to_delete is None:
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to delete storage: storage not found')
+
         virtual_device_spec.device = device_to_delete
 
         devices.append(virtual_device_spec)
@@ -577,6 +596,43 @@ class StorageClient(VsphereClient):
                         and device.backing.fileName == storage_file_name:
                     return device
         return None
+
+    def resize_storage(self, vm_name, storage_filename, storage_size):
+        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+
+        if self.is_server_suspended(vm):
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to resize storage: invalid VM state'
+                ' - \'suspended\'')
+
+        disk_to_resize = None
+        devices = vm.config.hardware.device
+        for device in devices:
+            if (isinstance(device, vim.vm.device.VirtualDisk)
+                    and device.backing.fileName == storage_filename):
+                disk_to_resize = device
+
+        if disk_to_resize is None:
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to resize storage: storage not found')
+
+        updated_devices = []
+        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+        virtual_device_spec.operation =\
+            vim.vm.device.VirtualDeviceSpec.Operation.edit
+
+        virtual_device_spec.device = disk_to_resize
+        virtual_device_spec.device.capacityInKB = storage_size*1024*1024
+        virtual_device_spec.device.capacityInBytes =\
+            storage_size*1024*1024*1024
+
+        updated_devices.append(virtual_device_spec)
+
+        config_spec = vim.vm.ConfigSpec()
+        config_spec.deviceChange = updated_devices
+
+        task = vm.Reconfigure(spec=config_spec)
+        self._wait_for_task(task)
 
 
 def _find_instanceof_in_kw(cls, kw):
