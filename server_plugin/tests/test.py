@@ -109,7 +109,8 @@ class VsphereServerTest(TestCase):
         self.assertServerIsStarted(server)
         self.assertTrue(server_plugin.server.PUBLIC_IP
                         in self.ctx.instance.runtime_properties)
-        ip = self.ctx.instance.runtime_properties[server_plugin.server.PUBLIC_IP]
+        ip = self.ctx.instance.runtime_properties[
+            server_plugin.server.PUBLIC_IP]
         ip_valid = True
         try:
             socket.inet_aton(ip)

@@ -23,7 +23,7 @@ from vsphere_plugin_common import (with_network_client,
 @with_network_client
 def create(network_client, **kwargs):
     network = {
-        'name': ctx.node.id,
+        'name': ctx.instance.id,
     }
     network.update(ctx.node.properties['network'])
     transform_resource_name(network, ctx)
@@ -37,5 +37,6 @@ def create(network_client, **kwargs):
 @operation
 @with_network_client
 def delete(network_client, **kwargs):
-    port_group_name = ctx.node.id
+    port_group_name = ctx.node.properties['network'].get('name') or \
+        ctx.instance.id
     network_client.delete_port_group(port_group_name)

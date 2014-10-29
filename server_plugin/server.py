@@ -30,7 +30,7 @@ def create_new_server(server_client):
         return transform_resource_name(name, ctx)
 
     server = {
-        'name': ctx.node.id,
+        'name': ctx.instance.id,
     }
     server.update(ctx.node.properties['server'])
     transform_resource_name(server, ctx)
@@ -131,7 +131,7 @@ def create_new_server(server_client):
 
     public_ips = [server_client.get_server_ip(server, network['name'])
                   for network in networks if network['external']]
-    if len(public_ips) > 0:
+    if len(public_ips) == 1:
         ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
 
 
@@ -233,4 +233,4 @@ def get_server_by_context(server_client):
     if VSPHERE_SERVER_ID in ctx.instance.runtime_properties:
         return server_client.get_server_by_id(
             ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
-    return server_client.get_server_by_name(ctx.node.id)
+    return server_client.get_server_by_name(ctx.instance.id)

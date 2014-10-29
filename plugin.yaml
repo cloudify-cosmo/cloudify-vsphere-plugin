@@ -3,7 +3,7 @@
 ##################################################################################
 
 imports:
-    - http://www.getcloudify.org/spec/cloudify/3.1m5/types.yaml
+    - http://www.getcloudify.org/spec/cloudify/3.1rc1/types.yaml
 
 plugins:
     vsphere:
