@@ -11,8 +11,8 @@ plugins:
         source: /home/cloudify-vsphere-plugin-3.1-port.zip
 
 node_types:
-    cloudify.vsphere.server:
-        derived_from: cloudify.types.host
+    cloudify.vsphere.nodes.server:
+        derived_from: cloudify.nodes.Compute
         properties:
             server: {}
             networking: {}
@@ -37,8 +37,8 @@ node_types:
                     implementation: vsphere.server_plugin.server.get_state
                     inputs: {}
 
-    cloudify.vsphere.network:
-        derived_from: cloudify.types.network
+    cloudify.vsphere.nodes.network:
+        derived_from: cloudify.nodes.Network
         properties:
             network: {}
             connection_config:
@@ -52,8 +52,8 @@ node_types:
                     implementation: vsphere.network_plugin.network.delete
                     inputs: {}
 
-    cloudify.vsphere.storage:
-        derived_from: cloudify.types.volume
+    cloudify.vsphere.nodes.storage:
+        derived_from: cloudify.nodes.Volume
         properties:
             storage: {}
             connection_config:

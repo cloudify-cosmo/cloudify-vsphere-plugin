@@ -2,11 +2,11 @@ tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
     - http://www.getcloudify.org/spec/cloudify/3.1rc1/types.yaml
-    - http://127.0.0.1/cloudify-vsphere-plugin/plugin.yaml
+    - /etc/cloudify/vsphere_plugin.yaml
 
 node_templates:
     example_server:
-        type: cloudify.vsphere.server
+        type: cloudify.vsphere.nodes.server
         properties:
             networking:
                 domain: example.com
@@ -36,15 +36,15 @@ node_templates:
                 memory: 512
 
     example_network:
-        type: cloudify.vsphere.network
+        type: cloudify.vsphere.nodes.network
         properties:
             network:
                 name: example_network
-                vlan_id: 4095
+                vlan_id: 1
                 vswitch_name: example_vswitch
 
     example_storage:
-        type: cloudify.vsphere.network
+        type: cloudify.vsphere.nodes.storage
         properties:
             storage:
                 storage_size: 1
