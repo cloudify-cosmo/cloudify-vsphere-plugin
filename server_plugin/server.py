@@ -83,31 +83,6 @@ def create_new_server(server_client):
                      'ip': network.get('ip'),
                      })
 
-    network_nodes_runtime_properties = ctx.capabilities.get_all().values()
-    if network_nodes_runtime_properties and not management_set:
-        # Known limitation
-        raise RuntimeError("vSphere server with multi-NIC requires "
-                           "'management_network' which was not supplied")
-    network_client = NetworkClient().get(
-        config=ctx.node.properties.get('connection_config'))
-
-    nics = [
-        {
-            'name': n['node_id'],
-            'external': n.get('external', False),
-            'switch_distributed': n.get('switch_distributed', False),
-            'use_dhcp': n.get('use_dhcp', True),
-            'network': n.get('network'),
-            'gateway': n.get('gateway'),
-            'ip': n.get('ip')
-        }
-        for n in network_nodes_runtime_properties
-        if network_client.get_port_group_by_name(n['node_id'])
-    ]
-
-    if nics:
-        networks.extend(nics)
-
     connection_config = ctx.node.properties.get('connection_config')
     datacenter_name = connection_config['datacenter_name']
     resource_pool_name = connection_config['resource_pool_name']
@@ -185,11 +160,14 @@ def get_state(server_client, **kwargs):
     if server_client.is_server_guest_running(server):
         ips = {}
         manager_network_ip = None
-        management_network_name = \
+        management_networks = \
             [network['name'] for network
              in ctx.node.properties['networking'].get(
                  'connected_networks', [])
-             if network.get('management', False)][0]
+             if network.get('management', False)]
+        management_network_name = (management_networks[0]
+                                   if len(management_networks) == 1
+                                   else None)
 
         for network in server.guest.net:
             network_name = network.network
@@ -198,7 +176,12 @@ def get_state(server_client, **kwargs):
                 manager_network_ip = network.ipAddress[0]
             ips[network_name] = network.ipAddress[0]
         ctx.instance.runtime_properties['networks'] = ips
-        ctx.instance.runtime_properties['ip'] = manager_network_ip
+        ctx.instance.runtime_properties['ip'] = \
+            (manager_network_ip
+             or (server.guest.net[0].ipAddress[0]
+                 if len(server.guest.net) > 0
+                 else None)
+             )
         return True
     return False
 

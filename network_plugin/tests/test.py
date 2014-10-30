@@ -44,9 +44,10 @@ class VsphereNetworkTest(common.TestCase):
                 }
             },
         )
-        ctx_patch = mock.patch('network_plugin.network.ctx', ctx)
-        ctx_patch.start()
-        self.addCleanup(ctx_patch.stop())
+        ctx_patch1 = mock.patch('network_plugin.network.ctx', ctx)
+        ctx_patch1.start()
+        ctx_patch2 = mock.patch('vsphere_plugin_common.ctx', ctx)
+        ctx_patch2.start()
 
         self.logger.debug("Create network \'{0}\'".format(name))
         network_plugin.create()
@@ -62,7 +63,5 @@ class VsphereNetworkTest(common.TestCase):
         self.logger.debug("Check network \'{0}\' is deleted".format(name))
         self.assertThereIsNoNetwork(name)
         self.logger.debug("\nNetwork test finished\n")
-
-
-if __name__ == '__main__':
-    unittest.main()
+        ctx_patch1.stop()
+        ctx_patch2.stop()

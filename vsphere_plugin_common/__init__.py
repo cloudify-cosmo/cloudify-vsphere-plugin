@@ -26,6 +26,7 @@ from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
 import atexit
 
+from cloudify import ctx
 from cloudify import exceptions as cfy_exc
 import cloudify
 import cloudify.manager
@@ -657,11 +658,7 @@ def _find_context_in_kw(kw):
 def with_server_client(f):
     @wraps(f)
     def wrapper(*args, **kw):
-        ctx = _find_context_in_kw(kw)
-        if ctx:
-            config = ctx.node.properties.get('connection_config')
-        else:
-            config = None
+        config = ctx.node.properties.get('connection_config')
         server_client = ServerClient().get(config=config)
         kw['server_client'] = server_client
         return f(*args, **kw)
@@ -671,11 +668,7 @@ def with_server_client(f):
 def with_network_client(f):
     @wraps(f)
     def wrapper(*args, **kw):
-        ctx = _find_context_in_kw(kw)
-        if ctx:
-            config = ctx.node.properties.get('connection_config')
-        else:
-            config = None
+        config = ctx.node.properties.get('connection_config')
         network_client = NetworkClient().get(config=config)
         kw['network_client'] = network_client
         return f(*args, **kw)
@@ -685,11 +678,7 @@ def with_network_client(f):
 def with_storage_client(f):
     @wraps(f)
     def wrapper(*args, **kw):
-        ctx = _find_context_in_kw(kw)
-        if ctx:
-            config = ctx.node.properties.get('connection_config')
-        else:
-            config = None
+        config = ctx.node.properties.get('connection_config')
         storage_client = StorageClient().get(config=config)
         kw['storage_client'] = storage_client
         return f(*args, **kw)

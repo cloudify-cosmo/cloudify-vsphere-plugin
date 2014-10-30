@@ -55,9 +55,12 @@ class VsphereStorageTest(common.TestCase):
             },
             capabilities=context_capabilities_m
         )
-        ctx_patch = mock.patch('storage_plugin.storage.ctx', self.ctx)
-        ctx_patch.start()
-        self.addCleanup(ctx_patch.stop)
+        ctx_patch1 = mock.patch('storage_plugin.storage.ctx', self.ctx)
+        ctx_patch1.start()
+        self.addCleanup(ctx_patch1.stop)
+        ctx_patch2 = mock.patch('vsphere_plugin_common.ctx', self.ctx)
+        ctx_patch2.start()
+        self.addCleanup(ctx_patch2.stop)
 
     def tearDown(self):
         try:

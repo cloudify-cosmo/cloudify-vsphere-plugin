@@ -54,9 +54,12 @@ class VsphereServerTest(TestCase):
                 }
             },
         )
-        ctx_patch = mock.patch('server_plugin.server.ctx', self.ctx)
-        ctx_patch.start()
-        self.addCleanup(ctx_patch.stop())
+        ctx_patch1 = mock.patch('server_plugin.server.ctx', self.ctx)
+        ctx_patch1.start()
+        self.addCleanup(ctx_patch1.stop)
+        ctx_patch2 = mock.patch('vsphere_plugin_common.ctx', self.ctx)
+        ctx_patch2.start()
+        self.addCleanup(ctx_patch2.stop)
 
     def test_server_create_delete(self):
         self.assertThereIsNoServer(self.ctx.node.id)
@@ -125,7 +128,7 @@ class VsphereServerTest(TestCase):
         new_memory = old_memory + 64
 
         server_plugin.server.start()
-        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
         self.assertEqual(old_cpus, server.config.hardware.numCPU)
         self.assertEqual(old_memory, server.config.hardware.memoryMB)
         self.ctx.instance.runtime_properties['cpus'] = new_cpus
@@ -149,7 +152,7 @@ class VsphereServerTest(TestCase):
         new_memory = old_memory - 64
 
         server_plugin.server.start()
-        server = self.assertThereIsOneServerAndGet(self.ctx.node_id)
+        server = self.assertThereIsOneServerAndGet(self.ctx.node.id)
         self.assertEqual(old_cpus, server.config.hardware.numCPU)
         self.assertEqual(old_memory, server.config.hardware.memoryMB)
         self.ctx.instance.runtime_properties['cpus'] = new_cpus
