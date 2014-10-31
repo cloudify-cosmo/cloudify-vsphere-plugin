@@ -34,12 +34,13 @@ def create(storage_client, **kwargs):
     storage_size = storage['storage_size']
     capabilities = ctx.capabilities.get_all().values()
     if not capabilities:
-        raise RuntimeError('Error during trying to create storage:'
-                           ' storage should be related to a VM,'
-                           ' but capabilities are empty')
+        raise cfy_exc.NonRecoverableError(
+            'Error during trying to create storage: storage should be '
+            'related to a VM, but capabilities are empty')
     if len(capabilities) > 1:
-        raise RuntimeError('Error during trying to create storage:'
-                           ' storage should be connected only to one VM')
+        raise cfy_exc.NonRecoverableError(
+            'Error during trying to create storage: storage should be '
+            'connected only to one VM')
     vm_name = capabilities[0]['node_id']
     storage_file_name = storage_client.create_storage(vm_name, storage_size)
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
@@ -51,12 +52,13 @@ def create(storage_client, **kwargs):
 def delete(storage_client, **kwargs):
     capabilities = ctx.capabilities.get_all().values()
     if not capabilities:
-        raise RuntimeError('Error during trying to create storage:'
-                           ' storage should be related to a VM,'
-                           ' but capabilities are empty')
+        raise cfy_exc.NonRecoverableError(
+            'Error during trying to create storage: storage should be '
+            'related to a VM, but capabilities are empty')
     if len(capabilities) > 1:
-        raise RuntimeError('Error during trying to create storage:'
-                           ' storage should be connected only to one VM')
+        raise cfy_exc.NonRecoverableError(
+            'Error during trying to create storage: storage should be '
+            'connected only to one VM')
     vm_name = capabilities[0]['node_id']
     storage_client.delete_storage(
         vm_name, ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME])

@@ -37,7 +37,6 @@ def create_new_server(server_client):
 
     vm_name = server['name']
     networks = []
-    management_set = False
     domain = None
     dns_servers = None
     networking = ctx.node.properties.get('networking')
@@ -49,16 +48,14 @@ def create_new_server(server_client):
 
         if len([network for network in connected_networks
                 if network.get('external', False)]) > 1:
-            raise RuntimeError("No more that one external network can be"
-                               " specified")
+            raise cfy_exc.NonRecoverableError(
+                "No more that one external network can be specified")
         if len([network for network in connected_networks
                 if network.get('management', False)]) > 1:
-            raise RuntimeError("No more that one management network can be"
-                               " specified")
+            raise cfy_exc.NonRecoverableError(
+                "No more that one management network can be specified")
 
         for network in connected_networks:
-            if network.get('management', False):
-                management_set = True
             if network.get('external', False):
                 networks.insert(
                     0,
@@ -125,7 +122,7 @@ def start(server_client, **kwargs):
 def shutdown_guest(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
-        raise RuntimeError(
+        raise cfy_exc.NonRecoverableError(
             "Cannot shutdown server guest - server doesn't exist for node: {0}"
             .format(ctx.node.id))
     server_client.shutdown_server_guest(server)
@@ -136,7 +133,7 @@ def shutdown_guest(server_client, **kwargs):
 def stop(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
-        raise RuntimeError(
+        raise cfy_exc.NonRecoverableError(
             "Cannot stop server - server doesn't exist for node: {0}"
             .format(ctx.node.id))
     server_client.stop_server(server)
@@ -147,7 +144,7 @@ def stop(server_client, **kwargs):
 def delete(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
-        raise RuntimeError(
+        raise cfy_exc.NonRecoverableError(
             "Cannot delete server - server doesn't exist for node: {0}"
             .format(ctx.node.id))
     server_client.delete_server(server)
