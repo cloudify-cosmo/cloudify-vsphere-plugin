@@ -8,7 +8,7 @@ imports:
 plugins:
     vsphere:
         executor: central_deployment_agent
-        source: /home/cloudify-vsphere-plugin-3.1-port.zip
+        source: /opt/cloudify/cloudify-vsphere-plugin-3.1-port.zip
 
 node_types:
     cloudify.vsphere.nodes.server:
@@ -67,9 +67,9 @@ node_types:
                     implementation: vsphere.storage_plugin.storage.delete
                     inputs: {}
 
-    relationships:
-        cloudify.vsphere.server_connected_to_network:
-            derived_from: cloudify.relationships.connected_to
+relationships:
+    cloudify.vsphere.server_connected_to_network:
+        derived_from: cloudify.relationships.connected_to
 
-        cloudify.vsphere.storage_connected_to_server:
-            derived_from: cloudify.relationships.connected_to
+    cloudify.vsphere.storage_connected_to_server:
+        derived_from: cloudify.relationships.connected_to
