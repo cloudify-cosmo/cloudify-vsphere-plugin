@@ -48,3 +48,6 @@ node_templates:
         properties:
             storage:
                 storage_size: 1
+        relationships:
+            - target: example_server
+              type: cloudify.vsphere.storage_connected_to_server
