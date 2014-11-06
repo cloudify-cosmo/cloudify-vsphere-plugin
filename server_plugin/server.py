@@ -18,7 +18,8 @@ from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
 from vsphere_plugin_common import (with_server_client,
                                    NetworkClient,
-                                   transform_resource_name)
+                                   transform_resource_name,
+                                   remove_runtime_properties)
 
 
 VSPHERE_SERVER_ID = 'vsphere_server_id'
@@ -151,7 +152,7 @@ def delete(server_client, **kwargs):
             "Cannot delete server - server doesn't exist for node: {0}"
             .format(ctx.node.id))
     server_client.delete_server(server)
-    remove_runtime_properties(SERVER_RUNTIME_PROPERTIES)
+    remove_runtime_properties(SERVER_RUNTIME_PROPERTIES, ctx)
 
 
 @operation

@@ -14,6 +14,7 @@
 #  * limitations under the License.
 
 import mock
+import server_plugin.server as server_plugin
 import storage_plugin.storage as storage_plugin
 import vsphere_plugin_common as common
 
@@ -38,7 +39,7 @@ class VsphereStorageTest(common.TestCase):
         vm_name = storage_config['vm_name']
         storage_size = int(storage_config['storage_size'])
 
-        capability = {'node_id': vm_name}
+        capability = {server_plugin.VSPHERE_SERVER_ID: vm_name}
         endpoint = None
         context_capabilities_m = ContextCapabilities(endpoint)
         get_all_m = mock.Mock()
@@ -71,7 +72,8 @@ class VsphereStorageTest(common.TestCase):
 
     def test_storage_create_delete(self):
         storage_size = self.ctx.node.properties['storage']['storage_size']
-        vm_name = self.ctx.capabilities.get_all().values()[0]['node_id']
+        vm_name = self.ctx.capabilities.get_all().values()[0][
+            server_plugin.VSPHERE_SERVER_ID]
 
         storage_plugin.create()
 
@@ -91,7 +93,8 @@ class VsphereStorageTest(common.TestCase):
         self.assertThereIsNoStorage(vm_name, storage_file_name)
 
     def test_storage_resize(self):
-        vm_name = self.ctx.capabilities.get_all().values()[0]['node_id']
+        vm_name = self.ctx.capabilities.get_all().values()[0][
+            server_plugin.VSPHERE_SERVER_ID]
         storage_size = self.ctx.node.properties['storage']['storage_size']
         new_storage_size = storage_size + 1
 

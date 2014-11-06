@@ -41,7 +41,7 @@ TASK_CHECK_SLEEP = 15
 PREFIX_RANDOM_CHARS = 3
 
 
-def remove_runtime_properties(properties, context=ctx):
+def remove_runtime_properties(properties, context):
     for p in properties:
         if p in context.instance.runtime_properties:
             del context.instance.runtime_properties[p]
