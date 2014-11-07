@@ -39,7 +39,9 @@ class VsphereStorageTest(common.TestCase):
         vm_name = storage_config['vm_name']
         storage_size = int(storage_config['storage_size'])
 
-        capability = {server_plugin.VSPHERE_SERVER_ID: vm_name}
+        server_client = common.ServerClient().get()
+        vm = server_client.get_server_by_name(vm_name)
+        capability = {server_plugin.VSPHERE_SERVER_ID: vm._moId}
         endpoint = None
         context_capabilities_m = ContextCapabilities(endpoint)
         get_all_m = mock.Mock()
@@ -72,7 +74,7 @@ class VsphereStorageTest(common.TestCase):
 
     def test_storage_create_delete(self):
         storage_size = self.ctx.node.properties['storage']['storage_size']
-        vm_name = self.ctx.capabilities.get_all().values()[0][
+        vm_id = self.ctx.capabilities.get_all().values()[0][
             server_plugin.VSPHERE_SERVER_ID]
 
         storage_plugin.create()
@@ -81,7 +83,7 @@ class VsphereStorageTest(common.TestCase):
             self.ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
         self.logger.debug("Check storage \'{0}\' is created"
                           .format(storage_file_name))
-        storage = self.assertThereIsStorageAndGet(vm_name, storage_file_name)
+        storage = self.assertThereIsStorageAndGet(vm_id, storage_file_name)
         self.logger.debug("Check storage \'{0}\' settings"
                           .format(storage_file_name))
         self.assertEqual(storage_size*1024*1024, storage.capacityInKB)
@@ -90,10 +92,10 @@ class VsphereStorageTest(common.TestCase):
         storage_plugin.delete()
         self.logger.debug("Check storage \'{0}\' is deleted"
                           .format(storage_file_name))
-        self.assertThereIsNoStorage(vm_name, storage_file_name)
+        self.assertThereIsNoStorage(vm_id, storage_file_name)
 
     def test_storage_resize(self):
-        vm_name = self.ctx.capabilities.get_all().values()[0][
+        vm_id = self.ctx.capabilities.get_all().values()[0][
             server_plugin.VSPHERE_SERVER_ID]
         storage_size = self.ctx.node.properties['storage']['storage_size']
         new_storage_size = storage_size + 1
@@ -107,5 +109,5 @@ class VsphereStorageTest(common.TestCase):
         storage_file_name = \
             self.ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
 
-        storage = self.assertThereIsStorageAndGet(vm_name, storage_file_name)
+        storage = self.assertThereIsStorageAndGet(vm_id, storage_file_name)
         self.assertEqual(new_storage_size*1024*1024, storage.capacityInKB)

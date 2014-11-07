@@ -462,8 +462,8 @@ class NetworkClient(VsphereClient):
 
 class StorageClient(VsphereClient):
 
-    def create_storage(self, vm_name, storage_size):
-        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+    def create_storage(self, vm_id, storage_size):
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
 
         if self.is_server_suspended(vm):
             raise RuntimeError('Error during trying to create storage:'
@@ -563,8 +563,8 @@ class StorageClient(VsphereClient):
         self._wait_for_task(task)
         return vm_disk_filename
 
-    def delete_storage(self, vm_name, storage_file_name):
-        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+    def delete_storage(self, vm_id, storage_file_name):
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
 
         if self.is_server_suspended(vm):
             raise RuntimeError('Error during trying to create storage:'
@@ -599,8 +599,8 @@ class StorageClient(VsphereClient):
         task = vm.Reconfigure(spec=config_spec)
         self._wait_for_task(task)
 
-    def get_storage(self, vm_name, storage_file_name):
-        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+    def get_storage(self, vm_id, storage_file_name):
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
         if vm:
             for device in vm.config.hardware.device:
                 if isinstance(device, vim.vm.device.VirtualDisk)\
@@ -608,8 +608,8 @@ class StorageClient(VsphereClient):
                     return device
         return None
 
-    def resize_storage(self, vm_name, storage_filename, storage_size):
-        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+    def resize_storage(self, vm_id, storage_filename, storage_size):
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
 
         if self.is_server_suspended(vm):
             raise cfy_exc.NonRecoverableError(
@@ -802,13 +802,13 @@ class TestCase(unittest.TestCase):
 
     @with_storage_client
     def assertThereIsStorageAndGet(
-            self, vm_name, storage_file_name, storage_client):
-        storage = storage_client.get_storage(vm_name, storage_file_name)
+            self, vm_id, storage_file_name, storage_client):
+        storage = storage_client.get_storage(vm_id, storage_file_name)
         self.assertIsNotNone(storage)
         return storage
 
     @with_storage_client
     def assertThereIsNoStorage(
-            self, vm_name, storage_file_name, storage_client):
-        storage = storage_client.get_storage(vm_name, storage_file_name)
+            self, vm_id, storage_file_name, storage_client):
+        storage = storage_client.get_storage(vm_id, storage_file_name)
         self.assertIsNone(storage)

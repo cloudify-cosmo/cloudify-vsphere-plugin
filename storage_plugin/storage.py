@@ -22,9 +22,9 @@ from vsphere_plugin_common import (with_storage_client,
                                    remove_runtime_properties)
 
 VSPHERE_STORAGE_FILE_NAME = 'vsphere_storage_file_name'
-VSPHERE_STORAGE_VM_NAME = 'vsphere_storage_vm_name'
+VSPHERE_STORAGE_VM_ID = 'vsphere_storage_vm_id'
 VSPHERE_STORAGE_RUNTIME_PROPERTIES = [VSPHERE_STORAGE_FILE_NAME,
-                                      VSPHERE_STORAGE_VM_NAME]
+                                      VSPHERE_STORAGE_VM_ID]
 
 
 @operation
@@ -50,28 +50,28 @@ def create(storage_client, **kwargs):
             'Error during trying to create storage: storage should be '
             'connected only to one VM')
 
-    vm_name = connected_vms[0][VSPHERE_SERVER_ID]
-    storage_file_name = storage_client.create_storage(vm_name, storage_size)
+    vm_id = connected_vms[0][VSPHERE_SERVER_ID]
+    storage_file_name = storage_client.create_storage(vm_id, storage_size)
 
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
         storage_file_name
-    ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME] = vm_name
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID] = vm_id
 
 
 @operation
 @with_storage_client
 def delete(storage_client, **kwargs):
-    vm_name = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME]
+    vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
-    storage_client.delete_storage(vm_name, storage_file_name)
+    storage_client.delete_storage(vm_id, storage_file_name)
     remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
 
 
 @operation
 @with_storage_client
 def resize(storage_client, **kwargs):
-    vm_name = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME]
+    vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
     storage_size = ctx.instance.runtime_properties.get('storage_size')
@@ -79,6 +79,6 @@ def resize(storage_client, **kwargs):
         raise cfy_exc.NonRecoverableError(
             'Error during trying to resize storage: new storage size wasn\'t'
             ' specified')
-    storage_client.resize_storage(vm_name,
+    storage_client.resize_storage(vm_id,
                                   storage_file_name,
                                   storage_size)
