@@ -17,7 +17,7 @@ from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
 from vsphere_plugin_common import (with_server_client,
-                                   NetworkClient,
+                                   ConnectionConfig,
                                    transform_resource_name,
                                    remove_runtime_properties)
 
@@ -84,7 +84,8 @@ def create_new_server(server_client):
                      'ip': network.get('ip'),
                      })
 
-    connection_config = ctx.node.properties.get('connection_config')
+    connection_config = ConnectionConfig().get()
+    connection_config.update(ctx.node.properties.get('connection_config'))
     datacenter_name = connection_config['datacenter_name']
     resource_pool_name = connection_config['resource_pool_name']
     auto_placement = connection_config['auto_placement']
