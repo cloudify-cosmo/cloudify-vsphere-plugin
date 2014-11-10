@@ -1,0 +1,53 @@
+tosca_definitions_version: cloudify_dsl_1_0
+
+imports:
+    - http://www.getcloudify.org/spec/cloudify/3.1rc1/types.yaml
+    - /etc/cloudify/vsphere_plugin.yaml
+
+node_templates:
+    example_server:
+        type: cloudify.vsphere.nodes.server
+        properties:
+            networking:
+                domain: example.com
+                dns_servers: ['8.8.8.8']
+                connected_networks:
+                    -
+                        name: example_management_network
+                        management: true
+                        switch_distributed: false
+                        use_dhcp: true
+                    -
+                        name: example_external_network
+                        external: true
+                        switch_distributed: true
+                        use_dhcp: false
+                        network: 10.0.0.0/24
+                        gateway: 10.0.0.1
+                        ip: 10.0.0.2
+                    -
+                        name: example_other_network
+                        switch_distributed: true
+                        use_dhcp: true
+            server:
+                name: example_server
+                template: example_server_template
+                cpus: 1
+                memory: 512
+
+    example_network:
+        type: cloudify.vsphere.nodes.network
+        properties:
+            network:
+                name: example_network
+                vlan_id: 1
+                vswitch_name: example_vswitch
+
+    example_storage:
+        type: cloudify.vsphere.nodes.storage
+        properties:
+            storage:
+                storage_size: 1
+        relationships:
+            - target: example_server
+              type: cloudify.vsphere.storage_connected_to_server

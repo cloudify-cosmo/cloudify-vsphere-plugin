@@ -13,10 +13,6 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 from cloudify import ctx
 from cloudify.decorators import operation
 from vsphere_plugin_common import (with_network_client,
@@ -27,9 +23,9 @@ from vsphere_plugin_common import (with_network_client,
 @with_network_client
 def create(network_client, **kwargs):
     network = {
-        'name': ctx.node_id,
+        'name': ctx.instance.id,
     }
-    network.update(ctx.properties['network'])
+    network.update(ctx.node.properties['network'])
     transform_resource_name(network, ctx)
 
     port_group_name = network['name']
@@ -41,5 +37,6 @@ def create(network_client, **kwargs):
 @operation
 @with_network_client
 def delete(network_client, **kwargs):
-    port_group_name = ctx.node_id
+    port_group_name = ctx.node.properties['network'].get('name') or \
+        ctx.instance.id
     network_client.delete_port_group(port_group_name)

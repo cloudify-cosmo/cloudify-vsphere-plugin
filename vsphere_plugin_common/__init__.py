@@ -13,10 +13,6 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 from functools import wraps
 import json
 import os
@@ -30,6 +26,7 @@ from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
 import atexit
 
+from cloudify import ctx
 from cloudify import exceptions as cfy_exc
 import cloudify
 import cloudify.manager
@@ -42,6 +39,12 @@ import re
 TASK_CHECK_SLEEP = 15
 
 PREFIX_RANDOM_CHARS = 3
+
+
+def remove_runtime_properties(properties, context):
+    for p in properties:
+        if p in context.instance.runtime_properties:
+            del context.instance.runtime_properties[p]
 
 
 def transform_resource_name(res, ctx):
@@ -72,7 +75,11 @@ def transform_resource_name(res, ctx):
 
 
 class Config(object):
+
+    CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.json'
+
     def get(self):
+        cfg = {}
         which = self.__class__.which
         env_name = which.upper() + '_CONFIG_PATH'
         default_location_tpl = '~/' + which + '_config.json'
@@ -82,12 +89,8 @@ class Config(object):
             with open(config_path) as f:
                 cfg = json.loads(f.read())
         except IOError:
-            raise RuntimeError(
-                "Failed to read {0} configuration from file '{1}'."
-                "The configuration is looked up in {2}. If defined, "
-                "environment variable "
-                "{3} overrides that location.".format(
-                    which, config_path, default_location_tpl, env_name))
+            pass
+
         return cfg
 
 
@@ -196,8 +199,6 @@ class ServerClient(VsphereClient):
                       resource_pool_name,
                       template_name,
                       vm_name,
-                      switch_distributed,
-                      use_dhcp=True,
                       domain=None,
                       dns_servers=None):
         host, datastore = self.place_vm(auto_placement)
@@ -229,6 +230,8 @@ class ServerClient(VsphereClient):
 
         for network in networks:
             network_name = network['name']
+            switch_distributed = network['switch_distributed']
+            use_dhcp = network['use_dhcp']
             if switch_distributed:
                 network_obj = self._get_obj_by_name(
                     [vim.dvs.DistributedVirtualPortgroup], network_name)
@@ -256,17 +259,21 @@ class ServerClient(VsphereClient):
                 nicspec.device.backing.deviceName = network_name
             devices.append(nicspec)
 
-            if not use_dhcp:
-                dmz_network = IPNetwork(network["network"])
+            if use_dhcp:
+                guest_map = vim.vm.customization.AdapterMapping()
+                guest_map.adapter = vim.vm.customization.IPSettings()
+                guest_map.adapter.ip = vim.vm.customization.DhcpIpGenerator()
+                adaptermaps.append(guest_map)
+            else:
+                nw = IPNetwork(network["network"])
                 guest_map = vim.vm.customization.AdapterMapping()
                 guest_map.adapter = vim.vm.customization.IPSettings()
                 guest_map.adapter.ip = vim.vm.customization.FixedIp()
                 guest_map.adapter.ip.ipAddress = network['ip']
                 guest_map.adapter.gateway = network["gateway"]
-                guest_map.adapter.subnetMask = str(dmz_network.netmask)
+                guest_map.adapter.subnetMask = str(nw.netmask)
                 adaptermaps.append(guest_map)
 
-        # VM config spec
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
         vmconf.memoryMB = memory
@@ -274,7 +281,7 @@ class ServerClient(VsphereClient):
         vmconf.memoryHotAddEnabled = True
         vmconf.cpuHotRemoveEnabled = True
         vmconf.deviceChange = devices
-        # Clone spec
+
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
         clonespec.config = vmconf
@@ -282,24 +289,23 @@ class ServerClient(VsphereClient):
         clonespec.template = False
 
         if adaptermaps:
-            # DNS settings
-            globalip = vim.vm.customization.GlobalIPSettings()
-            globalip.dnsSuffixList = dns_servers
-
-            # Hostname settings
-            ident = vim.vm.customization.LinuxPrep()
-            ident.domain = domain
-            ident.hostName =\
-                vim.vm.customization.VirtualMachineNameGenerator()
-
             customspec = vim.vm.customization.Specification()
             customspec.nicSettingMap = adaptermaps
-            customspec.globalIPSettings = globalip
+
+            ident = vim.vm.customization.LinuxPrep()
+            if domain:
+                ident.domain = domain
+            ident.hostName = \
+                vim.vm.customization.VirtualMachineNameGenerator()
             customspec.identity = ident
+
+            globalip = vim.vm.customization.GlobalIPSettings()
+            if dns_servers:
+                globalip.dnsSuffixList = dns_servers
+            customspec.globalIPSettings = globalip
 
             clonespec.customization = customspec
 
-        # fire the clone task
         task = template_vm.Clone(folder=destfolder,
                                  name=vm_name,
                                  spec=clonespec)
@@ -407,6 +413,11 @@ class ServerClient(VsphereClient):
         task = server.Reconfigure(spec=config)
         self._wait_for_task(task)
 
+    def get_server_ip(self, vm, network_name):
+        for network in vm.guest.net:
+            if network_name.lower() == network.network.lower():
+                return network.ipAddress[0]
+
     def _wait_vm_running(self, task):
         self._wait_for_task(task)
         while not task.info.result.guest.guestState == "running"\
@@ -451,8 +462,8 @@ class NetworkClient(VsphereClient):
 
 class StorageClient(VsphereClient):
 
-    def create_storage(self, vm_name, storage_size):
-        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+    def create_storage(self, vm_id, storage_size):
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
 
         if self.is_server_suspended(vm):
             raise RuntimeError('Error during trying to create storage:'
@@ -552,8 +563,8 @@ class StorageClient(VsphereClient):
         self._wait_for_task(task)
         return vm_disk_filename
 
-    def delete_storage(self, vm_name, storage_file_name):
-        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+    def delete_storage(self, vm_id, storage_file_name):
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
 
         if self.is_server_suspended(vm):
             raise RuntimeError('Error during trying to create storage:'
@@ -588,8 +599,8 @@ class StorageClient(VsphereClient):
         task = vm.Reconfigure(spec=config_spec)
         self._wait_for_task(task)
 
-    def get_storage(self, vm_name, storage_file_name):
-        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+    def get_storage(self, vm_id, storage_file_name):
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
         if vm:
             for device in vm.config.hardware.device:
                 if isinstance(device, vim.vm.device.VirtualDisk)\
@@ -597,8 +608,8 @@ class StorageClient(VsphereClient):
                     return device
         return None
 
-    def resize_storage(self, vm_name, storage_filename, storage_size):
-        vm = self._get_obj_by_name([vim.VirtualMachine], vm_name)
+    def resize_storage(self, vm_id, storage_filename, storage_size):
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
 
         if self.is_server_suspended(vm):
             raise cfy_exc.NonRecoverableError(
@@ -653,11 +664,7 @@ def _find_context_in_kw(kw):
 def with_server_client(f):
     @wraps(f)
     def wrapper(*args, **kw):
-        ctx = _find_context_in_kw(kw)
-        if ctx:
-            config = ctx.properties.get('connection_config')
-        else:
-            config = None
+        config = ctx.node.properties.get('connection_config')
         server_client = ServerClient().get(config=config)
         kw['server_client'] = server_client
         return f(*args, **kw)
@@ -667,11 +674,7 @@ def with_server_client(f):
 def with_network_client(f):
     @wraps(f)
     def wrapper(*args, **kw):
-        ctx = _find_context_in_kw(kw)
-        if ctx:
-            config = ctx.properties.get('connection_config')
-        else:
-            config = None
+        config = ctx.node.properties.get('connection_config')
         network_client = NetworkClient().get(config=config)
         kw['network_client'] = network_client
         return f(*args, **kw)
@@ -681,11 +684,7 @@ def with_network_client(f):
 def with_storage_client(f):
     @wraps(f)
     def wrapper(*args, **kw):
-        ctx = _find_context_in_kw(kw)
-        if ctx:
-            config = ctx.properties.get('connection_config')
-        else:
-            config = None
+        config = ctx.node.properties.get('connection_config')
         storage_client = StorageClient().get(config=config)
         kw['storage_client'] = storage_client
         return f(*args, **kw)
@@ -803,13 +802,13 @@ class TestCase(unittest.TestCase):
 
     @with_storage_client
     def assertThereIsStorageAndGet(
-            self, vm_name, storage_file_name, storage_client):
-        storage = storage_client.get_storage(vm_name, storage_file_name)
+            self, vm_id, storage_file_name, storage_client):
+        storage = storage_client.get_storage(vm_id, storage_file_name)
         self.assertIsNotNone(storage)
         return storage
 
     @with_storage_client
     def assertThereIsNoStorage(
-            self, vm_name, storage_file_name, storage_client):
-        storage = storage_client.get_storage(vm_name, storage_file_name)
+            self, vm_id, storage_file_name, storage_client):
+        storage = storage_client.get_storage(vm_id, storage_file_name)
         self.assertIsNone(storage)

@@ -1,0 +1,13 @@
+{
+    "vsphere_username": "",
+    "vsphere_password": "",
+    "vsphere_url": "",
+    "vsphere_datacenter_name": "",
+    "manager_server_template": "",
+    "management_network_name": "",
+    "management_network_switch_distributed": true,
+    "external_network_name": "",
+    "external_network_switch_distributed": true,
+    "manager_private_key_path": "",
+    "agent_private_key_path": ""
+}
