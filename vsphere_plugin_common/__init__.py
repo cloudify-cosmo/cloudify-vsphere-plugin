@@ -459,6 +459,33 @@ class NetworkClient(VsphereClient):
                     result.append(port_group)
         return result
 
+    def create_dv_port_group(self, port_group_name, vlan_id, vswitch_name):
+        dv_port_group_type = 'earlyBinding'
+        dvswitch = self._get_obj_by_name([vim.DistributedVirtualSwitch],
+                                         vswitch_name)
+        vlan_spec = vim.dvs.VmwareDistributedVirtualSwitch.VlanIdSpec(
+            vlanId=vlan_id)
+        port_settings = \
+            vim.dvs.VmwareDistributedVirtualSwitch.VmwarePortConfigPolicy(
+                vlan=vlan_spec)
+        specification = vim.dvs.DistributedVirtualPortgroup.ConfigSpec(
+            name=port_group_name,
+            defaultPortConfig=port_settings,
+            type=dv_port_group_type)
+        task = dvswitch.AddPortgroup(specification)
+        self._wait_for_task(task)
+
+    def delete_dv_port_group(self, name):
+        dv_port_group = self.get_dv_port_group(name)
+        task = dv_port_group.Destroy()
+        self._wait_for_task(task)
+
+    def get_dv_port_group(self, name):
+        dv_port_group = self._get_obj_by_name(
+            [vim.dvs.DistributedVirtualPortgroup],
+            name)
+        return dv_port_group
+
 
 class StorageClient(VsphereClient):
 
@@ -751,12 +778,12 @@ class TestCase(unittest.TestCase):
         self.logger.debug("VSphere provider test tearDown() done")
 
     @with_network_client
-    def assertThereIsNoNetwork(self, name, network_client):
+    def assertThereIsNoPortGroup(self, name, network_client):
         port_groups = network_client.get_port_group_by_name(name)
         self.assertEquals(0, len(port_groups))
 
     @with_network_client
-    def assertThereIsOneAndGetMetaNetwork(self, name, network_client):
+    def assertThereIsOneAndGetPortGroupInfo(self, name, network_client):
         port_groups = network_client.get_port_group_by_name(name)
         self.assertNotEqual(0, len(port_groups))
         group_name = port_groups[0].spec.name
@@ -765,10 +792,6 @@ class TestCase(unittest.TestCase):
             self.assertEqual(group_name, port_group.spec.name)
             self.assertEqual(group_vlanId, port_group.spec.vlanId)
         return {'name': group_name, 'vlanId': group_vlanId}
-
-    @with_network_client
-    def create_network(self, name, vlan_id, vswitch_name, network_client):
-        network_client.create_port_group(name, vlan_id, vswitch_name)
 
     @with_server_client
     def assertThereIsNoServer(self, name, server_client):

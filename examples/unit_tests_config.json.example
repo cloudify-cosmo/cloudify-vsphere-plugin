@@ -1,7 +1,8 @@
 {
   "network_test": {
     "vlan_id": 111,
-    "vswitch_name": "vSwitch0"
+    "vswitch_name": "vSwitch0",
+    "switch_distributed": true
   },
   "server_test": {
     "template": "ubuntu-configured-template",
