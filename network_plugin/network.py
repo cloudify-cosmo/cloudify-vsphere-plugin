@@ -16,7 +16,12 @@
 from cloudify import ctx
 from cloudify.decorators import operation
 from vsphere_plugin_common import (with_network_client,
-                                   transform_resource_name)
+                                   transform_resource_name,
+                                   remove_runtime_properties)
+
+NETWORK_NAME = 'network_name'
+SWITCH_DISTRIBUTED = 'switch_distributed'
+NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME, SWITCH_DISTRIBUTED]
 
 
 @operation
@@ -41,6 +46,8 @@ def create(network_client, **kwargs):
         network_client.create_port_group(port_group_name,
                                          vlan_id,
                                          vswitch_name)
+    ctx.instance.runtime_properties[NETWORK_NAME] = port_group_name
+    ctx.instance.runtime_properties[SWITCH_DISTRIBUTED] = switch_distributed
 
 
 @operation
@@ -54,3 +61,4 @@ def delete(network_client, **kwargs):
         network_client.delete_dv_port_group(port_group_name)
     else:
         network_client.delete_port_group(port_group_name)
+    remove_runtime_properties(NETWORK_RUNTIME_PROPERTIES, ctx)

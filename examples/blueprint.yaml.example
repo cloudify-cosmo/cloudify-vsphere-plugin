@@ -44,6 +44,17 @@ node_templates:
                 vswitch_name: example_vswitch
                 switch_distributed: true
 
+    example_port:
+        type: cloudify.vsphere.nodes.port
+        properties:
+            port:
+                mac: 00:00:00:11:11:11
+        relationships:
+            - target: example_network
+              type: cloudify.vsphere.port_connected_to_network
+            - target: example_server
+              type: cloudify.vsphere.port_connected_to_server
+
     example_storage:
         type: cloudify.vsphere.nodes.Storage
         properties:

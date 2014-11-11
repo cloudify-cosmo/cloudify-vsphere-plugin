@@ -52,6 +52,21 @@ node_types:
                     implementation: vsphere.network_plugin.network.delete
                     inputs: {}
 
+    cloudify.vsphere.nodes.port:
+        derived_from: cloudify.nodes.Port
+        properties:
+            port: {}
+            connection_config:
+                default: {}
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create:
+                    implementation: vsphere.network_plugin.port.create
+                    inputs: {}
+                delete:
+                    implementation: vsphere.network_plugin.port.delete
+                    inputs: {}
+
     cloudify.vsphere.nodes.Storage:
         derived_from: cloudify.nodes.Volume
         properties:
@@ -68,7 +83,10 @@ node_types:
                     inputs: {}
 
 relationships:
-    cloudify.vsphere.server_connected_to_network:
+    cloudify.vsphere.port_connected_to_network:
+        derived_from: cloudify.relationships.connected_to
+
+    cloudify.vsphere.port_connected_to_server:
         derived_from: cloudify.relationships.connected_to
 
     cloudify.vsphere.storage_connected_to_server:

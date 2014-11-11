@@ -1,9 +1,15 @@
 {
   "network_test": {
-    "vlan_id": 111,
-    "vswitch_name": "vSwitch0",
-    "switch_distributed": true
-  },
+      "network": {
+        "vlan_id": 111,
+        "vswitch_name": "vSwitch0",
+        "switch_distributed": true},
+      "port": {
+        "mac": "00:00:00:77:77:77",
+        "vm_name": "Test",
+        "network_name": "Test",
+        "switch_distributed": true}
+      },
   "server_test": {
     "template": "ubuntu-configured-template",
     "cpu_count": 2,
