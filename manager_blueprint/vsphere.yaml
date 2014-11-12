@@ -162,7 +162,7 @@ node_templates:
             networking:
                 domain: { get_input: manager_server_domain }
                 dns_servers: ['8.8.8.8']
-                connected_networks:
+                connect_networks:
                     -
                         management: true
                         switch_distributed: { get_input: management_network_switch_distributed }

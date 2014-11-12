@@ -14,7 +14,7 @@
     "networking": {
         "domain": "test.com",
         "dns_server": ["8.8.8.8"],
-        "connected_networks":
+        "connect_networks":
         [{"name": "DMZ",
           "external": true,
           "switch_distributed": true,

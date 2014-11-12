@@ -48,18 +48,18 @@ def create_new_server(server_client):
     if networking:
         domain = networking.get('domain')
         dns_servers = networking.get('dns_servers')
-        connected_networks = networking.get('connected_networks', [])
+        connect_networks = networking.get('connect_networks', [])
 
-        if len([network for network in connected_networks
+        if len([network for network in connect_networks
                 if network.get('external', False)]) > 1:
             raise cfy_exc.NonRecoverableError(
                 "No more that one external network can be specified")
-        if len([network for network in connected_networks
+        if len([network for network in connect_networks
                 if network.get('management', False)]) > 1:
             raise cfy_exc.NonRecoverableError(
                 "No more that one management network can be specified")
 
-        for network in connected_networks:
+        for network in connect_networks:
             if network.get('external', False):
                 networks.insert(
                     0,
@@ -165,8 +165,7 @@ def get_state(server_client, **kwargs):
         manager_network_ip = None
         management_networks = \
             [network['name'] for network
-             in ctx.node.properties['networking'].get(
-                 'connected_networks', [])
+             in ctx.node.properties['networking'].get('connect_networks', [])
              if network.get('management', False)]
         management_network_name = (management_networks[0]
                                    if len(management_networks) == 1

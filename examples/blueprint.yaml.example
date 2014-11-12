@@ -11,7 +11,7 @@ node_templates:
             networking:
                 domain: example.com
                 dns_servers: ['8.8.8.8']
-                connected_networks:
+                connect_networks:
                     -
                         name: example_management_network
                         management: true
