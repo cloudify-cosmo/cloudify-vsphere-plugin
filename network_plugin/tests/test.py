@@ -50,25 +50,30 @@ class VsphereNetworkTest(common.TestCase):
         self.addCleanup(ctx_patch2.stop)
         self.network_client = common.NetworkClient().get()
 
-    @unittest.skipIf(network_config['switch_distributed'] == True,
+    @unittest.skipIf(network_config['switch_distributed'] is True,
                      "Network 'switch_distributed' property is set to true")
     def test_network(self):
-        self.assertThereIsNoPortGroup(name)
+        self.assertThereIsNoPortGroup(self.network_name)
 
         network_plugin.create()
 
-        net = self.assertThereIsOneAndGetPortGroupInfo(name)
+        net = self.assertThereIsOneAndGetPortGroupInfo(self.network_name)
         self.assertEqual(self.network_name, net['name'])
         self.assertEqual(network_config['vlan_id'], net['vlanId'])
 
         network_plugin.delete()
-        self.assertThereIsNoNetwork(name)
+        self.assertThereIsNoNetwork(self.network_name)
 
-    @unittest.skipIf(network_config['switch_distributed'] == False,
+    @unittest.skipIf(network_config['switch_distributed'] is False,
                      "Network 'switch_distributed' property is set to false")
     def test_network_switch_distributed(self):
         network_plugin.create()
         dv_port_group = self.network_client.get_dv_port_group(
             self.network_name)
         self.assertEqual(dv_port_group.config.name, self.network_name)
+
         network_plugin.delete()
+
+        dv_port_group = self.network_client.get_dv_port_group(
+            self.network_name)
+        self.assertTrue(dv_port_group is None)
