@@ -128,10 +128,6 @@ class VsphereClient(object):
                                    port=int(port))
             atexit.register(Disconnect, self.si)
             return self
-        except IOError as e:
-            raise cfy_exc.NonRecoverableError(
-                'Validation error during trying to connect:'
-                ' url:{0}. {1}'.format(url, e.message))
         except vim.fault.InvalidLogin as e:
             raise cfy_exc.NonRecoverableError(
                 "Could not login to vSphere with provided username '{0}'"
@@ -683,21 +679,6 @@ class StorageClient(VsphereClient):
 
         task = vm.Reconfigure(spec=config_spec)
         self._wait_for_task(task)
-
-
-def _find_instanceof_in_kw(cls, kw):
-    ret = [v for v in kw.values() if isinstance(v, cls)]
-    if not ret:
-        return None
-    if len(ret) > 1:
-        raise RuntimeError(
-            "Expected to find exactly one instance of {0} in "
-            "kwargs but found {1}".format(cls, len(ret)))
-    return ret[0]
-
-
-def _find_context_in_kw(kw):
-    return _find_instanceof_in_kw(cloudify.context.CloudifyContext, kw)
 
 
 def with_server_client(f):
