@@ -129,15 +129,13 @@ class VsphereClient(object):
             atexit.register(Disconnect, self.si)
             return self
         except IOError as e:
-            raise RuntimeError('config file validation error found'
-                               ' during trying to connect: url:{0}. {1}'
-                               .format(url, e.message))
+            raise cfy_exc.NonRecoverableError(
+                'Validation error during trying to connect:'
+                ' url:{0}. {1}'.format(url, e.message))
         except vim.fault.InvalidLogin as e:
-            raise RuntimeError('config file validation error found:'
-                               ' could not connect to the specified url'
-                               ' using specified username and password:'
-                               ' url:{0}, username:{1}. {2}.'
-                               .format(url, username, e.message))
+            raise cfy_exc.NonRecoverableError(
+                "Could not login to vSphere with provided username '{0}'"
+                " and password '{1}'".format(username, password))
 
     def is_server_suspended(self, server):
         return server.summary.runtime.powerState.lower() == "suspended"
@@ -325,8 +323,9 @@ class ServerClient(VsphereClient):
         try:
             self._wait_vm_running(task)
         except task.info.error:
-            raise RuntimeError("Error during executing VM creation task."
-                               " VM name: \'{0}\'.".format(vm_name))
+            raise cfy_exc.NonRecoverableError(
+                "Error during executing VM creation task. VM name: \'{0}\'."
+                .format(vm_name))
         return task.info.result
 
     def start_server(self, server):
