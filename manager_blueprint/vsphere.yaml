@@ -9,17 +9,14 @@ imports:
 inputs:
     vsphere_username:
         description: 'vSphere username'
-        default: ''
         type: string
 
     vsphere_password:
         description: 'user password'
-        default: ''
         type: string
 
     vsphere_url:
         description: 'vSphere url'
-        default: ''
         type: string
 
     vsphere_port:
