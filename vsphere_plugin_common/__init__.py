@@ -182,7 +182,7 @@ class VsphereClient(object):
     def _wait_for_task(self, task):
         while task.info.state == vim.TaskInfo.State.running:
             time.sleep(TASK_CHECK_SLEEP)
-        if not task.info.state == vim.TaskInfo.State.success:
+        if task.info.state != vim.TaskInfo.State.success:
             raise cfy_exc.NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
                 .format(task.info.error))
@@ -208,12 +208,25 @@ class ServerClient(VsphereClient):
 
         datacenter = self._get_obj_by_name([vim.Datacenter],
                                            datacenter_name)
-        destfolder = datacenter.vmFolder
+        if datacenter is None:
+            raise cfy_exc.NonRecoverableError(
+                "Datacenter {0} could not be found".format(datacenter_name))
+
         resource_pool = self._get_obj_by_name([vim.ResourcePool],
                                               resource_pool_name,
                                               host.name)
+        if resource_pool is None:
+            raise cfy_exc.NonRecoverableError(
+                "Network resource pool {0} could not be found"
+                .format(resource_pool_name))
+
         template_vm = self._get_obj_by_name([vim.VirtualMachine],
                                             template_name)
+        if template_vm is None:
+            raise cfy_exc.NonRecoverableError(
+                "VM template {0} could not be found".format(template_name))
+
+        destfolder = datacenter.vmFolder
         relospec = vim.vm.RelocateSpec()
         relospec.datastore = datastore
         relospec.pool = resource_pool

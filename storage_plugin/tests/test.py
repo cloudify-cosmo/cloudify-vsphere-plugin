@@ -43,7 +43,8 @@ class VsphereStorageTest(common.TestCase):
         vm = server_client.get_server_by_name(vm_name)
         capability = {server_plugin.VSPHERE_SERVER_ID: vm._moId}
         endpoint = None
-        context_capabilities_m = ContextCapabilities(endpoint)
+        instance = None
+        context_capabilities_m = ContextCapabilities(endpoint, instance)
         get_all_m = mock.Mock()
         get_all_m.values = mock.Mock(return_value=[capability])
         context_capabilities_m.get_all = mock.Mock(return_value=get_all_m)
