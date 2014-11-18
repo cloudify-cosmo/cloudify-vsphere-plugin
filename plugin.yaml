@@ -8,7 +8,7 @@ imports:
 plugins:
     vsphere:
         executor: central_deployment_agent
-        source: cloudify-vsphere-plugin
+        source: https://api.github.com/repos/Gigaspaces/cloudify-vsphere-plugin/zipball?access_token={CLOUDIFY_AUTOMATION_TOKEN}
 
 node_types:
     cloudify.vsphere.nodes.server:
