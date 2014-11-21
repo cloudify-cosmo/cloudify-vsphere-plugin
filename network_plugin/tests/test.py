@@ -21,7 +21,7 @@ import server_plugin.server as server_plugin
 import vsphere_plugin_common as common
 
 from cloudify.context import ContextCapabilities
-from cloudify.mocks import MockCloudifyContext
+from cloudify import mocks as cfy_mocks
 
 
 _tests_config = common.TestsConfig().get()
@@ -36,7 +36,7 @@ class VsphereNetworkTest(common.TestCase):
         super(VsphereNetworkTest, self).setUp()
         self.network_name = self.name_prefix + 'net'
 
-        ctx = MockCloudifyContext(
+        ctx = cfy_mocks.MockCloudifyContext(
             node_id=self.network_name,
             node_name=self.network_name,
             properties={
@@ -102,15 +102,25 @@ class VspherePortTest(common.TestCase):
             network_plugin.network.NETWORK_NAME: network_name,
             network_plugin.network.SWITCH_DISTRIBUTED: switch_distributed
             }
+        vm_instance_context = cfy_mocks.MockNodeInstanceContext(
+            runtime_properties=vm_runtime_properties)
+        network_instance_context = cfy_mocks.MockNodeInstanceContext(
+            runtime_properties=network_runtime_properties)
+        vm_relationship = mock.Mock()
+        vm_relationship.target = mock.Mock()
+        vm_relationship.target.instance = vm_instance_context
+        network_relationship = mock.Mock()
+        network_relationship.target = mock.Mock()
+        network_relationship.target.instance = network_instance_context
         endpoint = None
-        instance = None
+        instance = cfy_mocks.MockNodeInstanceContext()
         context_capabilities_m = ContextCapabilities(endpoint, instance)
         get_all_m = mock.Mock()
         get_all_m.values = mock.Mock(
             return_value=[vm_runtime_properties, network_runtime_properties])
         context_capabilities_m.get_all = mock.Mock(return_value=get_all_m)
 
-        ctx = MockCloudifyContext(
+        ctx = cfy_mocks.MockCloudifyContext(
             node_id=port_name,
             node_name=port_name,
             properties={
@@ -120,6 +130,7 @@ class VspherePortTest(common.TestCase):
             },
             capabilities=context_capabilities_m
         )
+        ctx._instance.relationships = [vm_relationship, network_relationship]
         ctx_patch1 = mock.patch('network_plugin.port.ctx', ctx)
         ctx_patch1.start()
         ctx_patch2 = mock.patch('vsphere_plugin_common.ctx', ctx)

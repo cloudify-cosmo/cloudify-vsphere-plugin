@@ -24,14 +24,12 @@ from vsphere_plugin_common import with_network_client
 @operation
 @with_network_client
 def create(network_client, **kwargs):
-    capabilities = ctx.capabilities.get_all().values()
-
-    connected_networks = _get_connected_networks(capabilities)
+    connected_networks = _get_connected_networks()
     if len(connected_networks) != 1:
         raise cfy_exc.NonRecoverableError(
             'Error during trying to create port: port should be '
             'connected to one network')
-    connected_servers = _get_connected_servers(capabilities)
+    connected_servers = _get_connected_servers()
     if len(connected_servers) != 1:
         raise cfy_exc.NonRecoverableError(
             'Error during trying to create port: port should be '
@@ -50,9 +48,8 @@ def create(network_client, **kwargs):
 @operation
 @with_network_client
 def delete(network_client, **kwargs):
-    capabilities = ctx.capabilities.get_all().values()
-    connected_networks = _get_connected_networks(capabilities)
-    connected_servers = _get_connected_servers(capabilities)
+    connected_networks = _get_connected_networks()
+    connected_servers = _get_connected_servers()
     network_name = connected_networks[0][network_plugin.network.NETWORK_NAME]
     switch_distributed = \
         connected_networks[0][network_plugin.network.SWITCH_DISTRIBUTED]
@@ -62,11 +59,15 @@ def delete(network_client, **kwargs):
                                             switch_distributed)
 
 
-def _get_connected_networks(context_capabilities):
-    return [rt_properties for rt_properties in context_capabilities
-            if network_plugin.network.NETWORK_NAME in rt_properties]
+def _get_connected_networks():
+    return [relationship.target.instance.runtime_properties
+            for relationship in ctx.instance.relationships
+            if network_plugin.network.NETWORK_NAME
+            in relationship.target.instance.runtime_properties]
 
 
-def _get_connected_servers(context_capabilities):
-    return [rt_properties for rt_properties in context_capabilities
-            if server_plugin.server.VSPHERE_SERVER_ID in rt_properties]
+def _get_connected_servers():
+    return [relationship.target.instance.runtime_properties
+            for relationship in ctx.instance.relationships
+            if server_plugin.server.VSPHERE_SERVER_ID
+            in relationship.target.instance.runtime_properties]

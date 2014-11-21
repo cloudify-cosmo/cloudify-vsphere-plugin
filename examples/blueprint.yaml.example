@@ -45,7 +45,7 @@ node_templates:
                 switch_distributed: true
 
     example_port:
-        type: cloudify.vsphere.nodes.port
+        type: cloudify.vsphere.nodes.Port
         properties:
             port:
                 mac: 00:00:00:11:11:11

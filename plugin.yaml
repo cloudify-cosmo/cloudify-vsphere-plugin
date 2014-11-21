@@ -52,7 +52,7 @@ node_types:
                     implementation: vsphere.network_plugin.network.delete
                     inputs: {}
 
-    cloudify.vsphere.nodes.port:
+    cloudify.vsphere.nodes.Port:
         derived_from: cloudify.nodes.Port
         properties:
             port: {}
