@@ -13,19 +13,13 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-
-__author__ = 'Oleksandr_Raskosov'
-
-
 from setuptools import setup
 
 
 setup(
     zip_safe=True,
     name='cloudify-vsphere-plugin',
-    version='1.0',
-    author='Oleksandr_Raskosov',
-    author_email='Oleksandr_Raskosov@epam.com',
+    version='1.1',
     packages=[
         'vsphere_plugin_common',
         'server_plugin',

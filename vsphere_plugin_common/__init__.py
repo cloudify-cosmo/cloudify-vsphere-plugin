@@ -28,9 +28,6 @@ import atexit
 
 from cloudify import ctx
 from cloudify import exceptions as cfy_exc
-import cloudify
-import cloudify.manager
-import cloudify.decorators
 from netaddr import IPNetwork
 
 import re
@@ -128,7 +125,7 @@ class VsphereClient(object):
                                    port=int(port))
             atexit.register(Disconnect, self.si)
             return self
-        except vim.fault.InvalidLogin as e:
+        except vim.fault.InvalidLogin:
             raise cfy_exc.NonRecoverableError(
                 "Could not login to vSphere with provided username '{0}'"
                 " and password '{1}'".format(username, password))
@@ -771,12 +768,12 @@ class TestCase(unittest.TestCase):
         self.logger.debug("VSphere provider test tearDown() done")
 
     @with_network_client
-    def assertThereIsNoPortGroup(self, name, network_client):
+    def assert_no_port_group(self, name, network_client):
         port_groups = network_client.get_port_group_by_name(name)
         self.assertEquals(0, len(port_groups))
 
     @with_network_client
-    def assertThereIsOneAndGetPortGroupInfo(self, name, network_client):
+    def assert_port_group_exist_and_get_info(self, name, network_client):
         port_groups = network_client.get_port_group_by_name(name)
         self.assertNotEqual(0, len(port_groups))
         group_name = port_groups[0].spec.name
@@ -787,25 +784,25 @@ class TestCase(unittest.TestCase):
         return {'name': group_name, 'vlanId': group_vlanId}
 
     @with_server_client
-    def assertThereIsNoServer(self, name, server_client):
+    def assert_no_server(self, name, server_client):
         server = server_client.get_server_by_name(name)
         self.assertIsNone(server)
 
     @with_server_client
-    def assertThereIsOneServerAndGet(self, name, server_client):
+    def assert_server_exist_and_get(self, name, server_client):
         server = server_client.get_server_by_name(name)
         self.assertIsNotNone(server)
         return server
 
     @with_server_client
-    def assertServerIsStarted(self, server, server_client):
+    def assert_server_started(self, server, server_client):
         self.assertTrue(server_client.is_server_poweredon(server))
 
     @with_server_client
-    def assertServerIsStopped(self, server, server_client):
+    def assert_server_stopped(self, server, server_client):
         self.assertTrue(server_client.is_server_poweredoff(server))
 
-    def assertServerGuestIsStopped(self, server):
+    def assert_server_guest_stopped(self, server):
         self.assertFalse(self.is_server_guest_running(server))
 
     @with_server_client
@@ -817,14 +814,13 @@ class TestCase(unittest.TestCase):
         return server_client.is_server_poweredoff(server)
 
     @with_storage_client
-    def assertThereIsStorageAndGet(
+    def assert_storage_exists_and_get(
             self, vm_id, storage_file_name, storage_client):
         storage = storage_client.get_storage(vm_id, storage_file_name)
         self.assertIsNotNone(storage)
         return storage
 
     @with_storage_client
-    def assertThereIsNoStorage(
-            self, vm_id, storage_file_name, storage_client):
+    def assert_no_storage(self, vm_id, storage_file_name, storage_client):
         storage = storage_client.get_storage(vm_id, storage_file_name)
         self.assertIsNone(storage)

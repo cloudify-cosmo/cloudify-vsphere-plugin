@@ -21,6 +21,7 @@
           "use_dhcp": true},
          {"name": "Management",
           "external": false,
+          "management": true,
           "switch_distributed": false,
           "use_dhcp": false,
           "network": "10.0.0.0/24",

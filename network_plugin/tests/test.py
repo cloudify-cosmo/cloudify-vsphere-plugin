@@ -53,11 +53,11 @@ class VsphereNetworkTest(common.TestCase):
     @unittest.skipIf(network_config['switch_distributed'] is True,
                      "Network 'switch_distributed' property is set to true")
     def test_network(self):
-        self.assertThereIsNoPortGroup(self.network_name)
+        self.assert_no_port_group(self.network_name)
 
         network_plugin.create()
 
-        net = self.assertThereIsOneAndGetPortGroupInfo(self.network_name)
+        net = self.assert_port_group_exist_and_get_info(self.network_name)
         self.assertEqual(self.network_name, net['name'])
         self.assertEqual(network_config['vlan_id'], net['vlanId'])
 

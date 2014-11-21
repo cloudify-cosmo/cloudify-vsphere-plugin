@@ -3,7 +3,7 @@
 ##################################################################################
 
 imports:
-    - http://www.getcloudify.org/spec/cloudify/3.1rc2/types.yaml
+    - http://www.getcloudify.org/spec/cloudify/3.1/types.yaml
 
 plugins:
     vsphere:
@@ -11,7 +11,7 @@ plugins:
         source: https://api.github.com/repos/Gigaspaces/cloudify-vsphere-plugin/zipball?access_token={CLOUDIFY_AUTOMATION_TOKEN}
 
 node_types:
-    cloudify.vsphere.nodes.server:
+    cloudify.vsphere.nodes.Server:
         derived_from: cloudify.nodes.Compute
         properties:
             server: {}
@@ -37,7 +37,7 @@ node_types:
                     implementation: vsphere.server_plugin.server.get_state
                     inputs: {}
 
-    cloudify.vsphere.nodes.network:
+    cloudify.vsphere.nodes.Network:
         derived_from: cloudify.nodes.Network
         properties:
             network: {}
@@ -52,7 +52,7 @@ node_types:
                     implementation: vsphere.network_plugin.network.delete
                     inputs: {}
 
-    cloudify.vsphere.nodes.storage:
+    cloudify.vsphere.nodes.Storage:
         derived_from: cloudify.nodes.Volume
         properties:
             storage: {}
