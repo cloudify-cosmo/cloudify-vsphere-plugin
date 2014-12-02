@@ -491,6 +491,91 @@ class NetworkClient(VsphereClient):
             name)
         return dv_port_group
 
+    def add_network_interface(self, vm_id, network_name,
+                              switch_distributed, mac_address=None):
+
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
+        if self.is_server_suspended(vm):
+            raise RuntimeError('Error during trying to add network'
+                               ' interface: invalid VM state - \'suspended\'')
+
+        devices = []
+        if switch_distributed:
+            network_obj = self._get_obj_by_name(
+                [vim.dvs.DistributedVirtualPortgroup], network_name)
+        else:
+            network_obj = self._get_obj_by_name([vim.Network],
+                                                network_name)
+        nicspec = vim.vm.device.VirtualDeviceSpec()
+        nicspec.operation = \
+            vim.vm.device.VirtualDeviceSpec.Operation.add
+        nicspec.device = vim.vm.device.VirtualVmxnet3()
+        if mac_address:
+            nicspec.device.macAddress = mac_address
+        if switch_distributed:
+            info = vim.vm.device.VirtualEthernetCard\
+                .DistributedVirtualPortBackingInfo()
+            nicspec.device.backing = info
+            nicspec.device.backing.port =\
+                vim.dvs.PortConnection()
+            nicspec.device.backing.port.switchUuid =\
+                network_obj.config.distributedVirtualSwitch.uuid
+            nicspec.device.backing.port.portgroupKey =\
+                network_obj.key
+        else:
+            nicspec.device.backing = \
+                vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
+            nicspec.device.backing.network = network_obj
+            nicspec.device.backing.deviceName = network_name
+        devices.append(nicspec)
+
+        config_spec = vim.vm.ConfigSpec()
+        config_spec.deviceChange = devices
+
+        task = vm.Reconfigure(spec=config_spec)
+        self._wait_for_task(task)
+
+    def remove_network_interface(self, vm_id, network_name,
+                                 switch_distributed):
+
+        vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
+        if self.is_server_suspended(vm):
+            raise RuntimeError('Error during trying to remove network'
+                               ' interface: invalid VM state - \'suspended\'')
+
+        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+        virtual_device_spec.operation =\
+            vim.vm.device.VirtualDeviceSpec.Operation.remove
+        devices = []
+        device_to_delete = None
+
+        if switch_distributed:
+            network_obj = self._get_obj_by_name(
+                [vim.dvs.DistributedVirtualPortgroup], network_name)
+            for device in vm.config.hardware.device:
+                if (isinstance(device, vim.vm.device.VirtualVmxnet3)
+                    and device.backing.port.switchUuid ==
+                        network_obj.config.distributedVirtualSwitch.uuid):
+                    device_to_delete = device
+        else:
+            for device in vm.config.hardware.device:
+                if (isinstance(device, vim.vm.device.VirtualVmxnet3)
+                        and device.backing.deviceName == network_name):
+                    device_to_delete = device
+
+        if device_to_delete is None:
+            raise cfy_exc.NonRecoverableError('Network interface not found')
+
+        virtual_device_spec.device = device_to_delete
+
+        devices.append(virtual_device_spec)
+
+        config_spec = vim.vm.ConfigSpec()
+        config_spec.deviceChange = devices
+
+        task = vm.Reconfigure(spec=config_spec)
+        self._wait_for_task(task)
+
 
 class StorageClient(VsphereClient):
 
@@ -599,7 +684,7 @@ class StorageClient(VsphereClient):
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
 
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to create storage:'
+            raise RuntimeError('Error during trying to delete storage:'
                                ' invalid VM state - \'suspended\'')
 
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
