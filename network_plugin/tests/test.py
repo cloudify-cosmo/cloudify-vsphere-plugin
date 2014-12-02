@@ -27,20 +27,18 @@ network_config = _tests_config['network_test']
 
 class VsphereNetworkTest(common.TestCase):
 
-    def test_network(self):
-        self.logger.debug("\nNetwork test started\n")
-        name = self.name_prefix + 'net'
-
-        self.logger.debug("Check there is no network \'{0}\'".format(name))
-        self.assertThereIsNoNetwork(name)
+    def setUp(self):
+        super(VsphereNetworkTest, self).setUp()
+        self.network_name = self.name_prefix + 'net'
 
         ctx = MockCloudifyContext(
-            node_id=name,
-            node_name=name,
+            node_id=self.network_name,
+            node_name=self.network_name,
             properties={
                 'network': {
                     'vlan_id': network_config['vlan_id'],
-                    'vswitch_name': network_config['vswitch_name']
+                    'vswitch_name': network_config['vswitch_name'],
+                    'switch_distributed': network_config['switch_distributed']
                 }
             },
         )
@@ -48,20 +46,34 @@ class VsphereNetworkTest(common.TestCase):
         ctx_patch1.start()
         ctx_patch2 = mock.patch('vsphere_plugin_common.ctx', ctx)
         ctx_patch2.start()
+        self.addCleanup(ctx_patch1.stop)
+        self.addCleanup(ctx_patch2.stop)
+        self.network_client = common.NetworkClient().get()
 
-        self.logger.debug("Create network \'{0}\'".format(name))
+    @unittest.skipIf(network_config['switch_distributed'] is True,
+                     "Network 'switch_distributed' property is set to true")
+    def test_network(self):
+        self.assert_no_port_group(self.network_name)
+
         network_plugin.create()
 
-        self.logger.debug("Check network \'{0}\' is created".format(name))
-        net = self.assertThereIsOneAndGetMetaNetwork(name)
-        self.logger.debug("Check network \'{0}\' settings".format(name))
-        self.assertEqual(name, net['name'])
+        net = self.assert_port_group_exist_and_get_info(self.network_name)
+        self.assertEqual(self.network_name, net['name'])
         self.assertEqual(network_config['vlan_id'], net['vlanId'])
 
-        self.logger.debug("Delete network \'{0}\'".format(name))
         network_plugin.delete()
-        self.logger.debug("Check network \'{0}\' is deleted".format(name))
-        self.assertThereIsNoNetwork(name)
-        self.logger.debug("\nNetwork test finished\n")
-        ctx_patch1.stop()
-        ctx_patch2.stop()
+        self.assertThereIsNoNetwork(self.network_name)
+
+    @unittest.skipIf(network_config['switch_distributed'] is False,
+                     "Network 'switch_distributed' property is set to false")
+    def test_network_switch_distributed(self):
+        network_plugin.create()
+        dv_port_group = self.network_client.get_dv_port_group(
+            self.network_name)
+        self.assertEqual(dv_port_group.config.name, self.network_name)
+
+        network_plugin.delete()
+
+        dv_port_group = self.network_client.get_dv_port_group(
+            self.network_name)
+        self.assertTrue(dv_port_group is None)

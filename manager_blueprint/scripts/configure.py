@@ -23,7 +23,7 @@ from cloudify import ctx
 
 from cloudify_cli.bootstrap.tasks import PUBLIC_IP_RUNTIME_PROPERTY
 
-import server_plugin.server as vsphere_server 
+import server_plugin.server as vsphere_server
 import vsphere_plugin_common
 
 

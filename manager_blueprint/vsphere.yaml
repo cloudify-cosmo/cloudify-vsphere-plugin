@@ -1,25 +1,22 @@
 tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
-    - http://www.getcloudify.org/spec/cloudify/3.1rc2/types.yaml
+    - http://www.getcloudify.org/spec/cloudify/3.1/types.yaml
     - https://raw.githubusercontent.com/Gigaspaces/cloudify-vsphere-plugin/master/plugin.yaml?token={VSPHERE_PLUGIN_TOKEN}
-    - http://www.getcloudify.org/spec/fabric-plugin/1.1rc2/plugin.yaml
+    - http://www.getcloudify.org/spec/fabric-plugin/1.1/plugin.yaml
 
 
 inputs:
     vsphere_username:
         description: 'vSphere username'
-        default: ''
         type: string
 
     vsphere_password:
         description: 'user password'
-        default: ''
         type: string
 
     vsphere_url:
         description: 'vSphere url'
-        default: ''
         type: string
 
     vsphere_port:
@@ -156,13 +153,13 @@ inputs:
 
 node_templates:
     manager_server:
-        type: cloudify.vsphere.nodes.server
+        type: cloudify.vsphere.nodes.Server
         properties:
             install_agent: false
             networking:
                 domain: { get_input: manager_server_domain }
                 dns_servers: ['8.8.8.8']
-                connected_networks:
+                connect_networks:
                     -
                         management: true
                         switch_distributed: { get_input: management_network_switch_distributed }
@@ -203,13 +200,13 @@ node_templates:
         properties:
             cloudify_packages:
                 server:
-                    components_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/rc1-RELEASE/cloudify-components_3.1.0-rc1-b83_amd64.deb
-                    core_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/rc1-RELEASE/cloudify-core_3.1.0-rc1-b83_amd64.deb
-                    ui_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/rc1-RELEASE/cloudify-ui_3.1.0-rc1-b83_amd64.deb
+                    components_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/ga-RELEASE/cloudify-components_3.1.0-ga-b85_amd64.deb
+                    core_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/ga-RELEASE/cloudify-core_3.1.0-ga-b85_amd64.deb
+                    ui_package_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/ga-RELEASE/cloudify-ui_3.1.0-ga-b85_amd64.deb
                 agents:
-                    ubuntu_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/rc1-RELEASE/cloudify-ubuntu-agent_3.1.0-rc1-b83_amd64.deb
-                    centos_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/rc1-RELEASE/cloudify-centos-agent_3.1.0-rc1-b83_amd64.deb
-                    windows_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/rc1-RELEASE/cloudify-windows-agent_3.1.0-rc1-b83_amd64.deb
+                    ubuntu_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/ga-RELEASE/cloudify-ubuntu-precise-agent_3.1.0-ga-b85_amd64.deb
+                    centos_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/ga-RELEASE/cloudify-centos-final-agent_3.1.0-ga-b85_amd64.deb
+                    windows_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.1.0/ga-RELEASE/cloudify-windows-agent_3.1.0-ga-b85_amd64.deb
 
             cloudify:
                 resources_prefix: { get_input: resources_prefix }

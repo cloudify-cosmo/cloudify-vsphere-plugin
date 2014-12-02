@@ -1,7 +1,8 @@
 {
   "network_test": {
     "vlan_id": 111,
-    "vswitch_name": "vSwitch0"
+    "vswitch_name": "vSwitch0",
+    "switch_distributed": true
   },
   "server_test": {
     "template": "ubuntu-configured-template",
@@ -13,13 +14,14 @@
     "networking": {
         "domain": "test.com",
         "dns_server": ["8.8.8.8"],
-        "connected_networks":
+        "connect_networks":
         [{"name": "DMZ",
           "external": true,
           "switch_distributed": true,
           "use_dhcp": true},
          {"name": "Management",
           "external": false,
+          "management": true,
           "switch_distributed": false,
           "use_dhcp": false,
           "network": "10.0.0.0/24",
