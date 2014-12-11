@@ -240,6 +240,7 @@ node_templates:
                         fabric_env:
                             user: { get_input: manager_server_user }
                             key_filename: { get_input: manager_private_key_path }
+                            host_string: { get_attribute: [manager_server, public_ip] }
                 start:
                     implementation: fabric.fabric_plugin.tasks.run_module_task
                     inputs:
@@ -250,6 +251,7 @@ node_templates:
                         fabric_env:
                             user: { get_input: manager_server_user }
                             key_filename: { get_input: manager_private_key_path }
+                            host_string: { get_attribute: [manager_server, public_ip] }
             cloudify.interfaces.validation:
                 creation:
                     implementation: cli.cloudify_cli.bootstrap.tasks.creation_validation
