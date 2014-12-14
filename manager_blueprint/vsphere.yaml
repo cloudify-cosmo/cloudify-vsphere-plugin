@@ -2,7 +2,7 @@ tosca_definitions_version: cloudify_dsl_1_0
 
 imports:
     - http://www.getcloudify.org/spec/cloudify/3.1/types.yaml
-    - https://raw.githubusercontent.com/Gigaspaces/cloudify-vsphere-plugin/master/plugin.yaml?token={VSPHERE_PLUGIN_TOKEN}
+    - http://getcloudify.org.s3.amazonaws.com/spec/vsphere-plugin/1.1/plugin.yaml
     - http://www.getcloudify.org/spec/fabric-plugin/1.1/plugin.yaml
 
 
