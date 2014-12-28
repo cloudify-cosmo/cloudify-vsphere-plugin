@@ -29,7 +29,7 @@ setup(
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
     install_requires=[
-        "cloudify-plugins-common>=3.0",
+        "cloudify-plugins-common==3.0",
         "pyvmomi",
         "netaddr",
     ]
