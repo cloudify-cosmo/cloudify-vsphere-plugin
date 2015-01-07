@@ -2,3 +2,6 @@ build/*
 *.pyc
 dist/
 cloudify_vsphere_plugin.egg-info/
+
+# QuickBuild
+.qbcache/
