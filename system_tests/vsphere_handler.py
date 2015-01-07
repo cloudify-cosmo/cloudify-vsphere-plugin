@@ -230,9 +230,11 @@ def _replace_string_in_file(file_name, old_string, new_string):
             f.write(line)
 
 
-def update_config(manager_blueprints_dir):
+def update_config(manager_blueprints_dir, variables):
+    cloudify_automation_token = variables['cloudify_automation_token']
     cloudify_automation_token_place_holder = '{CLOUDIFY_AUTOMATION_TOKEN}'
-    cloudify_automation_token = os.environ.get('CLOUDIFY_AUTOMATION_TOKEN')
+    # used by test
+    os.environ['CLOUDIFY_AUTOMATION_TOKEN'] = cloudify_automation_token
     plugin_path = manager_blueprints_dir + '/plugin.yaml'
     _replace_string_in_file(plugin_path,
                             cloudify_automation_token_place_holder,
