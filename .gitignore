@@ -12,6 +12,7 @@ bin/
 build/
 develop-eggs/
 dist/
+
 eggs/
 lib/
 lib64/
@@ -55,6 +56,7 @@ docs/_build/
 *.iml
 
 *COMMIT_MSG
-
+=======
+cloudify_vsphere_plugin.egg-info/
 # QuickBuild
 .qbcache/
