@@ -127,8 +127,7 @@ class VsphereClient(object):
             return self
         except vim.fault.InvalidLogin:
             raise cfy_exc.NonRecoverableError(
-                "Could not login to vSphere with provided username '{0}'"
-                " and password '{1}'".format(username, password))
+                "Could not login to vSphere with provided credentials")
 
     def is_server_suspended(self, server):
         return server.summary.runtime.powerState.lower() == "suspended"
