@@ -110,6 +110,15 @@ class VsphereServerTest(TestCase):
         server_plugin.server.start()
         server = self.assert_server_exist_and_get(self.ctx.node.id)
         self.assert_server_started(server)
+
+        get_state_verified = False
+        for _ in range(WAIT_COUNT):
+            if server_plugin.server.get_state():
+                get_state_verified = True
+                break
+            time.sleep(WAIT_TIMEOUT)
+        self.assertTrue(get_state_verified)
+
         self.assertTrue(server_plugin.server.PUBLIC_IP
                         in self.ctx.instance.runtime_properties)
         ip = self.ctx.instance.runtime_properties[
@@ -170,17 +179,15 @@ class VsphereServerTest(TestCase):
         server_plugin.server.start()
         server = self.assert_server_exist_and_get(self.ctx.node.id)
         self.assert_server_started(server)
-        guest_is_running = False
 
+        get_state_verified = False
         for _ in range(WAIT_COUNT):
-            if self.is_server_guest_running(server):
-                guest_is_running = True
+            if server_plugin.server.get_state():
+                get_state_verified = True
                 break
             time.sleep(WAIT_TIMEOUT)
-        self.assertTrue(guest_is_running)
+        self.assertTrue(get_state_verified)
 
-        state = server_plugin.server.get_state()
-        self.assertTrue(state)
         self.assertTrue('networks' in self.ctx.instance.runtime_properties)
         self.assertTrue('ip' in self.ctx.instance.runtime_properties)
         ip_valid = True
