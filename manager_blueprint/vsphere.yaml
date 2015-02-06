@@ -8,138 +8,177 @@ imports:
 
 inputs:
     vsphere_username:
-        description: 'vSphere username'
+        description: >
+            vSphere username
         type: string
 
     vsphere_password:
-        description: 'user password'
+        description: >
+            vSphere user password
         type: string
 
     vsphere_url:
-        description: 'vSphere url'
+        description: >
+            vSphere url
         type: string
 
     vsphere_port:
-        description: 'port which vCenter Server system uses to monitor data transfer from SDK clients'
+        description: >
+            port which vCenter Server system uses to monitor data transfer
+            from SDK clients
         default: 443
         type: string
 
     vsphere_datacenter_name:
-        description: 'datacenter name'
+        description: >
+            datacenter name
         default: Datacenter
         type: string
 
     vsphere_resource_pool_name:
-        description: 'name of a network resource pool'
+        description: >
+            resource pool name. Represents a set of physical resources:
+            a single host, a subset of a host's resources, or resources
+            spanning multiple hosts
         default: Resources
         type: string
 
     vsphere_auto_placement:
-        description: 'signifies if server is to be automatically placed on a host'
+        description: >
+            signifies if server is to be automatically placed on a host
         default: false
         type: boolean
 
     manager_server_name:
-        description: 'name of the management server'
+        description: >
+            name of the management server
         default: cloudify-management-server
         type: string
 
     manager_server_template:
-        description: 'virtual machine template from which server will be spawned'
+        description: >
+            virtual machine template from which server will be spawned
         type: string
 
     manager_server_cpus:
-        description: 'number of cpus'
+        description: >
+            number of cpus
         default: 2
         type: string
 
     manager_server_memory:
-        description: 'amount of RAM, in MB'
+        description: >
+            amount of RAM, in MB
         default: 4096
         type: string
 
     manager_server_domain:
-        description: 'the fully qualified domain name'
+        description: >
+            the fully qualified domain name
         default: ''
         type: string
 
     external_network_name:
-        description: 'network name'
+        description: >
+            network name
         default: DMZ
         type: string
 
     external_network_use_dhcp:
-        description: 'use DHCP to obtain an ip address'
+        description: >
+            use DHCP to obtain an ip address
         default: true
         type: boolean
 
     external_network_cidr:
-        description: 'network cidr (for example, 10.0.0.0/24). It will be used by the plugin only when `use_dhcp` is false'
+        description: >
+            network cidr (for example, 10.0.0.0/24).
+            It will be used by the plugin only when `use_dhcp` is false
         default: ''
         type: string
 
     external_network_gateway:
-        description: 'network gateway ip. It will be used by the plugin only when `use_dhcp` is false'
+        description: >
+            network gateway ip. It will be used by the plugin only when
+            `use_dhcp` is false
         default: ''
         type: string
 
     external_network_ip:
-        description: 'server ip address. It will be used by the plugin only when `use_dhcp` is false'
+        description: >
+            server ip address. It will be used by the plugin only when
+            `use_dhcp` is false
         default: ''
         type: string
 
     external_network_switch_distributed:
-        description: 'signifies if network is connected to a distributed switch'
+        description: >
+            signifies if network is connected to a distributed switch
         default: false
         type: boolean
 
     management_network_name:
-        description: 'network name'
+        description: >
+            network name
         default: Management
         type: string
 
     management_network_use_dhcp:
-        description: 'use DHCP to obtain an ip address'
+        description: >
+            use DHCP to obtain an ip address
         default: true
         type: boolean
 
     management_network_cidr:
-        description: 'network cidr (for example, 10.0.0.0/24). It will be used by the plugin only when `use_dhcp` is false'
+        description: >
+            network cidr (for example, 10.0.0.0/24). It will be used by the
+            plugin only when `use_dhcp` is false
         default: ''
         type: string
 
     management_network_gateway:
-        description: 'network gateway ip. It will be used by the plugin only when `use_dhcp` is false'
+        description: >
+            network gateway ip. It will be used by the plugin only
+            when `use_dhcp` is false
         default: ''
         type: string
 
     management_network_ip:
-        description: 'server ip address. It will be used by the plugin only when `use_dhcp` is false'
+        description: >
+            server ip address. It will be used by the plugin only
+            when `use_dhcp` is false
         default: ''
         type: string
 
     management_network_switch_distributed:
-        description: 'signifies if network is connected to a distributed switch'
+        description: >
+            signifies if network is connected to a distributed switch
         default: false
         type: boolean
 
     manager_server_user:
-        description: 'user account on manager server'
+        description: >
+            user account on manager server
         default: ubuntu
         type: string
 
     manager_server_user_home:
-        description: 'path to the user home directory'
+        description: >
+            path to the user home directory
         default: /home/ubuntu
         type: string
 
     manager_private_key_path:
-        description: 'path to RSA key which will be used for ssh connection to manager server'
+        description: >
+            path to RSA key which will be used for ssh connection to manager
+            server
         default: ~/.ssh/cloudify-manager-kp.pem
         type: string
 
     agent_private_key_path:
-        description: 'path to RSA key which will be used for ssh connection to cloudify agent'
+        description: >
+            path to RSA key which will be used for ssh connection to cloudify
+            agent
         default: ~/.ssh/cloudify-agent-kp.pem
         type: string
 
