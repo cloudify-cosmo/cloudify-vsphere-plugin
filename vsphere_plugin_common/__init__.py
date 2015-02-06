@@ -316,7 +316,7 @@ class ServerClient(VsphereClient):
 
             globalip = vim.vm.customization.GlobalIPSettings()
             if dns_servers:
-                globalip.dnsSuffixList = dns_servers
+                globalip.dnsServerList = dns_servers
             customspec.globalIPSettings = globalip
 
             clonespec.customization = customspec
