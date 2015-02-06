@@ -241,6 +241,9 @@ class ServerClient(VsphereClient):
             else:
                 network_obj = self._get_obj_by_name([vim.Network],
                                                     network_name)
+            if network_obj is None:
+                raise cfy_exc.NonRecoverableError(
+                    'Network {0} could not be found'.format(network_name))
             nicspec = vim.vm.device.VirtualDeviceSpec()
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
