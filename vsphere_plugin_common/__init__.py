@@ -418,9 +418,12 @@ class ServerClient(VsphereClient):
         self._wait_for_task(task)
 
     def get_server_ip(self, vm, network_name):
+        server_ip = None
         for network in vm.guest.net:
-            if network_name.lower() == network.network.lower():
-                return network.ipAddress[0]
+            if network_name.lower() == network.network.lower()\
+                    and len(network.ipAddress) > 0:
+                server_ip = network.ipAddress[0]
+        return server_ip
 
     def _wait_vm_running(self, task):
         self._wait_for_task(task)
