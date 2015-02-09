@@ -203,11 +203,10 @@ class ServerClient(VsphereClient):
                 "Datacenter {0} could not be found".format(datacenter_name))
 
         resource_pool = self._get_obj_by_name([vim.ResourcePool],
-                                              resource_pool_name,
-                                              host.name)
+                                              resource_pool_name)
         if resource_pool is None:
             raise cfy_exc.NonRecoverableError(
-                "Network resource pool {0} could not be found"
+                "Resource pool {0} could not be found"
                 .format(resource_pool_name))
 
         template_vm = self._get_obj_by_name([vim.VirtualMachine],
