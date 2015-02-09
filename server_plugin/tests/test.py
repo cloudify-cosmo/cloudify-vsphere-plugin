@@ -196,3 +196,10 @@ class VsphereServerTest(TestCase):
         except socket.error:
             ip_valid = False
         self.assertTrue(ip_valid)
+
+    def test_server_create_with_autoplacement(self):
+        self.ctx.node.properties['connection_config']['auto_placement'] = True
+        self.assert_no_server(self.ctx.node.id)
+        server_plugin.server.start()
+        server = self.assert_server_exist_and_get(self.ctx.node.id)
+        self.assert_server_started(server)
