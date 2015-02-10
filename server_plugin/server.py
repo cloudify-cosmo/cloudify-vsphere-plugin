@@ -30,8 +30,6 @@ SERVER_RUNTIME_PROPERTIES = [VSPHERE_SERVER_ID, PUBLIC_IP, NETWORKS, IP]
 
 
 def create_new_server(server_client):
-    def rename(name):
-        return transform_resource_name(name, ctx)
 
     server = {
         'name': ctx.instance.id,
@@ -63,7 +61,7 @@ def create_new_server(server_client):
             if network.get('external', False):
                 networks.insert(
                     0,
-                    {'name': rename(network['name'].strip()),
+                    {'name': network['name'],
                      'external': True,
                      'switch_distributed': network.get('switch_distributed',
                                                        False),
@@ -74,7 +72,7 @@ def create_new_server(server_client):
                      })
             else:
                 networks.append(
-                    {'name': rename(network['name'].strip()),
+                    {'name': network['name'],
                      'external': False,
                      'switch_distributed': network.get('switch_distributed',
                                                        False),

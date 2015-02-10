@@ -53,6 +53,7 @@ class VsphereServerTest(TestCase):
                     'auto_placement': server_config['auto_placement']
                 }
             },
+            bootstrap_context=mock.Mock()
         )
         ctx_patch1 = mock.patch('server_plugin.server.ctx', self.ctx)
         ctx_patch1.start()
@@ -202,4 +203,13 @@ class VsphereServerTest(TestCase):
         self.assert_no_server(self.ctx.node.id)
         server_plugin.server.start()
         server = self.assert_server_exist_and_get(self.ctx.node.id)
+        self.assert_server_started(server)
+
+    def test_server_create_with_prefix(self):
+        prefix = 'prefix_'
+        self.ctx.bootstrap_context.resources_prefix = prefix
+
+        server_plugin.server.start()
+        self.addCleanup(server_plugin.server.delete)
+        server = self.assert_server_exist_and_get(prefix + self.ctx.node.id)
         self.assert_server_started(server)
