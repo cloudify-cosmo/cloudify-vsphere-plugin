@@ -53,6 +53,7 @@ class VsphereServerTest(TestCase):
                     'auto_placement': server_config['auto_placement']
                 }
             },
+            bootstrap_context=mock.Mock()
         )
         ctx_patch1 = mock.patch('server_plugin.server.ctx', self.ctx)
         ctx_patch1.start()
@@ -110,6 +111,15 @@ class VsphereServerTest(TestCase):
         server_plugin.server.start()
         server = self.assert_server_exist_and_get(self.ctx.node.id)
         self.assert_server_started(server)
+
+        get_state_verified = False
+        for _ in range(WAIT_COUNT):
+            if server_plugin.server.get_state():
+                get_state_verified = True
+                break
+            time.sleep(WAIT_TIMEOUT)
+        self.assertTrue(get_state_verified)
+
         self.assertTrue(server_plugin.server.PUBLIC_IP
                         in self.ctx.instance.runtime_properties)
         ip = self.ctx.instance.runtime_properties[
@@ -170,17 +180,15 @@ class VsphereServerTest(TestCase):
         server_plugin.server.start()
         server = self.assert_server_exist_and_get(self.ctx.node.id)
         self.assert_server_started(server)
-        guest_is_running = False
 
+        get_state_verified = False
         for _ in range(WAIT_COUNT):
-            if self.is_server_guest_running(server):
-                guest_is_running = True
+            if server_plugin.server.get_state():
+                get_state_verified = True
                 break
             time.sleep(WAIT_TIMEOUT)
-        self.assertTrue(guest_is_running)
+        self.assertTrue(get_state_verified)
 
-        state = server_plugin.server.get_state()
-        self.assertTrue(state)
         self.assertTrue('networks' in self.ctx.instance.runtime_properties)
         self.assertTrue('ip' in self.ctx.instance.runtime_properties)
         ip_valid = True
@@ -189,3 +197,19 @@ class VsphereServerTest(TestCase):
         except socket.error:
             ip_valid = False
         self.assertTrue(ip_valid)
+
+    def test_server_create_with_autoplacement(self):
+        self.ctx.node.properties['connection_config']['auto_placement'] = True
+        self.assert_no_server(self.ctx.node.id)
+        server_plugin.server.start()
+        server = self.assert_server_exist_and_get(self.ctx.node.id)
+        self.assert_server_started(server)
+
+    def test_server_create_with_prefix(self):
+        prefix = 'prefix_'
+        self.ctx.bootstrap_context.resources_prefix = prefix
+
+        server_plugin.server.start()
+        self.addCleanup(server_plugin.server.delete)
+        server = self.assert_server_exist_and_get(prefix + self.ctx.node.id)
+        self.assert_server_started(server)

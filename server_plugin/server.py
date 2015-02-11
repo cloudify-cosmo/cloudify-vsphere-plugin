@@ -30,8 +30,6 @@ SERVER_RUNTIME_PROPERTIES = [VSPHERE_SERVER_ID, PUBLIC_IP, NETWORKS, IP]
 
 
 def create_new_server(server_client):
-    def rename(name):
-        return transform_resource_name(name, ctx)
 
     server = {
         'name': ctx.instance.id,
@@ -63,7 +61,7 @@ def create_new_server(server_client):
             if network.get('external', False):
                 networks.insert(
                     0,
-                    {'name': rename(network['name'].strip()),
+                    {'name': network['name'],
                      'external': True,
                      'switch_distributed': network.get('switch_distributed',
                                                        False),
@@ -74,7 +72,7 @@ def create_new_server(server_client):
                      })
             else:
                 networks.append(
-                    {'name': rename(network['name'].strip()),
+                    {'name': network['name'],
                      'external': False,
                      'switch_distributed': network.get('switch_distributed',
                                                        False),
@@ -105,11 +103,6 @@ def create_new_server(server_client):
                                          dns_servers)
 
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server._moId
-
-    public_ips = [server_client.get_server_ip(server, network['name'])
-                  for network in networks if network['external']]
-    if len(public_ips) == 1:
-        ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
 
 
 @operation
@@ -161,6 +154,8 @@ def delete(server_client, **kwargs):
 def get_state(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server_client.is_server_guest_running(server):
+        networking = ctx.node.properties.get('networking')
+        networks = networking.get('connect_networks', []) if networking else []
         ips = {}
         manager_network_ip = None
         management_networks = \
@@ -175,8 +170,15 @@ def get_state(server_client, **kwargs):
             network_name = network.network
             if management_network_name and \
                     (network_name == management_network_name):
-                manager_network_ip = network.ipAddress[0]
+                manager_network_ip = (network.ipAddress[0]
+                                      if len(network.ipAddress) > 0
+                                      else None)
+                ctx.logger.info("Server management ip address: {0}"
+                                .format(manager_network_ip))
+                if manager_network_ip is None:
+                    return False
             ips[network_name] = network.ipAddress[0]
+
         ctx.instance.runtime_properties['networks'] = ips
         ctx.instance.runtime_properties['ip'] = \
             (manager_network_ip
@@ -184,6 +186,17 @@ def get_state(server_client, **kwargs):
                  if len(server.guest.net) > 0
                  else None)
              )
+
+        public_ips = [server_client.get_server_ip(server, network['name'])
+                      for network in networks
+                      if network.get('external', False)]
+        if len(public_ips) == 1:
+            public_ip = public_ips[0]
+            ctx.logger.info("Server public ip address: {0}".format(public_ip))
+            if public_ip is None:
+                return False
+            ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
+
         return True
     return False
 
