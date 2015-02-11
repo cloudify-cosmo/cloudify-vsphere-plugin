@@ -145,28 +145,39 @@ class VsphereClient(object):
         container_view.Destroy()
         return objects
 
-    def _get_obj_by_name(self, vimtype, name, parent_name=None):
+    def _has_parent(self, obj, parent_name, recursive):
+        if parent_name is None:
+            return True
+        if obj.parent is not None:
+            if obj.parent.name == parent_name:
+                return True
+            elif recursive:
+                return self._has_parent(obj.parent, parent_name, recursive)
+        # If we didn't confirm that the object has a parent by now, it doesn't
+        return False
+
+    def _get_obj_by_name(self, vimtype, name, parent_name=None,
+                         recursive_parent=False):
         obj = None
         objects = self.get_obj_list(vimtype)
         for c in objects:
-            if c.name.lower() == name.lower()\
-                    and (parent_name is None
-                         or c.parent.name.lower() == parent_name.lower()):
-                obj = c
-                break
+            if c.name.lower() == name.lower():
+                if self._has_parent(c, parent_name, recursive_parent):
+                    obj = c
+                    break
         return obj
 
-    def _get_obj_by_id(self, vimtype, id, parent_name=None):
+    def _get_obj_by_id(self, vimtype, id, parent_name=None,
+                       recursive_parent=False):
         obj = None
         content = self._get_content()
         container = content.viewManager.CreateContainerView(
             content.rootFolder, vimtype, True)
         for c in container.view:
-            if c._moId == id \
-                    and (parent_name is None
-                         or c.parent.name.lower() == parent_name.lower()):
-                obj = c
-                break
+            if c._moId == id:
+                if self._has_parent(c, parent_name, recursive_parent):
+                    obj = c
+                    break
         return obj
 
     def _wait_for_task(self, task):
@@ -204,10 +215,11 @@ class ServerClient(VsphereClient):
 
         resource_pool = self._get_obj_by_name([vim.ResourcePool],
                                               resource_pool_name,
-                                              host.name)
+                                              host.name if host else None,
+                                              recursive_parent=True)
         if resource_pool is None:
             raise cfy_exc.NonRecoverableError(
-                "Network resource pool {0} could not be found"
+                "Resource pool {0} could not be found"
                 .format(resource_pool_name))
 
         template_vm = self._get_obj_by_name([vim.VirtualMachine],
