@@ -55,6 +55,7 @@ class VsphereServerTest(TestCase):
             },
             bootstrap_context=mock.Mock()
         )
+        self.ctx.bootstrap_context.resources_prefix = ''
         ctx_patch1 = mock.patch('server_plugin.server.ctx', self.ctx)
         ctx_patch1.start()
         self.addCleanup(ctx_patch1.stop)
