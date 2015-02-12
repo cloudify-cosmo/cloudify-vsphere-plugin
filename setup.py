@@ -19,7 +19,7 @@ from setuptools import setup
 setup(
     zip_safe=True,
     name='cloudify-vsphere-plugin',
-    version='1.1',
+    version='1.1.1',
     packages=[
         'vsphere_plugin_common',
         'server_plugin',
