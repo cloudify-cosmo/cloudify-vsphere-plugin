@@ -51,7 +51,7 @@ class HelloVsphereTest(TestCase):
         url = 'http://getcloudify.org.s3.amazonaws.com' \
               '/spec/vsphere-plugin/' + plugins_branch + '/plugin.yaml'
         plugin = urllib.URLopener()
-        file_path = blueprint_path+"/plugin.yaml"
+        file_path = blueprint_path + "/plugin.yaml"
         plugin.retrieve(url, file_path)
         with open(file_path, 'r') as f:
             newlines = []

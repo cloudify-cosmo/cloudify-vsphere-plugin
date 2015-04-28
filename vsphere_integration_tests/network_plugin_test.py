@@ -15,22 +15,22 @@
 
 import mock
 import unittest
-import network_plugin.network
-import network_plugin.port
-import server_plugin.server as server_plugin
-import vsphere_plugin_common as common
+import vsphere_plugin_common as vpc
 
-from cloudify.context import ContextCapabilities
+from cloudify import context
 from cloudify import mocks as cfy_mocks
+from network_plugin import network
+from network_plugin import port
+from server_plugin import server as server_plugin
+from vsphere_integration_tests import common as tests_common
 
-
-_tests_config = common.TestsConfig().get()
+_tests_config = tests_common.TestsConfig().get()
 network_test_config = _tests_config['network_test']
 network_config = network_test_config['network']
 port_config = network_test_config['port']
 
 
-class VsphereNetworkTest(common.TestCase):
+class VsphereNetworkTest(tests_common.TestCase):
 
     def setUp(self):
         super(VsphereNetworkTest, self).setUp()
@@ -53,38 +53,42 @@ class VsphereNetworkTest(common.TestCase):
         ctx_patch2.start()
         self.addCleanup(ctx_patch1.stop)
         self.addCleanup(ctx_patch2.stop)
-        self.network_client = common.NetworkClient().get()
+        self.network_client = vpc.NetworkClient().get()
 
     @unittest.skipIf(network_config['switch_distributed'] is True,
                      "Network 'switch_distributed' property is set to true")
+    @unittest.skipIf(tests_common.able_to_connect() is False,
+                     "vSphere is not reachable.")
     def test_network(self):
         self.assert_no_port_group(self.network_name)
 
-        network_plugin.network.create()
+        network.create()
 
         net = self.assert_port_group_exist_and_get_info(self.network_name)
         self.assertEqual(self.network_name, net['name'])
         self.assertEqual(network_config['vlan_id'], net['vlanId'])
 
-        network_plugin.network.delete()
+        network.delete()
         self.assertThereIsNoNetwork(self.network_name)
 
     @unittest.skipIf(network_config['switch_distributed'] is False,
                      "Network 'switch_distributed' property is set to false")
+    @unittest.skipIf(tests_common.able_to_connect() is False,
+                     "vSphere is not reachable.")
     def test_network_switch_distributed(self):
-        network_plugin.network.create()
+        network.create()
         dv_port_group = self.network_client.get_dv_port_group(
             self.network_name)
         self.assertEqual(dv_port_group.config.name, self.network_name)
 
-        network_plugin.network.delete()
+        network.delete()
 
         dv_port_group = self.network_client.get_dv_port_group(
             self.network_name)
         self.assertTrue(dv_port_group is None)
 
 
-class VspherePortTest(common.TestCase):
+class VspherePortTest(tests_common.TestCase):
 
     def setUp(self):
         super(VspherePortTest, self).setUp()
@@ -95,13 +99,13 @@ class VspherePortTest(common.TestCase):
         network_name = port_config['network_name']
         switch_distributed = port_config['switch_distributed']
 
-        server_client = common.ServerClient().get()
+        server_client = vpc.ServerClient().get()
         vm = server_client.get_server_by_name(vm_name)
         vm_runtime_properties = {server_plugin.VSPHERE_SERVER_ID: vm._moId}
         network_runtime_properties = {
-            network_plugin.network.NETWORK_NAME: network_name,
-            network_plugin.network.SWITCH_DISTRIBUTED: switch_distributed
-            }
+            network.NETWORK_NAME: network_name,
+            network.SWITCH_DISTRIBUTED: switch_distributed
+        }
         vm_instance_context = cfy_mocks.MockNodeInstanceContext(
             runtime_properties=vm_runtime_properties)
         network_instance_context = cfy_mocks.MockNodeInstanceContext(
@@ -114,7 +118,8 @@ class VspherePortTest(common.TestCase):
         network_relationship.target.instance = network_instance_context
         endpoint = None
         instance = cfy_mocks.MockNodeInstanceContext()
-        context_capabilities_m = ContextCapabilities(endpoint, instance)
+        context_capabilities_m = context.ContextCapabilities(
+            endpoint, instance)
         get_all_m = mock.Mock()
         get_all_m.values = mock.Mock(
             return_value=[vm_runtime_properties, network_runtime_properties])
@@ -137,10 +142,12 @@ class VspherePortTest(common.TestCase):
         ctx_patch2.start()
         self.addCleanup(ctx_patch1.stop)
         self.addCleanup(ctx_patch2.stop)
-        self.network_client = common.NetworkClient().get()
+        self.network_client = vpc.NetworkClient().get()
 
     @unittest.skipIf(port_config['switch_distributed'] is False,
                      "Network 'switch_distributed' property is set to false")
+    @unittest.skipIf(tests_common.able_to_connect() is False,
+                     "vSphere is not reachable.")
     def test_port_switch_distributed(self):
-        network_plugin.port.create()
-        network_plugin.port.delete()
+        port.create()
+        port.delete()
