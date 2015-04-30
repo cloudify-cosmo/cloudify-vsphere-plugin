@@ -13,25 +13,26 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from cloudify import ctx
-from cloudify.decorators import operation
-from vsphere_plugin_common import (with_network_client,
-                                   transform_resource_name,
-                                   remove_runtime_properties)
+import cloudify
+import vsphere_plugin_common as vpc
 
+from cloudify import decorators
+
+operation = decorators.operation
+ctx = cloudify.ctx
 NETWORK_NAME = 'network_name'
 SWITCH_DISTRIBUTED = 'switch_distributed'
 NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME, SWITCH_DISTRIBUTED]
 
 
 @operation
-@with_network_client
+@vpc.with_network_client
 def create(network_client, **kwargs):
     network = {
         'name': ctx.instance.id,
     }
     network.update(ctx.node.properties['network'])
-    transform_resource_name(network, ctx)
+    vpc.transform_resource_name(network, ctx)
 
     port_group_name = network['name']
     vlan_id = network['vlan_id']
@@ -51,7 +52,7 @@ def create(network_client, **kwargs):
 
 
 @operation
-@with_network_client
+@vpc.with_network_client
 def delete(network_client, **kwargs):
     port_group_name = ctx.node.properties['network'].get('name') or \
         ctx.instance.id
@@ -61,4 +62,4 @@ def delete(network_client, **kwargs):
         network_client.delete_dv_port_group(port_group_name)
     else:
         network_client.delete_port_group(port_group_name)
-    remove_runtime_properties(NETWORK_RUNTIME_PROPERTIES, ctx)
+    vpc.remove_runtime_properties(NETWORK_RUNTIME_PROPERTIES, ctx)

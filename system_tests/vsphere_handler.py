@@ -13,28 +13,28 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
+import atexit
 import os
+import pyVmomi
 import random
 import time
-import atexit
 
 from pyVim import connect
-from pyVmomi import vmodl
-from pyVmomi import vim
 
-from cosmo_tester.framework.handlers import (BaseHandler,
-                                             BaseCloudifyInputsConfigReader)
+from cosmo_tester.framework import handlers
+
+vim = pyVmomi.vim
+vmodl = pyVmomi.vmodl
 
 
-class VsphereCleanupContext(BaseHandler.CleanupContext):
+class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
 
     def __init__(self, context_name, env):
         super(VsphereCleanupContext, self).__init__(context_name, env)
         self.get_vsphere_state()
 
     def cleanup(self):
-        """
-        Cleans resources by prefix in order to allow working
+        """Cleans resources by prefix in order to allow working
         on vsphere env while testing - need to add clean by prefix
         once CFY-1827 is fixed.
 
@@ -58,7 +58,8 @@ class VsphereCleanupContext(BaseHandler.CleanupContext):
         return vms
 
 
-class CloudifyVsphereInputsConfigReader(BaseCloudifyInputsConfigReader):
+class CloudifyVsphereInputsConfigReader(handlers.
+                                        BaseCloudifyInputsConfigReader):
 
     def __init__(self, cloudify_config, manager_blueprint_path, **kwargs):
         super(CloudifyVsphereInputsConfigReader, self).__init__(
@@ -106,7 +107,7 @@ class CloudifyVsphereInputsConfigReader(BaseCloudifyInputsConfigReader):
         return self.config['external_network_name']
 
 
-class VsphereHandler(BaseHandler):
+class VsphereHandler(handlers.BaseHandler):
 
     CleanupContext = VsphereCleanupContext
     CloudifyConfigReader = CloudifyVsphereInputsConfigReader
@@ -134,8 +135,7 @@ class VsphereHandler(BaseHandler):
         return vms
 
     def print_vm_info(self, vm, depth=1, max_depth=10):
-        """
-        Print information for a particular virtual machine or recurse into a
+        """Print information for a particular virtual machine or recurse into a
         folder with depth protection
         """
         # if this is a group it will have children. if it does, recurse into
@@ -149,20 +149,20 @@ class VsphereHandler(BaseHandler):
             return
 
         summary = vm.summary
-        print "Name       : ", summary.config.name
-        print "Path       : ", summary.config.vmPathName
-        print "Guest      : ", summary.config.guestFullName
+        print("Name       : ", summary.config.name)
+        print("Path       : ", summary.config.vmPathName)
+        print("Guest      : ", summary.config.guestFullName)
         annotation = summary.config.annotation
         if annotation:
-            print "Annotation : ", annotation
-        print "State      : ", summary.runtime.powerState
+            print("Annotation : ", annotation)
+        print("State      : ", summary.runtime.powerState)
         if summary.guest is not None:
             ip = summary.guest.ipAddress
             if ip:
-                print "IP         : ", ip
+                print("IP         : ", ip)
         if summary.runtime.question is not None:
-            print "Question  : ", summary.runtime.question.text
-        print ""
+            print("Question  : ", summary.runtime.question.text)
+        print("")
 
     @staticmethod
     def is_vm_poweredon(vm):
@@ -175,7 +175,7 @@ class VsphereHandler(BaseHandler):
         if not task.info.state == vim.TaskInfo.State.success:
             raise task.info.error
 
-    # TODO check if before poweroff should connect
+    # TODO(???): check if before poweroff should connect
     def terminate_vm(self, vm):
         if self.is_vm_poweredon(vm):
             task = vm.PowerOff()
@@ -206,7 +206,7 @@ class VsphereHandler(BaseHandler):
                                 obj.summary.config.name.startswith(vm_name)):
                         vms.append(obj)
         except vmodl.MethodFault as error:
-            print "Caught vmodl fault : " + error.msg
+            print("Caught vmodl fault : " + error.msg)
             return
 
         object_view.Destroy()

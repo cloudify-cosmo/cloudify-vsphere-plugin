@@ -13,15 +13,14 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from cloudify import ctx
-from cloudify.decorators import operation
+import cloudify
+import vsphere_plugin_common as vpc
+
+from cloudify import decorators
 from cloudify import exceptions as cfy_exc
-from vsphere_plugin_common import (with_server_client,
-                                   ConnectionConfig,
-                                   transform_resource_name,
-                                   remove_runtime_properties)
 
-
+ctx = cloudify.ctx
+operation = decorators.operation
 VSPHERE_SERVER_ID = 'vsphere_server_id'
 PUBLIC_IP = 'public_ip'
 NETWORKS = 'networks'
@@ -35,7 +34,7 @@ def create_new_server(server_client):
         'name': ctx.instance.id,
     }
     server.update(ctx.node.properties['server'])
-    transform_resource_name(server, ctx)
+    vpc.transform_resource_name(server, ctx)
 
     vm_name = server['name']
     networks = []
@@ -82,7 +81,7 @@ def create_new_server(server_client):
                      'ip': network.get('ip'),
                      })
 
-    connection_config = ConnectionConfig().get()
+    connection_config = vpc.ConnectionConfig().get()
     connection_config.update(ctx.node.properties.get('connection_config'))
     datacenter_name = connection_config['datacenter_name']
     resource_pool_name = connection_config['resource_pool_name']
@@ -106,7 +105,7 @@ def create_new_server(server_client):
 
 
 @operation
-@with_server_client
+@vpc.with_server_client
 def start(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
@@ -116,7 +115,7 @@ def start(server_client, **kwargs):
 
 
 @operation
-@with_server_client
+@vpc.with_server_client
 def shutdown_guest(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
@@ -127,7 +126,7 @@ def shutdown_guest(server_client, **kwargs):
 
 
 @operation
-@with_server_client
+@vpc.with_server_client
 def stop(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
@@ -138,7 +137,7 @@ def stop(server_client, **kwargs):
 
 
 @operation
-@with_server_client
+@vpc.with_server_client
 def delete(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
@@ -146,11 +145,11 @@ def delete(server_client, **kwargs):
             "Cannot delete server - server doesn't exist for node: {0}"
             .format(ctx.node.id))
     server_client.delete_server(server)
-    remove_runtime_properties(SERVER_RUNTIME_PROPERTIES, ctx)
+    vpc.remove_runtime_properties(SERVER_RUNTIME_PROPERTIES, ctx)
 
 
 @operation
-@with_server_client
+@vpc.with_server_client
 def get_state(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server_client.is_server_guest_running(server):
@@ -202,7 +201,7 @@ def get_state(server_client, **kwargs):
 
 
 @operation
-@with_server_client
+@vpc.with_server_client
 def resize(server_client, **kwargs):
     ctx.logger.info("Resizing server")
     server = get_server_by_context(server_client)
@@ -214,7 +213,7 @@ def resize(server_client, **kwargs):
     update = {
         'cpus': ctx.instance.runtime_properties.get('cpus'),
         'memory': ctx.instance.runtime_properties.get('memory')
-        }
+    }
 
     if any(update.values()):
         ctx.logger.info("Server new parameters: cpus - {0}, memory - {1}"

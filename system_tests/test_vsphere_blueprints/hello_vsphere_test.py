@@ -16,7 +16,7 @@
 import os
 import urllib
 
-from cosmo_tester.framework.testenv import TestCase
+from cosmo_tester.framework import testenv
 
 from system_tests import vsphere_handler
 
@@ -25,7 +25,7 @@ BLUEPRINTS_DIR = os.path.join(os.path.dirname(vsphere_handler.__file__),
                               'resources')
 
 
-class HelloVsphereTest(TestCase):
+class HelloVsphereTest(testenv.TestCase):
     """Tests vSphere with basic blueprint
        To run this tests locally you should have CLOUDIFY_AUTOMATION_TOKEN
        env variable set (see quickbuild's vars for the values)
@@ -51,7 +51,7 @@ class HelloVsphereTest(TestCase):
         url = 'http://getcloudify.org.s3.amazonaws.com' \
               '/spec/vsphere-plugin/' + plugins_branch + '/plugin.yaml'
         plugin = urllib.URLopener()
-        file_path = blueprint_path+"/plugin.yaml"
+        file_path = blueprint_path + "/plugin.yaml"
         plugin.retrieve(url, file_path)
         with open(file_path, 'r') as f:
             newlines = []

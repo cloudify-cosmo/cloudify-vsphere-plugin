@@ -13,26 +13,21 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from functools import wraps
-import yaml
-import os
-import time
-import unittest
-import logging
-import random
-import string
-
-from pyVmomi import vim
-from pyVim.connect import SmartConnect, Disconnect
 import atexit
-
-from cloudify import ctx
-from cloudify import exceptions as cfy_exc
-from netaddr import IPNetwork
-
+import cloudify
+import functools
+import netaddr
+import os
+import pyVmomi
 import re
+import time
+import yaml
+
+from cloudify import exceptions as cfy_exc
+from pyVim import connect
 
 
+vim = pyVmomi.vim
 TASK_CHECK_SLEEP = 15
 
 PREFIX_RANDOM_CHARS = 3
@@ -95,10 +90,6 @@ class ConnectionConfig(Config):
     which = 'connection'
 
 
-class TestsConfig(Config):
-    which = 'unit_tests'
-
-
 class VsphereClient(object):
 
     config = ConnectionConfig
@@ -119,11 +110,11 @@ class VsphereClient(object):
         password = cfg['password']
         port = cfg['port']
         try:
-            self.si = SmartConnect(host=host,
-                                   user=username,
-                                   pwd=password,
-                                   port=int(port))
-            atexit.register(Disconnect, self.si)
+            self.si = connect.SmartConnect(host=host,
+                                           user=username,
+                                           pwd=password,
+                                           port=int(port))
+            atexit.register(connect.Disconnect, self.si)
             return self
         except vim.fault.InvalidLogin:
             raise cfy_exc.NonRecoverableError(
@@ -283,7 +274,7 @@ class ServerClient(VsphereClient):
                 guest_map.adapter.ip = vim.vm.customization.DhcpIpGenerator()
                 adaptermaps.append(guest_map)
             else:
-                nw = IPNetwork(network["network"])
+                nw = netaddr.IPNetwork(network["network"])
                 guest_map = vim.vm.customization.AdapterMapping()
                 guest_map.adapter = vim.vm.customization.IPSettings()
                 guest_map.adapter.ip = vim.vm.customization.FixedIp()
@@ -611,9 +602,9 @@ class StorageClient(VsphereClient):
             vim.vm.device.VirtualDeviceSpec.FileOperation.create
 
         virtual_device_spec.device = vim.vm.device.VirtualDisk()
-        virtual_device_spec.device.capacityInKB = storage_size*1024*1024
+        virtual_device_spec.device.capacityInKB = storage_size * 1024 * 1024
         virtual_device_spec.device.capacityInBytes =\
-            storage_size*1024*1024*1024
+            virtual_device_spec.device.capacityInKB * 1024
         virtual_device_spec.device.backing =\
             vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
         virtual_device_spec.device.backing.diskMode = 'Persistent'
@@ -767,9 +758,9 @@ class StorageClient(VsphereClient):
             vim.vm.device.VirtualDeviceSpec.Operation.edit
 
         virtual_device_spec.device = disk_to_resize
-        virtual_device_spec.device.capacityInKB = storage_size*1024*1024
+        virtual_device_spec.device.capacityInKB = storage_size * 1024 ** 2
         virtual_device_spec.device.capacityInBytes =\
-            storage_size*1024*1024*1024
+            virtual_device_spec.device.capacityInKB * 1024
 
         updated_devices.append(virtual_device_spec)
 
@@ -781,9 +772,9 @@ class StorageClient(VsphereClient):
 
 
 def with_server_client(f):
-    @wraps(f)
+    @functools.wraps(f)
     def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
+        config = cloudify.ctx.node.properties.get('connection_config')
         server_client = ServerClient().get(config=config)
         kw['server_client'] = server_client
         return f(*args, **kw)
@@ -791,9 +782,9 @@ def with_server_client(f):
 
 
 def with_network_client(f):
-    @wraps(f)
+    @functools.wraps(f)
     def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
+        config = cloudify.ctx.node.properties.get('connection_config')
         network_client = NetworkClient().get(config=config)
         kw['network_client'] = network_client
         return f(*args, **kw)
@@ -801,128 +792,10 @@ def with_network_client(f):
 
 
 def with_storage_client(f):
-    @wraps(f)
+    @functools.wraps(f)
     def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
+        config = cloudify.ctx.node.properties.get('connection_config')
         storage_client = StorageClient().get(config=config)
         kw['storage_client'] = storage_client
         return f(*args, **kw)
     return wrapper
-
-
-class TestCase(unittest.TestCase):
-
-    def get_server_client(self):
-        r = ServerClient().get()
-        self.get_server_client = lambda: r
-        return self.get_server_client()
-
-    def get_network_client(self):
-        r = NetworkClient().get()
-        self.get_network_client = lambda: r
-        return self.get_network_client()
-
-    def setUp(self):
-        logger = logging.getLogger(__name__)
-        logging.basicConfig(
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-        self.logger = logger
-        self.logger.level = logging.DEBUG
-        self.logger.debug("VSphere provider test setUp() called")
-        chars = string.ascii_uppercase + string.digits
-        self.name_prefix = 'vsphere_test_{0}_'\
-            .format(''.join(
-                random.choice(chars) for x in range(PREFIX_RANDOM_CHARS)))
-        self.timeout = 120
-
-        self.logger.debug("VSphere provider test setUp() done")
-
-    def tearDown(self):
-        self.logger.debug("VSphere provider test tearDown() called")
-        # Compute
-        self.logger.debug("Check are there any server to delete")
-        server_client = self.get_server_client()
-        for server in server_client.get_server_list():
-            server_name = server.name
-            if server_name.startswith(self.name_prefix):
-                self.logger.debug("Deleting server \"{0}\""
-                                  .format(server_name))
-                server_client.delete_server(server)
-            self.logger.debug("Will not delete server \"{0}\""
-                              .format(server_name))
-        # Network
-        self.logger.debug("Check are there any network to delete")
-        network_client = self.get_network_client()
-        hosts = network_client.get_host_list()
-        for host in hosts:
-            network_system = host.configManager.networkSystem
-            port_groups = network_system.networkInfo.portgroup
-            for port_group in port_groups:
-                port_group_name = port_group.spec.name
-                if port_group_name.startswith(self.name_prefix):
-                    self.logger.debug("Deleting Port Group \"{0}\""
-                                      " on host \"{1}\""
-                                      .format(port_group_name, host.name))
-                    network_system.RemovePortGroup(port_group_name)
-                self.logger.debug("Will not delete Port Group \"{0}\""
-                                  " on host \"{1}\""
-                                  .format(port_group_name, host.name))
-        self.logger.debug("VSphere provider test tearDown() done")
-
-    @with_network_client
-    def assert_no_port_group(self, name, network_client):
-        port_groups = network_client.get_port_group_by_name(name)
-        self.assertEquals(0, len(port_groups))
-
-    @with_network_client
-    def assert_port_group_exist_and_get_info(self, name, network_client):
-        port_groups = network_client.get_port_group_by_name(name)
-        self.assertNotEqual(0, len(port_groups))
-        group_name = port_groups[0].spec.name
-        group_vlanId = port_groups[0].spec.vlanId
-        for port_group in port_groups[1:]:
-            self.assertEqual(group_name, port_group.spec.name)
-            self.assertEqual(group_vlanId, port_group.spec.vlanId)
-        return {'name': group_name, 'vlanId': group_vlanId}
-
-    @with_server_client
-    def assert_no_server(self, name, server_client):
-        server = server_client.get_server_by_name(name)
-        self.assertIsNone(server)
-
-    @with_server_client
-    def assert_server_exist_and_get(self, name, server_client):
-        server = server_client.get_server_by_name(name)
-        self.assertIsNotNone(server)
-        return server
-
-    @with_server_client
-    def assert_server_started(self, server, server_client):
-        self.assertTrue(server_client.is_server_poweredon(server))
-
-    @with_server_client
-    def assert_server_stopped(self, server, server_client):
-        self.assertTrue(server_client.is_server_poweredoff(server))
-
-    def assert_server_guest_stopped(self, server):
-        self.assertFalse(self.is_server_guest_running(server))
-
-    @with_server_client
-    def is_server_guest_running(self, server, server_client):
-        return server_client.is_server_guest_running(server)
-
-    @with_server_client
-    def is_server_stopped(self, server, server_client):
-        return server_client.is_server_poweredoff(server)
-
-    @with_storage_client
-    def assert_storage_exists_and_get(
-            self, vm_id, storage_file_name, storage_client):
-        storage = storage_client.get_storage(vm_id, storage_file_name)
-        self.assertIsNotNone(storage)
-        return storage
-
-    @with_storage_client
-    def assert_no_storage(self, vm_id, storage_file_name, storage_client):
-        storage = storage_client.get_storage(vm_id, storage_file_name)
-        self.assertIsNone(storage)

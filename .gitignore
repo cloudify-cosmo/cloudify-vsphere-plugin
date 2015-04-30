@@ -62,3 +62,4 @@ cloudify_vsphere_plugin.egg-info/
 
 .idea/*
 .venv/*
+.testrepository/*

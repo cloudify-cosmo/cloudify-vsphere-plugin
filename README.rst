@@ -49,7 +49,33 @@ with correct credentials and necessary info::
     agents_user
     resources_prefix
 
-
 .. code-block:: bash
 
     $ cfy bootstrap -p manager_blueprint/vsphere-manager-blueprint.yaml -i manager_blueprint/inputs.yaml
+
+-------
+Testing
+-------
+
+With respect to Cloudify development and contribution documentation each patch should be tested
+before submission using tox environments, both PEP8 and PY27.
+
+.. code-block:: bash
+
+    $ tox -epep8
+
+
+Enabled PEP8 rules::
+
+    E123: closing bracket does not match indentation of opening bracket's line
+    E101: commit message body and code inline comments checks
+    H233: python 3.x incompatible use of print operator
+    H234: deprecation warnings (assertEquals is deprecated, use assertEqual)
+    E226: missing whitespace around arithmetic operator
+    H301: one import per line
+    H302: import only modules
+    H306: sort imports in alphabetic order
+
+.. code-block:: bash
+
+    $ tox -epy27

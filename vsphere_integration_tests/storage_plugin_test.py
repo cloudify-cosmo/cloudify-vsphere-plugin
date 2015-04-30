@@ -13,23 +13,26 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+
 import mock
-import server_plugin.server as server_plugin
-import storage_plugin.storage as storage_plugin
-import vsphere_plugin_common as common
+import unittest
+import vsphere_plugin_common as vpc
 
-from cloudify.context import ContextCapabilities
-from cloudify.mocks import MockCloudifyContext
+from cloudify import context
+from cloudify import mocks
 
+from server_plugin import server as server_plugin
+from storage_plugin import storage as storage_plugin
+from vsphere_integration_tests import common as tests_common
 
-_tests_config = common.TestsConfig().get()
+_tests_config = tests_common.TestsConfig().get()
 storage_config = _tests_config['storage_test']
 
 
 VSPHERE_STORAGE_FILE_NAME = 'vsphere_storage_file_name'
 
 
-class VsphereStorageTest(common.TestCase):
+class VsphereStorageTest(tests_common.TestCase):
 
     def setUp(self):
         super(VsphereStorageTest, self).setUp()
@@ -39,17 +42,18 @@ class VsphereStorageTest(common.TestCase):
         vm_name = storage_config['vm_name']
         storage_size = int(storage_config['storage_size'])
 
-        server_client = common.ServerClient().get()
+        server_client = vpc.ServerClient().get()
         vm = server_client.get_server_by_name(vm_name)
         capability = {server_plugin.VSPHERE_SERVER_ID: vm._moId}
         endpoint = None
         instance = None
-        context_capabilities_m = ContextCapabilities(endpoint, instance)
+        context_capabilities_m = context.ContextCapabilities(
+            endpoint, instance)
         get_all_m = mock.Mock()
         get_all_m.values = mock.Mock(return_value=[capability])
         context_capabilities_m.get_all = mock.Mock(return_value=get_all_m)
 
-        self.ctx = MockCloudifyContext(
+        self.ctx = mocks.MockCloudifyContext(
             node_id=name,
             node_name=name,
             properties={
@@ -59,10 +63,11 @@ class VsphereStorageTest(common.TestCase):
             },
             capabilities=context_capabilities_m
         )
-        ctx_patch1 = mock.patch('storage_plugin.storage.ctx', self.ctx)
+        ctx_patch1 = mock.patch('storage_plugin.storage.cloudify.ctx',
+                                self.ctx)
         ctx_patch1.start()
         self.addCleanup(ctx_patch1.stop)
-        ctx_patch2 = mock.patch('vsphere_plugin_common.ctx', self.ctx)
+        ctx_patch2 = mock.patch('vsphere_plugin_common.cloudify.ctx', self.ctx)
         ctx_patch2.start()
         self.addCleanup(ctx_patch2.stop)
 
@@ -73,6 +78,8 @@ class VsphereStorageTest(common.TestCase):
             pass
         super(VsphereStorageTest, self).tearDown()
 
+    @unittest.skipIf(tests_common.able_to_connect() is False,
+                     "vSphere is not reachable.")
     def test_storage_create_delete(self):
         storage_size = self.ctx.node.properties['storage']['storage_size']
         vm_id = self.ctx.capabilities.get_all().values()[0][
@@ -87,7 +94,7 @@ class VsphereStorageTest(common.TestCase):
         storage = self.assert_storage_exists_and_get(vm_id, storage_file_name)
         self.logger.debug("Check storage \'{0}\' settings"
                           .format(storage_file_name))
-        self.assertEqual(storage_size*1024*1024, storage.capacityInKB)
+        self.assertEqual(storage_size * 1024 ** 2, storage.capacityInKB)
 
         self.logger.debug("Delete storage \'{0}\'".format(storage_file_name))
         storage_plugin.delete()
@@ -95,6 +102,8 @@ class VsphereStorageTest(common.TestCase):
                           .format(storage_file_name))
         self.assert_no_storage(vm_id, storage_file_name)
 
+    @unittest.skipIf(tests_common.able_to_connect() is False,
+                     "vSphere is not reachable.")
     def test_storage_resize(self):
         vm_id = self.ctx.capabilities.get_all().values()[0][
             server_plugin.VSPHERE_SERVER_ID]
@@ -111,4 +120,4 @@ class VsphereStorageTest(common.TestCase):
             self.ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
 
         storage = self.assert_storage_exists_and_get(vm_id, storage_file_name)
-        self.assertEqual(new_storage_size*1024*1024, storage.capacityInKB)
+        self.assertEqual(new_storage_size * 1024 ** 2, storage.capacityInKB)
