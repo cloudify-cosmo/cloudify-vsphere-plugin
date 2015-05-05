@@ -114,12 +114,12 @@ class VsphereClient(object):
         return ret
 
     def connect(self, cfg):
-        url = cfg['url']
+        host = cfg['host']
         username = cfg['username']
         password = cfg['password']
         port = cfg['port']
         try:
-            self.si = SmartConnect(host=url,
+            self.si = SmartConnect(host=host,
                                    user=username,
                                    pwd=password,
                                    port=int(port))

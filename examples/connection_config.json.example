@@ -1,6 +1,6 @@
 {
     "username": "ENTER_VSPHERE_USERNAME",
     "password": "ENTER_VSPHERE_PASSWORD",
-    "url": "ENTER_VSPHERE_URL",
+    "host": "ENTER_VSPHERE_HOST",
     "port": 443
 }
