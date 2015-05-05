@@ -1,0 +1,37 @@
+network_test:
+    network:
+        switch_distributed: true
+        vlan_id: 111
+        vswitch_name: vSwitch0
+    port:
+        mac: 00:00:00:77:77:77
+        network_name: Test
+        switch_distributed: true
+        vm_name: Test
+server_test:
+    auto_placement: false
+    cpu_count: 2
+    datacenter_name: Cloudify-Datacenter
+    memory_in_mb: 2048
+    networking:
+        connect_networks:
+        -   external: true
+            name: DMZ
+            switch_distributed: true
+            use_dhcp: true
+        -   external: false
+            gateway: 10.0.0.1
+            ip: 10.0.0.2
+            management: true
+            name: Management
+            network: 10.0.0.0/24
+            switch_distributed: false
+            use_dhcp: false
+        dns_server:
+        - 8.8.8.8
+        domain: test.com
+    resource_pool_name: Resources
+    template: ubuntu-configured-template
+storage_test:
+    storage_size: 1
+    vm_name: StorageTest
