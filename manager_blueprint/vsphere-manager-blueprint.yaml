@@ -191,6 +191,7 @@ inputs:
         type: string
 
 node_templates:
+
     manager_server:
         type: cloudify.vsphere.nodes.Server
         properties:
@@ -284,7 +285,7 @@ node_templates:
                         task_mapping: cloudify_cli.bootstrap.tasks.bootstrap_docker
                         task_properties:
                             cloudify_packages: { get_property: [manager, cloudify_packages] }
-                            agent_local_key_path: { get_property: [agent_keypair, private_key_path] }
+                            agent_local_key_path: { get_input: agent_private_key_path }
                             provider_context: { get_attribute: [manager, provider_context] }
                         fabric_env:
                             user: { get_input: manager_server_user }
@@ -296,16 +297,16 @@ node_templates:
                         task_mapping: cloudify_cli.bootstrap.tasks.stop_manager_container
                         fabric_env:
                             user: { get_input: manager_server_user }
-                            key_filename: { get_property: [management_keypair, private_key_path] }
-                            host_string: { get_attribute: [manager_server_ip, floating_ip_address] }
+                            key_filename: { get_input: manager_private_key_path }
+                            host_string: { get_attribute: [manager_server, public_ip] }
                 delete:
                     implementation: fabric.fabric_plugin.tasks.run_module_task
                     inputs:
-                        task_mapping: cloudify_cli.bootstrap.tasks.stop_docker_service
+                        task_mapping: cloudify_cli.bootstrap.tasks.stop_docker_ status
                         fabric_env:
                             user: { get_input: manager_server_user }
-                            key_filename: { get_property: [management_keypair, private_key_path] }
-                            host_string: { get_attribute: [manager_server_ip, floating_ip_address] }
+                            key_filename: { get_input: manager_private_key_path }
+                            host_string: { get_attribute: [manager_server, public_ip] }
             cloudify.interfaces.validation:
                 creation:
                     implementation: cli.cloudify_cli.bootstrap.tasks.creation_validation
