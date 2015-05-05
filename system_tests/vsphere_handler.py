@@ -94,8 +94,8 @@ class CloudifyVsphereInputsConfigReader(BaseCloudifyInputsConfigReader):
         return self.config['vsphere_datacenter_name']
 
     @property
-    def vsphere_url(self):
-        return self.config['vsphere_url']
+    def vsphere_host(self):
+        return self.config['vsphere_host']
 
     @property
     def management_network_name(self):
@@ -124,7 +124,7 @@ class VsphereHandler(BaseHandler):
             patch.append_value('manager_server_name', suffix)
 
     def get_vm(self, name):
-        vms = self.get_vm_by_name(self.env.vsphere_url,
+        vms = self.get_vm_by_name(self.env.vsphere_host,
                                   self.env.vsphere_username,
                                   self.env.vsphere_password,
                                   '443',

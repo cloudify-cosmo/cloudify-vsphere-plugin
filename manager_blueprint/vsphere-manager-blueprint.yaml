@@ -17,9 +17,9 @@ inputs:
             vSphere user password
         type: string
 
-    vsphere_url:
+    vsphere_host:
         description: >
-            vSphere url
+            vSphere host
         type: string
 
     vsphere_port:
@@ -229,7 +229,7 @@ node_templates:
             connection_config:
                 username: { get_input: vsphere_username }
                 password: { get_input: vsphere_password }
-                url: { get_input: vsphere_url }
+                host: { get_input: vsphere_host }
                 port: { get_input: vsphere_port }
                 datacenter_name: { get_input: vsphere_datacenter_name }
                 resource_pool_name: { get_input: vsphere_resource_pool_name }
