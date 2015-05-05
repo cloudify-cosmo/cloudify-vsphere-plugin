@@ -14,7 +14,7 @@
 #  * limitations under the License.
 
 from functools import wraps
-import json
+import yaml
 import os
 import time
 import unittest
@@ -73,18 +73,18 @@ def transform_resource_name(res, ctx):
 
 class Config(object):
 
-    CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.json'
+    CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.yaml'
 
     def get(self):
         cfg = {}
         which = self.__class__.which
         env_name = which.upper() + '_CONFIG_PATH'
-        default_location_tpl = '~/' + which + '_config.json'
+        default_location_tpl = '~/' + which + '_config.yaml'
         default_location = os.path.expanduser(default_location_tpl)
         config_path = os.getenv(env_name, default_location)
         try:
             with open(config_path) as f:
-                cfg = json.loads(f.read())
+                cfg = yaml.load(f.read())
         except IOError:
             pass
 
@@ -110,7 +110,7 @@ class VsphereClient(object):
         if config:
             cfg.update(config)
         ret = self.connect(cfg)
-        ret.format = 'json'
+        ret.format = 'yaml'
         return ret
 
     def connect(self, cfg):
