@@ -32,5 +32,6 @@ setup(
         "cloudify-plugins-common==3.2",
         "pyvmomi",
         "netaddr",
+        "pyyaml==3.10"
     ]
 )
