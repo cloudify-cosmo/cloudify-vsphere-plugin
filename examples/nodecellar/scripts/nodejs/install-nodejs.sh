@@ -65,4 +65,3 @@ untar ${NODEJS_TARBALL_NAME} ${NODEJS_BINARIES_PATH}
 ctx instance runtime_properties nodejs_binaries_path ${NODEJS_BINARIES_PATH}
 
 ctx logger info "Sucessfully installed NodeJS"
-
