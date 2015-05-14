@@ -82,7 +82,9 @@ class Config(object):
             with open(config_path) as f:
                 cfg = yaml.load(f.read())
         except IOError:
-            pass
+            ctx.logger.warn("Unable to read %s "
+                            "configuration file %s." %
+                            (which, config_path))
 
         return cfg
 
@@ -198,31 +200,37 @@ class ServerClient(VsphereClient):
                       vm_name,
                       domain=None,
                       dns_servers=None):
+        ctx.logger.debug("Entering create_server with parameters %s"
+                         % str(locals()))
         host, datastore = self.place_vm(auto_placement)
 
+        ctx.logger.info("Using datastore %s for manager node." % datastore)
         devices = []
         adaptermaps = []
 
         datacenter = self._get_obj_by_name([vim.Datacenter],
                                            datacenter_name)
         if datacenter is None:
-            raise cfy_exc.NonRecoverableError(
-                "Datacenter {0} could not be found".format(datacenter_name))
+            msg = "Datacenter {0} could not be found".format(datacenter_name)
+            ctx.logger.error(msg)
+            raise cfy_exc.NonRecoverableError(msg)
 
         resource_pool = self._get_obj_by_name([vim.ResourcePool],
                                               resource_pool_name,
                                               host.name if host else None,
                                               recursive_parent=True)
         if resource_pool is None:
-            raise cfy_exc.NonRecoverableError(
-                "Resource pool {0} could not be found"
-                .format(resource_pool_name))
+            msg = ("Resource pool {0} could not be found.".format(
+                   resource_pool_name))
+            ctx.logger.error(msg)
+            raise cfy_exc.NonRecoverableError(msg)
 
         template_vm = self._get_obj_by_name([vim.VirtualMachine],
                                             template_name)
         if template_vm is None:
-            raise cfy_exc.NonRecoverableError(
-                "VM template {0} could not be found".format(template_name))
+            msg = "VM template {0} could not be found.".format(template_name)
+            ctx.logger.error(msg)
+            raise cfy_exc.NonRecoverableError(msg)
 
         destfolder = datacenter.vmFolder
         relospec = vim.vm.RelocateSpec()
@@ -324,6 +332,9 @@ class ServerClient(VsphereClient):
                                  name=vm_name,
                                  spec=clonespec)
         try:
+            ctx.logger.debug("Task info: \n%s." %
+                             "".join("%s: %s" % item
+                                     for item in vars(task).items()))
             self._wait_vm_running(task)
         except task.info.error:
             raise cfy_exc.NonRecoverableError(
@@ -332,13 +343,17 @@ class ServerClient(VsphereClient):
         return task.info.result
 
     def start_server(self, server):
+        ctx.logger.debug("Entering server start procedure.")
         task = server.PowerOn()
         self._wait_for_task(task)
+        ctx.logger.info("Server is now running.")
 
     def shutdown_server_guest(self, server):
+        ctx.logger.debug("Entering server shutdown procedure.")
         server.ShutdownGuest()
 
     def stop_server(self, server):
+        ctx.logger.debug("Entering stop server procedure.")
         task = server.PowerOff()
         self._wait_for_task(task)
 
@@ -352,7 +367,9 @@ class ServerClient(VsphereClient):
         return server.guest.guestState == "running"
 
     def delete_server(self, server):
+        ctx.logger.debug("Entering server delete procedure.")
         if self.is_server_poweredon(server):
+            ctx.logger.debug("Powering off server.")
             task = server.PowerOff()
             self._wait_for_task(task)
         task = server.Destroy()
@@ -365,17 +382,21 @@ class ServerClient(VsphereClient):
         return self._get_obj_by_id([vim.VirtualMachine], id)
 
     def get_server_list(self):
+        ctx.logger.debug("Entering server list procedure.")
         return self.get_obj_list([vim.VirtualMachine])
 
     def place_vm(self, auto_placement, except_datastores=[]):
+        ctx.logger.debug("Entering place VM procedure.")
         selected_datastore = None
         selected_host = None
         selected_host_memory = 0
         selected_host_memory_used = 0
         datastore_list = self.get_obj_list([vim.Datastore])
         if len(except_datastores) == len(datastore_list):
-            raise RuntimeError("Error during trying to place VM:"
-                               " datastore and host can't be selected")
+            msg = ("Error during trying to place VM: "
+                   "datastore and host can't be selected.")
+            ctx.logger.error(msg)
+            raise RuntimeError(msg)
         for datastore in datastore_list:
             if datastore._moId not in except_datastores:
                 dtstr_free_spc = datastore.info.freeSpace
@@ -387,7 +408,9 @@ class ServerClient(VsphereClient):
                         selected_datastore = datastore
 
         if selected_datastore is None:
-            raise RuntimeError("Error during placing VM: no datastore found")
+            msg = "Error during placing VM: no datastore found."
+            ctx.logger.error(msg)
+            raise RuntimeError(msg)
 
         if auto_placement:
             return None, selected_datastore
@@ -416,17 +439,27 @@ class ServerClient(VsphereClient):
             except_datastores.append(selected_datastore._moId)
             return self.place_vm(auto_placement, except_datastores)
 
+        ctx.logger.debug("Selected datastore info: \n%s." %
+                         "".join("%s: %s" % item
+                                 for item in
+                                 vars(selected_datastore).items()))
+        ctx.logger.debug("Selected host info: \n%s." %
+                         "".join("%s: %s" % item
+                                 for item in
+                                 vars(selected_host).items()))
         return selected_host, selected_datastore
 
     def resize_server(self, server, cpus=None, memory=None):
+        ctx.logger.debug("Entering resize reconfiguration.")
         config = vim.vm.ConfigSpec()
-
         if cpus:
             config.numCPUs = cpus
         if memory:
             config.memoryMB = memory
         task = server.Reconfigure(spec=config)
         self._wait_for_task(task)
+        ctx.logger.info("Server resized with new number of "
+                        "CPUs: %s and RAM: %s." % (cpus, memory))
 
     def get_server_ip(self, vm, network_name):
         server_ip = None
@@ -449,16 +482,17 @@ class NetworkClient(VsphereClient):
         return self.get_obj_list([vim.HostSystem])
 
     def delete_port_group(self, name):
+        ctx.logger.debug("Entering delete port procedure.")
         host_list = self.get_host_list()
         for host in host_list:
-            network_system = host.configManager.networkSystem
-            network_system.RemovePortGroup(name)
+            host.configManager.networkSystem.RemovePortGroup(name)
+        ctx.logger.info("Port %s was deleted." % name)
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
+        ctx.logger.debug("Entering create port procedure.")
         host_list = self.get_host_list()
         for host in host_list:
             network_system = host.configManager.networkSystem
-
             specification = vim.host.PortGroup.Specification()
             specification.name = port_group_name
             specification.vlanId = vlan_id
@@ -466,21 +500,36 @@ class NetworkClient(VsphereClient):
             vswitch = network_system.networkConfig.vswitch[0]
             specification.policy = vswitch.spec.policy
             network_system.AddPortGroup(specification)
+        ctx.logger.info("Port was create successfully with "
+                        "name: %s, "
+                        "vLAN ID: %s, "
+                        "vSwitch name: %s."
+                        % (port_group_name, vlan_id, vswitch_name))
 
     def get_port_group_by_name(self, name):
+        ctx.logger.debug("Entering get port group by name.")
         result = []
         for host in self.get_host_list():
             network_system = host.configManager.networkSystem
             port_groups = network_system.networkInfo.portgroup
             for port_group in port_groups:
                 if name.lower() == port_group.spec.name.lower():
+                    ctx.logger.info("Port group(s) info: \n%s." %
+                                    "".join("%s: %s" % item
+                                            for item in
+                                            vars(port_group).items()))
                     result.append(port_group)
         return result
 
     def create_dv_port_group(self, port_group_name, vlan_id, vswitch_name):
+        ctx.logger.debug("Entering create dv port group procedure.")
         dv_port_group_type = 'earlyBinding'
         dvswitch = self._get_obj_by_name([vim.DistributedVirtualSwitch],
                                          vswitch_name)
+        ctx.logger.debug("Distributed vSwitch info: \n%s." %
+                         "".join("%s: %s" % item
+                                 for item in
+                                 vars(dvswitch).items()))
         vlan_spec = vim.dvs.VmwareDistributedVirtualSwitch.VlanIdSpec(
             vlanId=vlan_id)
         port_settings = \
@@ -490,13 +539,20 @@ class NetworkClient(VsphereClient):
             name=port_group_name,
             defaultPortConfig=port_settings,
             type=dv_port_group_type)
+        ctx.logger.debug("Port spec info: \n%s." %
+                         "".join("%s: %s" % item
+                                 for item in
+                                 vars(specification).items()))
         task = dvswitch.AddPortgroup(specification)
         self._wait_for_task(task)
+        ctx.info("Port created.")
 
     def delete_dv_port_group(self, name):
+        ctx.logger.debug("Entering delete dv port group.")
         dv_port_group = self.get_dv_port_group(name)
         task = dv_port_group.Destroy()
         self._wait_for_task(task)
+        ctx.info("Port deleted.")
 
     def get_dv_port_group(self, name):
         dv_port_group = self._get_obj_by_name(
@@ -506,7 +562,7 @@ class NetworkClient(VsphereClient):
 
     def add_network_interface(self, vm_id, network_name,
                               switch_distributed, mac_address=None):
-
+        ctx.logger.debug("Entering add network interface procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
         if self.is_server_suspended(vm):
             raise RuntimeError('Error during trying to add network'
@@ -546,11 +602,15 @@ class NetworkClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.Reconfigure(spec=config_spec)
+        ctx.logger.info("Task info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(task).items()))
         self._wait_for_task(task)
+        ctx.logger.info("Network interface was added.")
 
     def remove_network_interface(self, vm_id, network_name,
                                  switch_distributed):
-
+        ctx.logger.debug("Entering remove network interface procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
         if self.is_server_suspended(vm):
             raise RuntimeError('Error during trying to remove network'
@@ -587,14 +647,21 @@ class NetworkClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.Reconfigure(spec=config_spec)
+        ctx.logger.info("Task info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(task).items()))
         self._wait_for_task(task)
+        ctx.logger.info("Network interface was added.")
 
 
 class StorageClient(VsphereClient):
 
     def create_storage(self, vm_id, storage_size):
+        ctx.logger.debug("Entering create storage procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
-
+        ctx.logger.info("VM info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(vm).items()))
         if self.is_server_suspended(vm):
             raise RuntimeError('Error during trying to create storage:'
                                ' invalid VM state - \'suspended\'')
@@ -665,7 +732,7 @@ class StorageClient(VsphereClient):
         if num_controller != 1:
             raise RuntimeError('Error during trying to create storage:'
                                ' SCSI controller cannot be found or'
-                               ' is present more than once')
+                               ' is present more than once.')
 
         controller_key = controller.key
 
@@ -677,7 +744,7 @@ class StorageClient(VsphereClient):
         elif vm_vdisk_number == 15:
             raise RuntimeError('Error during trying to create storage:'
                                ' one SCSI controller cannot have more'
-                               ' than 15 virtual disks')
+                               ' than 15 virtual disks.')
         else:
             unit_number = vm_vdisk_number + 1
 
@@ -690,12 +757,18 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.Reconfigure(spec=config_spec)
+        ctx.logger.info("Task info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(task).items()))
         self._wait_for_task(task)
         return vm_disk_filename
 
     def delete_storage(self, vm_id, storage_file_name):
+        ctx.logger.debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
-
+        ctx.logger.info("VM info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(vm).items()))
         if self.is_server_suspended(vm):
             raise RuntimeError('Error during trying to delete storage:'
                                ' invalid VM state - \'suspended\'')
@@ -727,20 +800,34 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.Reconfigure(spec=config_spec)
+        ctx.logger.info("Task info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(task).items()))
         self._wait_for_task(task)
 
     def get_storage(self, vm_id, storage_file_name):
+        ctx.logger.debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
+        ctx.logger.info("VM info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(vm)))
         if vm:
             for device in vm.config.hardware.device:
                 if isinstance(device, vim.vm.device.VirtualDisk)\
                         and device.backing.fileName == storage_file_name:
+                    ctx.logger.info("Device info: \n%s." %
+                                    "".join("%s: %s" % item
+                                            for item in
+                                            vars(device).items()))
                     return device
         return None
 
     def resize_storage(self, vm_id, storage_filename, storage_size):
+        ctx.logger.debug("Entering resize storage procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
-
+        ctx.logger.info("VM info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(vm).items()))
         if self.is_server_suspended(vm):
             raise cfy_exc.NonRecoverableError(
                 'Error during trying to resize storage: invalid VM state'
@@ -773,7 +860,11 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = updated_devices
 
         task = vm.Reconfigure(spec=config_spec)
+        ctx.logger.info("VM info: \n%s." %
+                        "".join("%s: %s" % item
+                                for item in vars(vm).items()))
         self._wait_for_task(task)
+        ctx.logger.info("Storage resized to a new size %s." % storage_size)
 
 
 def with_server_client(f):

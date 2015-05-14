@@ -33,7 +33,7 @@ def create(network_client, **kwargs):
     network.update(ctx.node.properties['network'])
     transform_resource_name(network, ctx)
 
-    port_group_name = network['name']
+    port_group_name = ctx.instance.id
     vlan_id = network['vlan_id']
     vswitch_name = network['vswitch_name']
     switch_distributed = network['switch_distributed']
@@ -53,9 +53,10 @@ def create(network_client, **kwargs):
 @operation
 @with_network_client
 def delete(network_client, **kwargs):
-    port_group_name = ctx.node.properties['network'].get('name') or \
-        ctx.instance.id
-    switch_distributed = ctx.node.properties['network']['switch_distributed']
+    port_group_name = ctx.node.properties['network'].get(
+        'name') or ctx.instance.id
+    switch_distributed = ctx.node.properties[
+        'network'].get('switch_distributed')
 
     if switch_distributed:
         network_client.delete_dv_port_group(port_group_name)
