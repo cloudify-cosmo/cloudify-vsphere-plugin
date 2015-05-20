@@ -13,28 +13,31 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from cloudify import ctx
-from cloudify.decorators import operation
+import cloudify
+import vsphere_plugin_common as vpc
+
+from cloudify import decorators
 from cloudify import exceptions as cfy_exc
-from server_plugin.server import VSPHERE_SERVER_ID
-from vsphere_plugin_common import (with_storage_client,
-                                   transform_resource_name,
-                                   remove_runtime_properties)
+from server_plugin import server
+
 
 VSPHERE_STORAGE_FILE_NAME = 'vsphere_storage_file_name'
 VSPHERE_STORAGE_VM_ID = 'vsphere_storage_vm_id'
 VSPHERE_STORAGE_RUNTIME_PROPERTIES = [VSPHERE_STORAGE_FILE_NAME,
                                       VSPHERE_STORAGE_VM_ID]
+VSPHERE_SERVER_ID = server.VSPHERE_SERVER_ID
+ctx = cloudify.ctx
+operation = decorators.operation
 
 
 @operation
-@with_storage_client
+@vpc.with_storage_client
 def create(storage_client, **kwargs):
     storage = {
         'name': ctx.node.id,
     }
     storage.update(ctx.node.properties['storage'])
-    transform_resource_name(storage, ctx)
+    vpc.transform_resource_name(storage, ctx)
 
     storage_size = storage['storage_size']
     capabilities = ctx.capabilities.get_all().values()
@@ -59,17 +62,17 @@ def create(storage_client, **kwargs):
 
 
 @operation
-@with_storage_client
+@vpc.with_storage_client
 def delete(storage_client, **kwargs):
     vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
     storage_client.delete_storage(vm_id, storage_file_name)
-    remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
+    vpc.remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
 
 
 @operation
-@with_storage_client
+@vpc.with_storage_client
 def resize(storage_client, **kwargs):
     vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
     storage_file_name = \

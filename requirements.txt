@@ -1,0 +1,10 @@
+# This requirements file should be used only with stable releases. Upcoming release 3.2 stable.
+
+pbr>=0.6,!=0.7,<1.0
+
+# Once Cloudify 3.2 will be released we should bump this version to newest
+cloudify-plugins-common>=3.2rc1
+
+pyvmomi==5.5.0.2014.1.1
+netaddr
+pyyaml==3.10

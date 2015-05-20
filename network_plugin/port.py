@@ -13,16 +13,20 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from cloudify import ctx
-from cloudify.decorators import operation
-from cloudify import exceptions as cfy_exc
+import cloudify
 import network_plugin
 import server_plugin
-from vsphere_plugin_common import with_network_client
+import vsphere_plugin_common as vpc
+
+from cloudify import decorators
+from cloudify import exceptions as cfy_exc
+
+ctx = cloudify.ctx
+operation = decorators.operation
 
 
 @operation
-@with_network_client
+@vpc.with_network_client
 def create(network_client, **kwargs):
     connected_networks = _get_connected_networks()
     if len(connected_networks) != 1:
@@ -46,7 +50,7 @@ def create(network_client, **kwargs):
 
 
 @operation
-@with_network_client
+@vpc.with_network_client
 def delete(network_client, **kwargs):
     connected_networks = _get_connected_networks()
     connected_servers = _get_connected_servers()

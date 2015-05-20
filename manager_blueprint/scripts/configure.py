@@ -13,12 +13,14 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
-import tempfile
-import json
-
 import fabric
+try:
+    import json
+except ImportError:
+    import simplejson as json
+import tempfile
 
-import vsphere_plugin_common
+import vsphere_plugin_common as vpc
 
 
 def configure(vsphere_config):
@@ -29,5 +31,4 @@ def _copy_vsphere_configuration_to_manager(vsphere_config):
     tmp = tempfile.mktemp()
     with open(tmp, 'w') as f:
         json.dump(vsphere_config, f)
-    fabric.api.put(tmp,
-                   vsphere_plugin_common.Config.CONNECTION_CONFIG_PATH_DEFAULT)
+    fabric.api.put(tmp, vpc.Config.CONNECTION_CONFIG_PATH_DEFAULT)
