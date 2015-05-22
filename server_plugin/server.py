@@ -231,4 +231,5 @@ def get_server_by_context(server_client):
     if VSPHERE_SERVER_ID in ctx.instance.runtime_properties:
         return server_client.get_server_by_id(
             ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
-    return server_client.get_server_by_name(ctx.instance.id)
+    return server_client.get_server_by_name(
+        ctx.node.properties['server'].get('name', ctx.instance.id))
