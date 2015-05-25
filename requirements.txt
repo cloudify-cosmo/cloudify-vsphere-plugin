@@ -1,0 +1,5 @@
+# This requirements file should be used only with stable releases.
+cloudify-plugins-common>=3.2
+pyvmomi==5.5.0.2014.1.1
+netaddr
+pyyaml==3.10
