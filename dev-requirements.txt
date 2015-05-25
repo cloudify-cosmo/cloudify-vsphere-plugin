@@ -4,7 +4,7 @@
 -e git+https://github.com/cloudify-cosmo/cloudify-rest-client@master#egg=cloudify-rest-client==3.2
 -e git+https://github.com/cloudify-cosmo/cloudify-plugins-common@master#egg=cloudify-plugins-common==3.2
 -e git+https://github.com/cloudify-cosmo/cloudify-system-tests@master#egg=cloudify-system-tests==3.2
--e git+https://github.com/cloudify-cosmo/cloudify-script-plugin@master#egg=cloudify-script-plugin==3.2
+-e git+https://github.com/cloudify-cosmo/cloudify-script-plugin@master#egg=cloudify-script-plugin==1.2
 -e git+https://github.com/cloudify-cosmo/cloudify-cli@master#egg=cloudify-cli==3.2
 
 itsdangerous
