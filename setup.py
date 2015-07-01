@@ -18,7 +18,7 @@ import setuptools
 setuptools.setup(
     zip_safe=True,
     name='cloudify-vsphere-plugin',
-    version='1.3a2',
+    version='1.3a3',
     packages=[
         'vsphere_plugin_common',
         'server_plugin',
@@ -28,7 +28,7 @@ setuptools.setup(
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
     install_requires=[
-        "cloudify-plugins-common>=3.3a2",
+        "cloudify-plugins-common>=3.3a3",
         "pyvmomi",
         "netaddr",
         "pyyaml==3.10"
