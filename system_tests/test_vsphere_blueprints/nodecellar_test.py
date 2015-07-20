@@ -20,3 +20,12 @@ class VsphereNodeCellarTest(nodecellar_test.NodecellarAppTest):
 
     def test_vsphere_nodecellar(self):
         self._test_nodecellar_impl('vsphere-nodecellar.yaml')
+
+    def get_inputs(self):
+
+        return {
+            'template_name': self.env.template,
+            'agent_user': 'giga',
+            'management_network': 'Management',
+            'external_network': 'DMZ',
+        }
