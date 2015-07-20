@@ -44,7 +44,6 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
             self.logger.warn('[{0}] SKIPPING cleanup: of the resources.'
                              .format(self.context_name))
             return
-
         leaked_resources = False
         results = self._get_obj_list([vim.VirtualMachine], self.si)
         for result in results:
@@ -55,6 +54,10 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
                 leaked_resources = True
         if leaked_resources:
             assert False, 'found leaked resources.'
+
+    @classmethod
+    def clean_all(cls, env):
+        cls.cleanup()
 
     def _get_obj_list(vimtype, si):
         content = si.RetrieveContent()
