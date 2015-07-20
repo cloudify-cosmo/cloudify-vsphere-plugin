@@ -17,9 +17,8 @@ import atexit
 import os
 import pyVmomi
 import random
-import time
 
-from pyVim import connect
+from pyVim.connect import SmartConnect, Disconnect
 
 from cosmo_tester.framework import handlers
 
@@ -32,27 +31,43 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
     def __init__(self, context_name, env):
         super(VsphereCleanupContext, self).__init__(context_name, env)
         self.get_vsphere_state()
+        self.si = SmartConnect(host=self.env.vsphere_url,
+                               user=self.env.vsphere_username,
+                               pwd=self.env.vsphere_password,
+                               port=443)
+        atexit.register(Disconnect, self.si)
 
     def cleanup(self):
-        """Cleans resources by prefix in order to allow working
-        on vsphere env while testing - need to add clean by prefix
-        once CFY-1827 is fixed.
-
-        It should be noted that cleanup is not implemented in any manner
-        at the moment. if things fail, someone should remove resources
-        manually
+        """Cleans resources according to the resource pool they run under.
         """
         super(VsphereCleanupContext, self).cleanup()
-        if self.skip_cleanup:
-            self.logger.warn('SKIPPING cleanup: of the resources')
-            return
+        # prints all the resources
         self.get_vsphere_state()
+        if self.skip_cleanup:
+            self.logger.warn('[{0}] SKIPPING cleanup: of the resources.'
+                             .format(self.context_name))
+            return
+        results = self._get_obj_list([vim.VirtualMachine], self.si)
+
+        for result in results:
+            if result.resourcePool and \
+               result.resourcePool.name == 'system_tests':
+                print('DELETING: %s' % result.name)
+                result.Destroy()
+            else:
+                print('Leaving %s' % result.name)
+
+    def _get_obj_list(vimtype, si):
+        content = si.RetrieveContent()
+        container_view = content.viewManager.CreateContainerView(
+            content.rootFolder, vimtype, True
+        )
+        objects = container_view.view
+        container_view.Destroy()
+        return objects
 
     def get_vsphere_state(self):
-        vms = self.env.handler.get_all_vms(self.env.vsphere_url,
-                                           self.env.vsphere_username,
-                                           self.env.vsphere_password,
-                                           '443')
+        vms = self.env.handler.get_all_vms(self.si)
         for vm in vms:
             self.env.handler.print_vm_info(vm)
         return vms
@@ -115,7 +130,7 @@ class VsphereHandler(handlers.BaseHandler):
     def __init__(self, env):
         super(VsphereHandler, self).__init__(env)
         # plugins_branch should be set manually when running locally!
-        self.plugins_branch = os.environ.get('BRANCH_NAME_PLUGINS', '1.1')
+        self.plugins_branch = os.environ.get('BRANCH_NAME_PLUGINS', '1.2')
         self.env = env
 
     def before_bootstrap(self):
@@ -123,16 +138,6 @@ class VsphereHandler(handlers.BaseHandler):
         with self.update_cloudify_config() as patch:
             suffix = '-%06x' % random.randrange(16 ** 6)
             patch.append_value('manager_server_name', suffix)
-
-    def get_vm(self, name):
-        vms = self.get_vm_by_name(self.env.vsphere_host,
-                                  self.env.vsphere_username,
-                                  self.env.vsphere_password,
-                                  '443',
-                                  name)
-        for vm in vms:
-            self.print_vm_info(vm)
-        return vms
 
     def print_vm_info(self, vm, depth=1, max_depth=10):
         """Print information for a particular virtual machine or recurse into a
@@ -164,38 +169,15 @@ class VsphereHandler(handlers.BaseHandler):
             print("Question  : ", summary.runtime.question.text)
         print("")
 
-    @staticmethod
-    def is_vm_poweredon(vm):
-        return vm.summary.runtime.powerState.lower() == "poweredon"
+    def get_all_vms(self, si):
+        return self.get_vm_by_name(si, '')
 
     @staticmethod
-    def wait_for_task(task):
-        while task.info.state == vim.TaskInfo.State.running:
-            time.sleep(15)
-        if not task.info.state == vim.TaskInfo.State.success:
-            raise task.info.error
-
-    # TODO(???): check if before poweroff should connect
-    def terminate_vm(self, vm):
-        if self.is_vm_poweredon(vm):
-            task = vm.PowerOff()
-            self.wait_for_task(task)
-            task = vm.Destroy()
-            self.wait_for_task(task)
-
-    def get_all_vms(self, host, user, pwd, port):
-        return self.get_vm_by_name(host, user, pwd, port, '')
-
-    @staticmethod
-    def get_vms_by_prefix(host, user, pwd, port, vm_name, prefix_enabled):
+    def get_vms_by_prefix(si, vm_name, prefix_enabled):
         vms = []
         try:
-            service_instance = connect.SmartConnect(host=host,
-                                                    user=user,
-                                                    pwd=pwd,
-                                                    port=int(port))
-            atexit.register(connect.Disconnect, service_instance)
-            content = service_instance.RetrieveContent()
+            atexit.register(Disconnect, si)
+            content = si.RetrieveContent()
             object_view = content.viewManager. \
                 CreateContainerView(content.rootFolder, [], True)
             for obj in object_view.view:
@@ -212,30 +194,9 @@ class VsphereHandler(handlers.BaseHandler):
         object_view.Destroy()
         return vms
 
-    def get_vm_by_name(self, host, user, pwd, port, vm_name):
-        return self.get_vms_by_prefix(host, user, pwd, port, vm_name, False)
+    def get_vm_by_name(self, si, vm_name):
+        return self.get_vms_by_prefix(si, vm_name, False)
 
 
 handler = VsphereHandler
 has_manager_blueprint = True
-
-
-def _replace_string_in_file(file_name, old_string, new_string):
-    with open(file_name, 'r') as f:
-        newlines = []
-        for line in f.readlines():
-            newlines.append(line.replace(old_string, new_string))
-    with open(file_name, 'w') as f:
-        for line in newlines:
-            f.write(line)
-
-
-def update_config(manager_blueprints_dir, variables):
-    cloudify_automation_token = variables['cloudify_automation_token']
-    cloudify_automation_token_place_holder = '{CLOUDIFY_AUTOMATION_TOKEN}'
-    # used by test
-    os.environ['CLOUDIFY_AUTOMATION_TOKEN'] = cloudify_automation_token
-    plugin_path = manager_blueprints_dir + '/plugin.yaml'
-    _replace_string_in_file(plugin_path,
-                            cloudify_automation_token_place_holder,
-                            cloudify_automation_token)
