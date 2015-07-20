@@ -30,7 +30,6 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
 
     def __init__(self, context_name, env):
         super(VsphereCleanupContext, self).__init__(context_name, env)
-        self.get_vsphere_state()
         self.si = SmartConnect(host=self.env.vsphere_url,
                                user=self.env.vsphere_username,
                                pwd=self.env.vsphere_password,
@@ -41,21 +40,21 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
         """Cleans resources according to the resource pool they run under.
         """
         super(VsphereCleanupContext, self).cleanup()
-        # prints all the resources
-        self.get_vsphere_state()
         if self.skip_cleanup:
             self.logger.warn('[{0}] SKIPPING cleanup: of the resources.'
                              .format(self.context_name))
             return
-        results = self._get_obj_list([vim.VirtualMachine], self.si)
 
+        leaked_resources = False
+        results = self._get_obj_list([vim.VirtualMachine], self.si)
         for result in results:
             if result.resourcePool and \
                result.resourcePool.name == 'system_tests':
                 print('DELETING: %s' % result.name)
                 result.Destroy()
-            else:
-                print('Leaving %s' % result.name)
+                leaked_resources = True
+        if leaked_resources:
+            assert False, 'found leaked resources.'
 
     def _get_obj_list(vimtype, si):
         content = si.RetrieveContent()
@@ -65,12 +64,6 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
         objects = container_view.view
         container_view.Destroy()
         return objects
-
-    def get_vsphere_state(self):
-        vms = self.env.handler.get_all_vms(self.si)
-        for vm in vms:
-            self.env.handler.print_vm_info(vm)
-        return vms
 
 
 class CloudifyVsphereInputsConfigReader(handlers.
@@ -138,64 +131,6 @@ class VsphereHandler(handlers.BaseHandler):
         with self.update_cloudify_config() as patch:
             suffix = '-%06x' % random.randrange(16 ** 6)
             patch.append_value('manager_server_name', suffix)
-
-    def print_vm_info(self, vm, depth=1, max_depth=10):
-        """Print information for a particular virtual machine or recurse into a
-        folder with depth protection
-        """
-        # if this is a group it will have children. if it does, recurse into
-        # them and then return
-        if hasattr(vm, 'childEntity'):
-            if depth > max_depth:
-                return
-            vmList = vm.childEntity
-            for c in vmList:
-                self.print_vm_info(c, depth + 1)
-            return
-
-        summary = vm.summary
-        print("Name       : ", summary.config.name)
-        print("Path       : ", summary.config.vmPathName)
-        print("Guest      : ", summary.config.guestFullName)
-        annotation = summary.config.annotation
-        if annotation:
-            print("Annotation : ", annotation)
-        print("State      : ", summary.runtime.powerState)
-        if summary.guest is not None:
-            ip = summary.guest.ipAddress
-            if ip:
-                print("IP         : ", ip)
-        if summary.runtime.question is not None:
-            print("Question  : ", summary.runtime.question.text)
-        print("")
-
-    def get_all_vms(self, si):
-        return self.get_vm_by_name(si, '')
-
-    @staticmethod
-    def get_vms_by_prefix(si, vm_name, prefix_enabled):
-        vms = []
-        try:
-            atexit.register(Disconnect, si)
-            content = si.RetrieveContent()
-            object_view = content.viewManager. \
-                CreateContainerView(content.rootFolder, [], True)
-            for obj in object_view.view:
-                if isinstance(obj, vim.VirtualMachine):
-                    if obj.summary.config.name == vm_name \
-                            or vm_name == '' \
-                            or (prefix_enabled and
-                                obj.summary.config.name.startswith(vm_name)):
-                        vms.append(obj)
-        except vmodl.MethodFault as error:
-            print("Caught vmodl fault : " + error.msg)
-            return
-
-        object_view.Destroy()
-        return vms
-
-    def get_vm_by_name(self, si, vm_name):
-        return self.get_vms_by_prefix(si, vm_name, False)
 
 
 handler = VsphereHandler
