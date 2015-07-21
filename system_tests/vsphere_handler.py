@@ -30,7 +30,7 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
 
     def __init__(self, context_name, env):
         super(VsphereCleanupContext, self).__init__(context_name, env)
-        self.si = SmartConnect(host=self.env.vsphere_url,
+        self.si = SmartConnect(host=self.env.vsphere_host,
                                user=self.env.vsphere_username,
                                pwd=self.env.vsphere_password,
                                port=443)
@@ -116,10 +116,6 @@ class CloudifyVsphereInputsConfigReader(handlers.
     @property
     def external_network_name(self):
         return self.config['external_network_name']
-
-    @property
-    def vsphere_url(self):
-        return self.config['vsphere_url']
 
     @property
     def vsphere_username(self):
