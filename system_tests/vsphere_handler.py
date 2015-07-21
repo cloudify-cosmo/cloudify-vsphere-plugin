@@ -117,6 +117,18 @@ class CloudifyVsphereInputsConfigReader(handlers.
     def external_network_name(self):
         return self.config['external_network_name']
 
+    @property
+    def vsphere_url(self):
+        return self.config['vsphere_url']
+
+    @property
+    def vsphere_username(self):
+        return self.config['vsphere_username']
+
+    @property
+    def vsphere_password(self):
+        return self.config['vsphere_password']
+
 
 class VsphereHandler(handlers.BaseHandler):
 
