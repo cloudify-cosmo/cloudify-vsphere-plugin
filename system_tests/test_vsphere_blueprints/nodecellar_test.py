@@ -29,3 +29,7 @@ class VsphereNodeCellarTest(nodecellar_test.NodecellarAppTest):
             'management_network': 'Management',
             'external_network': 'DMZ',
         }
+
+    @property
+    def repo_branch(self):
+        return 'CFY-3188-add-vsphere-nodecellar'
