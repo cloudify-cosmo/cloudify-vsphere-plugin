@@ -27,14 +27,18 @@ vmodl = pyVmomi.vmodl
 
 
 class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
+    vcenter_connection = None
 
     def __init__(self, context_name, env):
         super(VsphereCleanupContext, self).__init__(context_name, env)
-        self.si = SmartConnect(host=self.env.vsphere_host,
+
+    def connect_to_vcenter(self):
+        self.logger.info('initializing vsphere handler')
+        self.vcenter_connection = SmartConnect(host=self.env.vsphere_host,
                                user=self.env.vsphere_username,
                                pwd=self.env.vsphere_password,
                                port=443)
-        atexit.register(Disconnect, self.si)
+        atexit.register(Disconnect, self.vcenter_connection)
 
     def cleanup(self):
         """Cleans resources according to the resource pool they run under.
@@ -45,11 +49,11 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
                              .format(self.context_name))
             return
         leaked_resources = False
-        results = self._get_obj_list([vim.VirtualMachine], self.si)
+        results = self._get_obj_list([vim.VirtualMachine])
         for result in results:
             if result.resourcePool and \
                result.resourcePool.name == 'system_tests':
-                print('DELETING: %s' % result.name)
+                self.logger.info('DELETING: %s' % result.name)
                 result.Destroy()
                 leaked_resources = True
         if leaked_resources:
@@ -57,10 +61,13 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
 
     @classmethod
     def clean_all(cls, env):
+        cls.logger.info('performing environment cleanup.')
         cls.cleanup()
 
-    def _get_obj_list(vimtype, si):
-        content = si.RetrieveContent()
+    def _get_obj_list(self, vimtype):
+        if self.vcenter_connection is None:
+            self.connect_to_vcenter()
+        content = self.vcenter_connection.RetrieveContent()
         container_view = content.viewManager.CreateContainerView(
             content.rootFolder, vimtype, True
         )
