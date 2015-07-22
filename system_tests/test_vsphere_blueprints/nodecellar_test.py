@@ -33,3 +33,15 @@ class VsphereNodeCellarTest(nodecellar_test.NodecellarAppTest):
     @property
     def repo_branch(self):
         return 'CFY-3188-add-vsphere-nodecellar'
+
+    @property
+    def expected_nodes_count(self):
+        return 5
+
+    @property
+    def entrypoint_node_name(self):
+        return 'nodejs_host'
+
+    @property
+    def entrypoint_property_name(self):
+        return 'public_ip'
