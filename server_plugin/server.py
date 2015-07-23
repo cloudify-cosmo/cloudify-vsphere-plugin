@@ -30,11 +30,12 @@ SERVER_RUNTIME_PROPERTIES = [VSPHERE_SERVER_ID, PUBLIC_IP, NETWORKS, IP]
 
 
 def create_new_server(server_client):
-
     server = {
         'name': ctx.instance.id,
     }
     server.update(ctx.node.properties['server'])
+    ctx.logger.info('Creating new server with name: {name}'
+                    .format(name=server['name']))
     transform_resource_name(server, ctx)
 
     vm_name = server['name']
@@ -101,7 +102,8 @@ def create_new_server(server_client):
                                          vm_name,
                                          domain,
                                          dns_servers)
-
+    ctx.logger.info('Created server {name} with ID {id}'
+                    .format(name=vm_name, id=server._moId))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server._moId
 
 
@@ -153,6 +155,7 @@ def delete(server_client, **kwargs):
 @with_server_client
 def get_state(server_client, **kwargs):
     server = get_server_by_context(server_client)
+    ctx.logger.info('Getting state for server {server}'.format(server=server))
     if server_client.is_server_guest_running(server):
         networking = ctx.node.properties.get('networking')
         networks = networking.get('connect_networks', []) if networking else []
@@ -176,6 +179,8 @@ def get_state(server_client, **kwargs):
                 ctx.logger.info("Server management ip address: {0}"
                                 .format(manager_network_ip))
                 if manager_network_ip is None:
+                    ctx.logger.info('Manager network IP not yet present for '
+                                    '{server}.'.format(server=server))
                     return False
             ips[network_name] = network.ipAddress[0]
 
@@ -191,21 +196,29 @@ def get_state(server_client, **kwargs):
                       for network in networks
                       if network.get('external', False)]
         if len(public_ips) == 1:
+            ctx.logger.info('Checking public IP for {server}'
+                            .format(server=server))
             public_ip = public_ips[0]
-            ctx.logger.info("Server public ip address: {0}".format(public_ip))
+            ctx.logger.info("Public IP address for {server}: {ip}"
+                            .format(server=server, ip=public_ip))
             if public_ip is None:
+                ctx.logger.info('Public IP not yet set for {server}'
+                                .format(server=server))
                 return False
             ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
-
+        else:
+            ctx.logger.info('Public IP check not required for {server}'
+                            .format(server=server))
         return True
+    ctx.logger.info('Server {server} is not started yet'.format(server=server))
     return False
 
 
 @operation
 @with_server_client
 def resize(server_client, **kwargs):
-    ctx.logger.info("Resizing server")
     server = get_server_by_context(server_client)
+    ctx.logger.info("Resizing server {server}".format(server=server))
     if server is None:
         raise cfy_exc.NonRecoverableError(
             "Cannot resize server - server doesn't exist for node: {0}"
