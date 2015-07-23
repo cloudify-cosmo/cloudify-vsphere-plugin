@@ -126,7 +126,6 @@ class VsphereHandler(handlers.BaseHandler):
     @property
     def vsphere_client(self):
         if not self._vsphere_client:
-            self.logger.info('initializing vsphere client')
             creds = self.client_creds()
             self.vsphere_client = SmartConnect(**creds)
             atexit.register(Disconnect, self.vsphere_client)
@@ -139,7 +138,7 @@ class VsphereHandler(handlers.BaseHandler):
             if result.resourcePool and \
                     result.resourcePool.name == 'system_tests':
                 deleted_vms.append(result.name)
-                self.logger.info('DELETING: %s' % result.name)
+                print('DELETING: %s' % result.name)
                 result.Destroy()
         return deleted_vms
 
