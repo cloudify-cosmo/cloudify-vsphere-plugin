@@ -123,21 +123,19 @@ class VsphereHandler(handlers.BaseHandler):
         self.plugins_branch = os.environ.get('BRANCH_NAME_PLUGINS', '1.2.1')
         self.env = env
 
-    @property
     def client_creds(self):
         return {
             'host': self.env.vsphere_host,
             'user': self.env.vsphere_username,
             'pwd': self.env.vsphere_password,
-            'port': 443
         }
 
     @property
     def vsphere_client(self):
         if not self._vsphere_client:
             creds = self.client_creds()
-            self.vsphere_client = SmartConnect(**creds)
-            atexit.register(Disconnect, self.vsphere_client)
+            self._vsphere_client = SmartConnect(**creds)
+            atexit.register(Disconnect, self._vsphere_client)
         return self._vsphere_client
 
     # returns list of machine names in env. Machine names are unique in vSphere
