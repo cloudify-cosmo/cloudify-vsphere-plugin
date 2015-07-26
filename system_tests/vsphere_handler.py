@@ -31,6 +31,7 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
 
     def __init__(self, context_name, env):
         super(VsphereCleanupContext, self).__init__(context_name, env)
+        self.before_state = self.env.handler.get_state()
 
     def cleanup(self):
         """Cleans resources according to the resource pool they run under.
@@ -40,11 +41,19 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
             self.logger.warn('[{0}] SKIPPING cleanup: of the resources.'
                              .format(self.context_name))
             return
+        resources_to_delete = self.get_vms_to_delete()
+        self.env.handler.delete_vms(resources_to_delete)
         leaked_vms = self.env.handler.destroy_vms_in_resource_pool()
         if len(leaked_vms) > 0:
             msg = 'found leaked vms: {0}.'.format(leaked_vms)
             self.logger.warn(msg)
             # assert False, 'found leaked vms: {0}.'.format(leaked_vms)
+
+    def get_vms_to_delete(self):
+        current_state = self.env.handler.get_state()
+        vms_to_delete = [instance_name for instance_name in current_state
+                         if instance_name not in self.before_state]
+        return vms_to_delete
 
     @classmethod
     def clean_all(cls, env):
@@ -131,16 +140,24 @@ class VsphereHandler(handlers.BaseHandler):
             atexit.register(Disconnect, self.vsphere_client)
         return self._vsphere_client
 
-    def destroy_vms_in_resource_pool(self):
-        deleted_vms = []
+    # returns list of machine names in env. Machine names are unique in vSphere
+    def get_state(self):
+        state = []
         results = self._get_obj_list([vim.VirtualMachine])
         for result in results:
             if result.resourcePool and \
                     result.resourcePool.name == 'system_tests':
-                deleted_vms.append(result.name)
-                print('DELETING: %s' % result.name)
-                result.Destroy()
-        return deleted_vms
+                state.append(result.name)
+        return state
+
+    def delete_vms(self, vms_to_delete):
+        results = self._get_obj_list([vim.VirtualMachine])
+        for result in results:
+            if result.resourcePool and \
+                    result.resourcePool.name == 'system_tests':
+                if result.name in vms_to_delete:
+                    print('DELETING: %s' % result.name)
+                    result.Destroy()
 
     def _get_obj_list(self, vimtype):
         content = self.vsphere_client.RetrieveContent()
