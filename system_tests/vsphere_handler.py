@@ -41,10 +41,10 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
             self.logger.warn('[{0}] SKIPPING cleanup: of the resources.'
                              .format(self.context_name))
             return
-        resources_to_delete = self.get_vms_to_delete()
-        self.env.handler.delete_vms(resources_to_delete)
-        if len(resources_to_delete) > 0:
-            msg = 'found leaked vms: {0}.'.format(resources_to_delete)
+        vms_to_delete = self.get_vms_to_delete()
+        self.env.handler.delete_vms(vms_to_delete)
+        if len(vms_to_delete) > 0:
+            msg = 'found leaked vms: {0}.'.format(vms_to_delete)
             self.logger.warn(msg)
             # assert False, 'found leaked vms: {0}.'.format(leaked_vms)
 
