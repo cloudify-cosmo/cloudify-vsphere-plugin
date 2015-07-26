@@ -59,7 +59,8 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
     def clean_all(cls, env):
         super(VsphereCleanupContext, cls).clean_all(env)
         cls.logger.info('performing environment cleanup.')
-        env.handler.destroy_vms_in_resource_pool()
+        leaked_resources = env.handler.get_state()
+        env.handler.delete_vms(leaked_resources)
 
 
 class CloudifyVsphereInputsConfigReader(handlers.
