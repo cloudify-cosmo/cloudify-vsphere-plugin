@@ -34,6 +34,9 @@ def create(storage_client, **kwargs):
         'name': ctx.node.id,
     }
     storage.update(ctx.node.properties['storage'])
+    ctx.logger.info('Creating new volume with name \'{name}\' and size: {size}'
+                    .format(name=storage['name'],
+                            size=storage['storage_size']))
     transform_resource_name(storage, ctx)
 
     storage_size = storage['storage_size']
@@ -47,10 +50,13 @@ def create(storage_client, **kwargs):
                      if VSPHERE_SERVER_ID in rt_properties]
     if len(connected_vms) > 1:
         raise cfy_exc.NonRecoverableError(
-            'Error during trying to create storage: storage should be '
-            'connected only to one VM')
+            'Error during trying to create storage: storage may be '
+            'connected to at most one VM')
 
     vm_id = connected_vms[0][VSPHERE_SERVER_ID]
+    ctx.logger.info('Connected storage {storage_name} to vm {vm_name}'
+                    .format(storage_name=storage['name'],
+                            vm_name=connected_vms[0]['name']))
     storage_file_name = storage_client.create_storage(vm_id, storage_size)
 
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \

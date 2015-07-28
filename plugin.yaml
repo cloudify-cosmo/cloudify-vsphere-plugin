@@ -5,7 +5,7 @@
 plugins:
     vsphere:
         executor: central_deployment_agent
-        source: https://api.github.com/repos/cloudify-cosmo/cloudify-vsphere-plugin/zipball/master?access_token={CLOUDIFY_AUTOMATION_TOKEN}
+        install: false
 
 node_types:
     cloudify.vsphere.nodes.Server:

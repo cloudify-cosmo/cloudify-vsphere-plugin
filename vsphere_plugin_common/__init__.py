@@ -64,6 +64,14 @@ def transform_resource_name(res, ctx):
         ctx.logger.info("Transformed resource name '{0}' to '{1}'".format(
                         name, res['name']))
 
+    if name != res['name']:
+        ctx.logger.info(
+            'Updated resource name from {name} to {new_name}.'.format(
+                name=res['name'],
+                new_name=name,
+            )
+        )
+
     return res['name']
 
 
@@ -235,6 +243,8 @@ class ServerClient(VsphereClient):
         for device in template_vm.config.hardware.device:
             if isinstance(device, vim.vm.device.VirtualVmxnet3):
                 nicspec.device = device
+                ctx.logger.warn('Removing network adapter from template. '
+                                'Template should have no attached adapters.')
                 nicspec.operation = \
                     vim.vm.device.VirtualDeviceSpec.Operation.remove
                 devices.append(nicspec)
@@ -253,6 +263,9 @@ class ServerClient(VsphereClient):
                 raise cfy_exc.NonRecoverableError(
                     'Network {0} could not be found'.format(network_name))
             nicspec = vim.vm.device.VirtualDeviceSpec()
+            ctx.logger.info('Adding network interface on {name} to {server}'
+                            .format(name=network.name,
+                                    server=vm_name))
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
             nicspec.device = vim.vm.device.VirtualVmxnet3()
@@ -303,6 +316,8 @@ class ServerClient(VsphereClient):
         clonespec.template = False
 
         if adaptermaps:
+            ctx.logger.info('Preparing OS customization spec for {server}'
+                            .format(server=vm_name))
             customspec = vim.vm.customization.Specification()
             customspec.nicSettingMap = adaptermaps
 
@@ -319,7 +334,8 @@ class ServerClient(VsphereClient):
             customspec.globalIPSettings = globalip
 
             clonespec.customization = customspec
-
+        ctx.logger.info('Cloning {server} from {template}.'
+                        .format(server=vm_name, template=template_name))
         task = template_vm.Clone(folder=destfolder,
                                  name=vm_name,
                                  spec=clonespec)
@@ -388,9 +404,13 @@ class ServerClient(VsphereClient):
 
         if selected_datastore is None:
             raise RuntimeError("Error during placing VM: no datastore found")
-
         if auto_placement:
+            ctx.logger.info('Using datastore {name}.'
+                            .format(name=selected_datastore.name))
             return None, selected_datastore
+
+        ctx.logger.info('Trying to use datastore {name} for deployment.'
+                        .format(name=selected_datastore.name))
 
         for host_mount in selected_datastore.host:
             host = host_mount.key
@@ -411,11 +431,21 @@ class ServerClient(VsphereClient):
                         selected_host = host
                         selected_host_memory = host_memory
                         selected_host_memory_used = host_memory_used
+            else:
+                ctx.logger.warn('Can not use host {name} for deployment. '
+                                'Status is red.'
+                                .format(name=selected_datastore.name))
 
         if selected_host is None:
             except_datastores.append(selected_datastore._moId)
+            ctx.logger.warn('Not using datastore {datastore}. '
+                            'No suitable host found.'
+                            .format(datastore=selected_datastore.name))
             return self.place_vm(auto_placement, except_datastores)
 
+        ctx.logger.info('Deploying to host {name} on datastore {datastore}'
+                        .format(name=host.name,
+                                datastore=selected_datastore.name))
         return selected_host, selected_datastore
 
     def resize_server(self, server, cpus=None, memory=None):
@@ -429,10 +459,20 @@ class ServerClient(VsphereClient):
         self._wait_for_task(task)
 
     def get_server_ip(self, vm, network_name):
+        ctx.logger.info('Getting server IP from {network}.'
+                        .format(network=network_name))
         for network in vm.guest.net:
+            if not network.network:
+                ctx.logger.info('Ignoring device with MAC {mac} as it is not'
+                                ' on a vSphere network.'
+                                .format(mac=network.macAddress))
+                continue
             if (network.network
                 and network_name.lower() == network.network.lower()
                     and len(network.ipAddress) > 0):
+                ctx.logger.info('Found {ip} from device with MAC {mac}'
+                                .format(ip=network.ipAddress[0],
+                                        mac=network.macAddress))
                 return network.ipAddress[0]
 
     def _wait_vm_running(self, task):
@@ -464,6 +504,11 @@ class NetworkClient(VsphereClient):
             specification.vswitchName = vswitch_name
             vswitch = network_system.networkConfig.vswitch[0]
             specification.policy = vswitch.spec.policy
+            ctx.logger.info('Adding port group {group_name} to vSwitch '
+                            '{vswitch_name} on host {host_name}'
+                            .format(group_name=port_group_name,
+                                    vswitch_name=vswitch_name,
+                                    host_name=host.name))
             network_system.AddPortGroup(specification)
 
     def get_port_group_by_name(self, name):
@@ -489,6 +534,10 @@ class NetworkClient(VsphereClient):
             name=port_group_name,
             defaultPortConfig=port_settings,
             type=dv_port_group_type)
+        ctx.logger.info('Adding distributed port group {group_name} to '
+                        'dvSwitch {dvswitch_name}'
+                        .format(group_name=port_group_name,
+                                dvswitch_name=vswitch_name))
         task = dvswitch.AddPortgroup(specification)
         self._wait_for_task(task)
 

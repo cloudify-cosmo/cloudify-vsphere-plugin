@@ -17,9 +17,8 @@ import atexit
 import os
 import pyVmomi
 import random
-import time
 
-from pyVim import connect
+from pyVim.connect import SmartConnect, Disconnect
 
 from cosmo_tester.framework import handlers
 
@@ -28,34 +27,39 @@ vmodl = pyVmomi.vmodl
 
 
 class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
+    vcenter_connection = None
 
     def __init__(self, context_name, env):
         super(VsphereCleanupContext, self).__init__(context_name, env)
-        self.get_vsphere_state()
+        self.before_state = self.env.handler.get_state()
 
     def cleanup(self):
-        """Cleans resources by prefix in order to allow working
-        on vsphere env while testing - need to add clean by prefix
-        once CFY-1827 is fixed.
-
-        It should be noted that cleanup is not implemented in any manner
-        at the moment. if things fail, someone should remove resources
-        manually
+        """Cleans resources according to the resource pool they run under.
         """
         super(VsphereCleanupContext, self).cleanup()
         if self.skip_cleanup:
-            self.logger.warn('SKIPPING cleanup: of the resources')
+            self.logger.warn('[{0}] SKIPPING cleanup: of the resources.'
+                             .format(self.context_name))
             return
-        self.get_vsphere_state()
+        vms_to_delete = self.get_vms_to_delete()
+        self.env.handler.delete_vms(vms_to_delete)
+        if len(vms_to_delete) > 0:
+            msg = 'found leaked vms: {0}.'.format(vms_to_delete)
+            self.logger.warn(msg)
+            # assert False, 'found leaked vms: {0}.'.format(leaked_vms)
 
-    def get_vsphere_state(self):
-        vms = self.env.handler.get_all_vms(self.env.vsphere_url,
-                                           self.env.vsphere_username,
-                                           self.env.vsphere_password,
-                                           '443')
-        for vm in vms:
-            self.env.handler.print_vm_info(vm)
-        return vms
+    def get_vms_to_delete(self):
+        current_state = self.env.handler.get_state()
+        vms_to_delete = [instance_name for instance_name in current_state
+                         if instance_name not in self.before_state]
+        return vms_to_delete
+
+    @classmethod
+    def clean_all(cls, env):
+        super(VsphereCleanupContext, cls).clean_all(env)
+        env.handler.logger.info('performing environment cleanup')
+        leaked_resources = env.handler.get_state()
+        env.handler.delete_vms(leaked_resources)
 
 
 class CloudifyVsphereInputsConfigReader(handlers.
@@ -111,12 +115,56 @@ class VsphereHandler(handlers.BaseHandler):
 
     CleanupContext = VsphereCleanupContext
     CloudifyConfigReader = CloudifyVsphereInputsConfigReader
+    _vsphere_client = None
 
     def __init__(self, env):
         super(VsphereHandler, self).__init__(env)
         # plugins_branch should be set manually when running locally!
-        self.plugins_branch = os.environ.get('BRANCH_NAME_PLUGINS', '1.1')
+        self.plugins_branch = os.environ.get('BRANCH_NAME_PLUGINS', 'master')
         self.env = env
+
+    def client_creds(self):
+        return {
+            'host': self.env.vsphere_host,
+            'user': self.env.vsphere_username,
+            'pwd': self.env.vsphere_password,
+        }
+
+    @property
+    def vsphere_client(self):
+        if not self._vsphere_client:
+            creds = self.client_creds()
+            self._vsphere_client = SmartConnect(**creds)
+            atexit.register(Disconnect, self._vsphere_client)
+        return self._vsphere_client
+
+    # returns list of machine names in env. Machine names are unique in vSphere
+    def get_state(self):
+        state = []
+        results = self._get_resources_list([vim.VirtualMachine])
+        for result in results:
+            if result.resourcePool and \
+                    result.resourcePool.name == 'system_tests':
+                state.append(result.name)
+        return state
+
+    def delete_vms(self, vms_to_delete):
+        results = self._get_resources_list([vim.VirtualMachine])
+        for result in results:
+            if result.resourcePool and \
+                    result.resourcePool.name == 'system_tests':
+                if result.name in vms_to_delete:
+                    self.logger.info('DELETING: %s' % result.name)
+                    result.Destroy()
+
+    def _get_resources_list(self, vimtype):
+        content = self.vsphere_client.RetrieveContent()
+        container_view = content.viewManager.CreateContainerView(
+            content.rootFolder, vimtype, True
+        )
+        objects = container_view.view
+        container_view.Destroy()
+        return objects
 
     def before_bootstrap(self):
         super(VsphereHandler, self).before_bootstrap()
@@ -124,118 +172,6 @@ class VsphereHandler(handlers.BaseHandler):
             suffix = '-%06x' % random.randrange(16 ** 6)
             patch.append_value('manager_server_name', suffix)
 
-    def get_vm(self, name):
-        vms = self.get_vm_by_name(self.env.vsphere_host,
-                                  self.env.vsphere_username,
-                                  self.env.vsphere_password,
-                                  '443',
-                                  name)
-        for vm in vms:
-            self.print_vm_info(vm)
-        return vms
-
-    def print_vm_info(self, vm, depth=1, max_depth=10):
-        """Print information for a particular virtual machine or recurse into a
-        folder with depth protection
-        """
-        # if this is a group it will have children. if it does, recurse into
-        # them and then return
-        if hasattr(vm, 'childEntity'):
-            if depth > max_depth:
-                return
-            vmList = vm.childEntity
-            for c in vmList:
-                self.print_vm_info(c, depth + 1)
-            return
-
-        summary = vm.summary
-        print("Name       : ", summary.config.name)
-        print("Path       : ", summary.config.vmPathName)
-        print("Guest      : ", summary.config.guestFullName)
-        annotation = summary.config.annotation
-        if annotation:
-            print("Annotation : ", annotation)
-        print("State      : ", summary.runtime.powerState)
-        if summary.guest is not None:
-            ip = summary.guest.ipAddress
-            if ip:
-                print("IP         : ", ip)
-        if summary.runtime.question is not None:
-            print("Question  : ", summary.runtime.question.text)
-        print("")
-
-    @staticmethod
-    def is_vm_poweredon(vm):
-        return vm.summary.runtime.powerState.lower() == "poweredon"
-
-    @staticmethod
-    def wait_for_task(task):
-        while task.info.state == vim.TaskInfo.State.running:
-            time.sleep(15)
-        if not task.info.state == vim.TaskInfo.State.success:
-            raise task.info.error
-
-    # TODO(???): check if before poweroff should connect
-    def terminate_vm(self, vm):
-        if self.is_vm_poweredon(vm):
-            task = vm.PowerOff()
-            self.wait_for_task(task)
-            task = vm.Destroy()
-            self.wait_for_task(task)
-
-    def get_all_vms(self, host, user, pwd, port):
-        return self.get_vm_by_name(host, user, pwd, port, '')
-
-    @staticmethod
-    def get_vms_by_prefix(host, user, pwd, port, vm_name, prefix_enabled):
-        vms = []
-        try:
-            service_instance = connect.SmartConnect(host=host,
-                                                    user=user,
-                                                    pwd=pwd,
-                                                    port=int(port))
-            atexit.register(connect.Disconnect, service_instance)
-            content = service_instance.RetrieveContent()
-            object_view = content.viewManager. \
-                CreateContainerView(content.rootFolder, [], True)
-            for obj in object_view.view:
-                if isinstance(obj, vim.VirtualMachine):
-                    if obj.summary.config.name == vm_name \
-                            or vm_name == '' \
-                            or (prefix_enabled and
-                                obj.summary.config.name.startswith(vm_name)):
-                        vms.append(obj)
-        except vmodl.MethodFault as error:
-            print("Caught vmodl fault : " + error.msg)
-            return
-
-        object_view.Destroy()
-        return vms
-
-    def get_vm_by_name(self, host, user, pwd, port, vm_name):
-        return self.get_vms_by_prefix(host, user, pwd, port, vm_name, False)
-
 
 handler = VsphereHandler
 has_manager_blueprint = True
-
-
-def _replace_string_in_file(file_name, old_string, new_string):
-    with open(file_name, 'r') as f:
-        newlines = []
-        for line in f.readlines():
-            newlines.append(line.replace(old_string, new_string))
-    with open(file_name, 'w') as f:
-        for line in newlines:
-            f.write(line)
-
-
-def update_config(manager_blueprints_dir, variables):
-    cloudify_automation_token = variables['cloudify_automation_token']
-    cloudify_automation_token_place_holder = '{CLOUDIFY_AUTOMATION_TOKEN}'
-    # used by test
-    os.environ['CLOUDIFY_AUTOMATION_TOKEN'] = cloudify_automation_token
-    plugin_path = manager_blueprints_dir + '/plugin.yaml'
-    _replace_string_in_file(plugin_path,
-                            cloudify_automation_token_place_holder,
-                            cloudify_automation_token)
