@@ -64,7 +64,7 @@ def transform_resource_name(res, ctx):
         ctx.logger.info("Transformed resource name '{0}' to '{1}'".format(
                         name, res['name']))
 
-    if name == res['name']:
+    if name != res['name']:
         ctx.logger.info(
             'Updated resource name from {name} to {new_name}.'.format(
                 name=res['name'],
@@ -462,9 +462,9 @@ class ServerClient(VsphereClient):
         ctx.logger.info('Getting server IP from {network}.'
                         .format(network=network_name))
         for network in vm.guest.net:
-            if network.network is None:
+            if not network.network:
                 ctx.logger.info('Ignoring device with MAC {mac} as it is not'
-                                ' on a vSphere ''network.'
+                                ' on a vSphere network.'
                                 .format(mac=network.macAddress))
                 continue
             if (network.network

@@ -19,7 +19,7 @@ from cosmo_tester.test_suites.test_blueprints import nodecellar_test
 class VsphereNodeCellarTest(nodecellar_test.NodecellarAppTest):
 
     def test_vsphere_nodecellar(self):
-        self._test_nodecellar_impl('vsphere-nodecellar.yaml')
+        self._test_nodecellar_impl('vsphere-blueprint.yaml')
 
     def get_inputs(self):
 

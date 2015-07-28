@@ -57,7 +57,7 @@ class VsphereCleanupContext(handlers.BaseHandler.CleanupContext):
     @classmethod
     def clean_all(cls, env):
         super(VsphereCleanupContext, cls).clean_all(env)
-        cls.logger.info('performing environment cleanup.')
+        env.handler.logger.info('performing environment cleanup')
         leaked_resources = env.handler.get_state()
         env.handler.delete_vms(leaked_resources)
 
@@ -120,7 +120,7 @@ class VsphereHandler(handlers.BaseHandler):
     def __init__(self, env):
         super(VsphereHandler, self).__init__(env)
         # plugins_branch should be set manually when running locally!
-        self.plugins_branch = os.environ.get('BRANCH_NAME_PLUGINS', '1.2.1')
+        self.plugins_branch = os.environ.get('BRANCH_NAME_PLUGINS', 'master')
         self.env = env
 
     def client_creds(self):
@@ -141,7 +141,7 @@ class VsphereHandler(handlers.BaseHandler):
     # returns list of machine names in env. Machine names are unique in vSphere
     def get_state(self):
         state = []
-        results = self._get_obj_list([vim.VirtualMachine])
+        results = self._get_resources_list([vim.VirtualMachine])
         for result in results:
             if result.resourcePool and \
                     result.resourcePool.name == 'system_tests':
@@ -149,15 +149,15 @@ class VsphereHandler(handlers.BaseHandler):
         return state
 
     def delete_vms(self, vms_to_delete):
-        results = self._get_obj_list([vim.VirtualMachine])
+        results = self._get_resources_list([vim.VirtualMachine])
         for result in results:
             if result.resourcePool and \
                     result.resourcePool.name == 'system_tests':
                 if result.name in vms_to_delete:
-                    print('DELETING: %s' % result.name)
+                    self.logger.info('DELETING: %s' % result.name)
                     result.Destroy()
 
-    def _get_obj_list(self, vimtype):
+    def _get_resources_list(self, vimtype):
         content = self.vsphere_client.RetrieveContent()
         container_view = content.viewManager.CreateContainerView(
             content.rootFolder, vimtype, True
