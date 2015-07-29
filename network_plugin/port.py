@@ -16,6 +16,7 @@
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
+
 import network_plugin
 import server_plugin
 from vsphere_plugin_common import with_network_client

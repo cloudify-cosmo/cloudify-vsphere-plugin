@@ -31,6 +31,14 @@ def create(network_client, **kwargs):
         'name': ctx.instance.id,
     }
     network.update(ctx.node.properties['network'])
+    network_type = ('port group' if network['switch_distributed']
+                    else 'distributed port group')
+    ctx.logger.info('Creating new {type} with name \'{name}\' on VLAN {vlan} '
+                    'attached to vSwitch: {vswitch}'
+                    .format(name=network['name'],
+                            type=network_type,
+                            vlan=network['vlan_id'],
+                            vswitch=network['vswitch_name']))
     transform_resource_name(network, ctx)
 
     port_group_name = ctx.instance.id

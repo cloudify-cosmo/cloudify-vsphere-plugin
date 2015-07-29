@@ -30,17 +30,18 @@ SERVER_RUNTIME_PROPERTIES = [VSPHERE_SERVER_ID, PUBLIC_IP, NETWORKS, IP]
 
 
 def create_new_server(server_client):
-
     server = {
         'name': ctx.instance.id,
     }
     server.update(ctx.node.properties['server'])
+    ctx.logger.info('Creating new server with name: {name}'
+                    .format(name=server['name']))
     transform_resource_name(server, ctx)
 
     ctx.logger.info("Server node info: \n%s." %
                     "".join("%s: %s" % item
                             for item in server.items()))
-
+    vm_name = server['name']
     networks = []
     domain = None
     dns_servers = None
@@ -108,9 +109,8 @@ def create_new_server(server_client):
                                          ctx.instance.id,
                                          domain,
                                          dns_servers)
-    ctx.logger.info("Server info: \n%s." %
-                    "".join("%s: %s" % item
-                            for item in vars(server).items()))
+    ctx.logger.info('Created server {name} with ID {id}'
+                    .format(name=vm_name, id=server._moId))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server._moId
 
 
@@ -164,9 +164,7 @@ def delete(server_client, **kwargs):
 def get_state(server_client, **kwargs):
     ctx.logger.debug("Entering server state validation procedure.")
     server = get_server_by_context(server_client)
-    ctx.logger.debug("Server info: \n%s." %
-                     "".join("%s: %s" % item
-                             for item in vars(server).items()))
+    ctx.logger.info('Getting state for server {server}'.format(server=server))
     if server_client.is_server_guest_running(server):
         ctx.logger.info("Server is running.")
         networking = ctx.node.properties.get('networking')
@@ -191,6 +189,8 @@ def get_state(server_client, **kwargs):
                 ctx.logger.info("Server management ip address: {0}"
                                 .format(manager_network_ip))
                 if manager_network_ip is None:
+                    ctx.logger.info('Manager network IP not yet present for '
+                                    '{server}.'.format(server=server))
                     return False
             ips[network_name] = network.ipAddress[0]
 
@@ -209,17 +209,26 @@ def get_state(server_client, **kwargs):
                          % ", ".join(public_ips))
 
         if len(public_ips) == 1:
+            ctx.logger.info('Checking public IP for {server}'
+                            .format(server=server))
             public_ip = public_ips[0]
-            ctx.logger.info("Server public ip address: {0}".format(public_ip))
+            ctx.logger.info("Public IP address for {server}: {ip}"
+                            .format(server=server, ip=public_ip))
             if public_ip is None:
+                ctx.logger.info('Public IP not yet set for {server}'
+                                .format(server=server))
                 return False
             ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
+        else:
+            ctx.logger.info('Public IP check not required for {server}'
+                            .format(server=server))
 
         ctx.logger.info("Server is available through next IP addresses:\n"
                         "Management: %s\n"
                         "Public: %s.\n" % (manager_network_ip, public_ips[0]))
 
         return True
+    ctx.logger.info('Server {server} is not started yet'.format(server=server))
     return False
 
 
@@ -227,6 +236,7 @@ def get_state(server_client, **kwargs):
 @with_server_client
 def resize(server_client, **kwargs):
     server = get_server_by_context(server_client)
+    ctx.logger.info("Resizing server {server}".format(server=server))
     if server is None:
         raise cfy_exc.NonRecoverableError(
             "Cannot resize server - server doesn't exist for node: {0}"
@@ -253,5 +263,6 @@ def get_server_by_context(server_client):
     if VSPHERE_SERVER_ID in ctx.instance.runtime_properties:
         return server_client.get_server_by_id(
             ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
-    return server_client.get_server_by_name(
-        ctx.node.properties['server'].get('name', ctx.instance.id))
+    else:
+        # Server not found
+        return None
