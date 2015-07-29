@@ -38,25 +38,32 @@ def create_new_server(server_client):
                     .format(name=server['name']))
     transform_resource_name(server, ctx)
 
+    ctx.logger.info("Server node info: \n%s." %
+                    "".join("%s: %s" % item
+                            for item in server.items()))
     vm_name = server['name']
     networks = []
     domain = None
     dns_servers = None
     networking = ctx.node.properties.get('networking')
 
+    ctx.logger.info("Networking node info: \n%s." %
+                    "".join("%s: %s" % item
+                            for item in networking.items()))
     if networking:
         domain = networking.get('domain')
         dns_servers = networking.get('dns_servers')
         connect_networks = networking.get('connect_networks', [])
 
+        err_msg = "No more that one %s network can be specified."
         if len([network for network in connect_networks
                 if network.get('external', False)]) > 1:
-            raise cfy_exc.NonRecoverableError(
-                "No more that one external network can be specified")
+            ctx.logger.error(err_msg % 'external')
+            raise cfy_exc.NonRecoverableError(err_msg % 'external')
         if len([network for network in connect_networks
                 if network.get('management', False)]) > 1:
-            raise cfy_exc.NonRecoverableError(
-                "No more that one management network can be specified")
+            ctx.logger.error(err_msg % 'management')
+            raise cfy_exc.NonRecoverableError(err_msg % 'management')
 
         for network in connect_networks:
             if network.get('external', False):
@@ -99,7 +106,7 @@ def create_new_server(server_client):
                                          networks,
                                          resource_pool_name,
                                          template_name,
-                                         vm_name,
+                                         ctx.instance.id,
                                          domain,
                                          dns_servers)
     ctx.logger.info('Created server {name} with ID {id}'
@@ -112,6 +119,7 @@ def create_new_server(server_client):
 def start(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
+        ctx.logger.info("Creating server for scratch.")
         create_new_server(server_client)
     else:
         server_client.start_server(server)
@@ -154,9 +162,11 @@ def delete(server_client, **kwargs):
 @operation
 @with_server_client
 def get_state(server_client, **kwargs):
+    ctx.logger.debug("Entering server state validation procedure.")
     server = get_server_by_context(server_client)
     ctx.logger.info('Getting state for server {server}'.format(server=server))
     if server_client.is_server_guest_running(server):
+        ctx.logger.info("Server is running.")
         networking = ctx.node.properties.get('networking')
         networks = networking.get('connect_networks', []) if networking else []
         ips = {}
@@ -195,6 +205,9 @@ def get_state(server_client, **kwargs):
         public_ips = [server_client.get_server_ip(server, network['name'])
                       for network in networks
                       if network.get('external', False)]
+        ctx.logger.debug("Server public IP addresses: %s."
+                         % ", ".join(public_ips))
+
         if len(public_ips) == 1:
             ctx.logger.info('Checking public IP for {server}'
                             .format(server=server))
@@ -209,6 +222,11 @@ def get_state(server_client, **kwargs):
         else:
             ctx.logger.info('Public IP check not required for {server}'
                             .format(server=server))
+
+        ctx.logger.info("Server is available through next IP addresses:\n"
+                        "Management: %s\n"
+                        "Public: %s.\n" % (manager_network_ip, public_ips[0]))
+
         return True
     ctx.logger.info('Server {server} is not started yet'.format(server=server))
     return False
@@ -237,10 +255,11 @@ def resize(server_client, **kwargs):
         server_client.resize_server(server, **update)
     else:
         raise cfy_exc.NonRecoverableError(
-            "Server resize parameters should be specified")
+            "Server resize parameters should be specified.")
 
 
 def get_server_by_context(server_client):
+    ctx.logger.info("Performing look-up for server.")
     if VSPHERE_SERVER_ID in ctx.instance.runtime_properties:
         return server_client.get_server_by_id(
             ctx.instance.runtime_properties[VSPHERE_SERVER_ID])

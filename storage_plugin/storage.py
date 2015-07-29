@@ -30,6 +30,7 @@ VSPHERE_STORAGE_RUNTIME_PROPERTIES = [VSPHERE_STORAGE_FILE_NAME,
 @operation
 @with_storage_client
 def create(storage_client, **kwargs):
+    ctx.logger.debug("Entering create storage procedure.")
     storage = {
         'name': ctx.node.id,
     }
@@ -38,13 +39,15 @@ def create(storage_client, **kwargs):
                     .format(name=storage['name'],
                             size=storage['storage_size']))
     transform_resource_name(storage, ctx)
-
+    ctx.logger.info("Storage info: \n%s." %
+                    "".join("%s: %s" % item
+                            for item in storage.items()))
     storage_size = storage['storage_size']
     capabilities = ctx.capabilities.get_all().values()
     if not capabilities:
         raise cfy_exc.NonRecoverableError(
             'Error during trying to create storage: storage should be '
-            'related to a VM, but capabilities are empty')
+            'related to a VM, but capabilities are empty.')
 
     connected_vms = [rt_properties for rt_properties in capabilities
                      if VSPHERE_SERVER_ID in rt_properties]
@@ -62,6 +65,7 @@ def create(storage_client, **kwargs):
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
         storage_file_name
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID] = vm_id
+    ctx.logger.info("Storage create with name %s." % storage_file_name)
 
 
 @operation
@@ -84,7 +88,7 @@ def resize(storage_client, **kwargs):
     if not storage_size:
         raise cfy_exc.NonRecoverableError(
             'Error during trying to resize storage: new storage size wasn\'t'
-            ' specified')
+            ' specified.')
     storage_client.resize_storage(vm_id,
                                   storage_file_name,
                                   storage_size)

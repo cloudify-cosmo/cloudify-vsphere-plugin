@@ -25,16 +25,17 @@ from vsphere_plugin_common import with_network_client
 @operation
 @with_network_client
 def create(network_client, **kwargs):
+    err_msg = (
+        'Error during trying to create port: port should be '
+        'connected to one %s.')
     connected_networks = _get_connected_networks()
     if len(connected_networks) != 1:
-        raise cfy_exc.NonRecoverableError(
-            'Error during trying to create port: port should be '
-            'connected to one network')
+        ctx.logger.error(err_msg % "network")
+        raise cfy_exc.NonRecoverableError(err_msg % "network")
     connected_servers = _get_connected_servers()
     if len(connected_servers) != 1:
-        raise cfy_exc.NonRecoverableError(
-            'Error during trying to create port: port should be '
-            'connected to one server')
+        ctx.logger.error(err_msg % "server")
+        raise cfy_exc.NonRecoverableError(err_msg % "server")
 
     network_name = connected_networks[0][network_plugin.network.NETWORK_NAME]
     switch_distributed = \
