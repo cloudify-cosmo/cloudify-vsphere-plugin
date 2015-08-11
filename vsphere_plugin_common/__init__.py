@@ -272,7 +272,7 @@ class ServerClient(VsphereClient):
                     'Network {0} could not be found'.format(network_name))
             nicspec = vim.vm.device.VirtualDeviceSpec()
             ctx.logger.info('Adding network interface on {name} to {server}'
-                            .format(name=network.name,
+                            .format(name=network_name,
                                     server=vm_name))
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
