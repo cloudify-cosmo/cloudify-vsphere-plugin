@@ -28,7 +28,7 @@ setuptools.setup(
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
     install_requires=[
-        "cloudify-plugins-common>=3.3.0a7",
+        "cloudify-plugins-common>=3.3a7",
         "pyvmomi",
         "netaddr",
         "pyyaml==3.10"
