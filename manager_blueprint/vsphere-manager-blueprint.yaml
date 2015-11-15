@@ -1,9 +1,9 @@
 tosca_definitions_version: cloudify_dsl_1_2
 
 imports:
-    - http://www.getcloudify.org/spec/cloudify/3.3rc1/types.yaml
-    - http://www.getcloudify.org/spec/vsphere-plugin/1.3rc1/plugin.yaml
-    - http://www.getcloudify.org/spec/fabric-plugin/1.3rc1/plugin.yaml
+    - http://www.getcloudify.org/spec/cloudify/3.3/types.yaml
+    - http://www.getcloudify.org/spec/vsphere-plugin/1.3/plugin.yaml
+    - http://www.getcloudify.org/spec/fabric-plugin/1.3/plugin.yaml
 
 
 inputs:
@@ -240,12 +240,12 @@ node_templates:
         properties:
             cloudify_packages:
                 agents:
-                    ubuntu-trusty-agent: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/rc1-RELEASE/Ubuntu-trusty-agent_3.3.0-rc1-b278.tar.gz
-                    centos-final-agent: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/rc1-RELEASE/centos-Final-agent_3.3.0-rc1-b278.tar.gz
-                    ubuntu-precise-agent: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/rc1-RELEASE/Ubuntu-precise-agent_3.3.0-rc1-b278.tar.gz
-                    windows_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/rc1-RELEASE/cloudify-windows-agent_3.3.0-rc1-b278.exe
+                    ubuntu-trusty-agent: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/None-RELEASE/Ubuntu-trusty-agent_3.3.0-b300.tar.gz
+                    centos-final-agent: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/None-RELEASE/centos-Final-agent_3.3.0-b300.tar.gz
+                    ubuntu-precise-agent: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/None-RELEASE/Ubuntu-precise-agent_3.3.0-b300.tar.gz
+                    windows_agent_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/None-RELEASE/cloudify-windows-agent_3.3.0-b300.exe
                 docker:
-                    docker_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/rc1-RELEASE/cloudify-docker-commercial_3.3.0-rc1-b278.tar
+                    docker_url: http://gigaspaces-repository-eu.s3.amazonaws.com/org/cloudify3/3.3.0/None-RELEASE/cloudify-docker-commercial_3.3.0-b300.tar
 
             cloudify:
                 resources_prefix: { get_input: resources_prefix }
