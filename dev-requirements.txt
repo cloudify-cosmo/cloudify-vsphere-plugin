@@ -7,5 +7,3 @@ https://github.com/cloudify-cosmo/cloudify-script-plugin/archive/master.zip
 https://github.com/cloudify-cosmo/cloudify-cli/archive/master.zip
 
 itsdangerous
-pyvmomi
-netaddr
