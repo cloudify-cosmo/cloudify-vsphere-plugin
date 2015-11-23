@@ -19,15 +19,21 @@ from cosmo_tester.test_suites.test_blueprints import nodecellar_test
 class VsphereNodeCellarTest(nodecellar_test.NodecellarAppTest):
 
     def test_vsphere_nodecellar(self):
-        self._test_nodecellar_impl('vsphere-blueprint.yaml')
+        self._test_nodecellar_impl(
+            'vsphere-blueprint.yaml',
+            # from suites.yaml values
+            self.env.execution_timeout
+        )
 
     def get_inputs(self):
 
         return {
+            # from suites.yaml values
             'template_name': self.env.template,
-            'agent_user': 'giga',
-            'management_network': 'Management',
-            'external_network': 'DMZ',
+            'agent_user': self.env.agent_user,
+            # from manager blueprint inputs
+            'management_network':  self.env.management_network_name,
+            'external_network': self.env.external_network_name,
         }
 
     @property

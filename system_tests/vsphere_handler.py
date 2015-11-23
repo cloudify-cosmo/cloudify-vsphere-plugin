@@ -17,6 +17,7 @@ import atexit
 import os
 import pyVmomi
 import random
+import time
 
 from pyVim.connect import SmartConnect, Disconnect
 
@@ -72,7 +73,7 @@ class CloudifyVsphereInputsConfigReader(handlers.
 
     @property
     def management_server_name(self):
-        return self.config['manager_server_name']
+        return self.config['server_name']
 
     @property
     def agent_key_path(self):
@@ -110,12 +111,17 @@ class CloudifyVsphereInputsConfigReader(handlers.
     def external_network_name(self):
         return self.config['external_network_name']
 
+    @property
+    def resource_pool_name(self):
+        return self.config['vsphere_resource_pool_name']
+
 
 class VsphereHandler(handlers.BaseHandler):
 
     CleanupContext = VsphereCleanupContext
     CloudifyConfigReader = CloudifyVsphereInputsConfigReader
     _vsphere_client = None
+    _vsphere_client_time = 0
 
     def __init__(self, env):
         super(VsphereHandler, self).__init__(env)
@@ -132,10 +138,12 @@ class VsphereHandler(handlers.BaseHandler):
 
     @property
     def vsphere_client(self):
-        if not self._vsphere_client:
+        if not self._vsphere_client or self._vsphere_client_time < time.time():
             creds = self.client_creds()
             self._vsphere_client = SmartConnect(**creds)
             atexit.register(Disconnect, self._vsphere_client)
+            # 5 minutes valid
+            self._vsphere_client_time = time.time() + 300
         return self._vsphere_client
 
     # returns list of machine names in env. Machine names are unique in vSphere
@@ -144,7 +152,7 @@ class VsphereHandler(handlers.BaseHandler):
         results = self._get_resources_list([vim.VirtualMachine])
         for result in results:
             if result.resourcePool and \
-                    result.resourcePool.name == 'system_tests':
+                    result.resourcePool.name == self.env.resource_pool_name:
                 state.append(result.name)
         return state
 
@@ -152,7 +160,7 @@ class VsphereHandler(handlers.BaseHandler):
         results = self._get_resources_list([vim.VirtualMachine])
         for result in results:
             if result.resourcePool and \
-                    result.resourcePool.name == 'system_tests':
+                    result.resourcePool.name == self.env.resource_pool_name:
                 if result.name in vms_to_delete:
                     self.logger.info('DELETING: %s' % result.name)
                     result.Destroy()
@@ -170,7 +178,7 @@ class VsphereHandler(handlers.BaseHandler):
         super(VsphereHandler, self).before_bootstrap()
         with self.update_cloudify_config() as patch:
             suffix = '-%06x' % random.randrange(16 ** 6)
-            patch.append_value('manager_server_name', suffix)
+            patch.append_value('server_name', suffix)
 
 
 handler = VsphereHandler
