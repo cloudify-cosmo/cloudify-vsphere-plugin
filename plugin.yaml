@@ -7,7 +7,7 @@ plugins:
         executor: central_deployment_agent
         install: false
         package_name: cloudify-vsphere-plugin
-        package_version: '1.3'
+        package_version: '1.3.1'
 
 node_types:
     cloudify.vsphere.nodes.Server:
