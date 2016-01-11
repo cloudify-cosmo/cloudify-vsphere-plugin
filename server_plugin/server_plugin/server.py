@@ -230,6 +230,11 @@ def get_state(server_client, **kwargs):
             return ctx.operation.retry(
                 message="IP addresses not yet assigned.",
             )
+        for public_ip in public_ips:
+            if public_ip.startswith('169.254.'):
+                return ctx.operation.retry(
+                    message="DHCP IP not yet assigned.",
+                )
 
         # TODO: Decide what to do if we have None in ips. This means that a
         # network we care about has no IP address assigned
