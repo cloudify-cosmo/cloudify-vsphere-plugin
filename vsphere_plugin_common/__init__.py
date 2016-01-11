@@ -206,6 +206,7 @@ class ServerClient(VsphereClient):
                       resource_pool_name,
                       template_name,
                       vm_name,
+                      os_type='linux',
                       domain=None,
                       dns_servers=None):
         ctx.logger.debug("Entering create_server with parameters %s"
@@ -329,11 +330,25 @@ class ServerClient(VsphereClient):
             customspec = vim.vm.customization.Specification()
             customspec.nicSettingMap = adaptermaps
 
-            ident = vim.vm.customization.LinuxPrep()
-            if domain:
-                ident.domain = domain
-            ident.hostName = \
-                vim.vm.customization.VirtualMachineNameGenerator()
+            if os_type == 'linux':
+                ident = vim.vm.customization.LinuxPrep()
+                if domain:
+                    ident.domain = domain
+                ident.hostName = \
+                    vim.vm.customization.VirtualMachineNameGenerator()
+            elif os_type == 'windows':
+                ident = vim.vm.customization.Sysprep()
+                ident.userData = vim.vm.customization.UserData()
+                ident.guiUnattended = vim.vm.customization.GuiUnattended()
+                ident.identification = vim.vm.customization.Identification()
+                ident.userData.computerName = \
+                    vim.vm.customization.VirtualMachineNameGenerator()
+            else:
+                raise cfy_exc.NonRecoverableError(
+                    'os_type {os_type} was specified, but only "windows" and '
+                    '"linux" are supported.'.format(os_type=os_type)
+                )
+
             customspec.identity = ident
 
             globalip = vim.vm.customization.GlobalIPSettings()
@@ -495,6 +510,15 @@ class ServerClient(VsphereClient):
     def get_server_ip(self, vm, network_name):
         ctx.logger.info('Getting server IP from {network}.'
                         .format(network=network_name))
+        # Linux appears to put the supplied (by DHCP) IP first,
+        # while Windows puts it second.
+        # This needs a lot more investigation and testing and may be subject
+        # to timing issues.
+        os_type = ctx.node.properties.get('os_family', 'linux')
+        if os_type.lower() == 'windows':
+            ip_position = 1
+        else:
+            ip_position = 0
         for network in vm.guest.net:
             if not network.network:
                 ctx.logger.info('Ignoring device with MAC {mac} as it is not'
@@ -507,7 +531,7 @@ class ServerClient(VsphereClient):
                 ctx.logger.info('Found {ip} from device with MAC {mac}'
                                 .format(ip=network.ipAddress[0],
                                         mac=network.macAddress))
-                return network.ipAddress[0]
+                return network.ipAddress[ip_position]
 
     def _wait_vm_running(self, task):
         self._wait_for_task(task)
