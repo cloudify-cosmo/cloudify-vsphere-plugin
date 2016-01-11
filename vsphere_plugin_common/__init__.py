@@ -34,6 +34,18 @@ TASK_CHECK_SLEEP = 15
 PREFIX_RANDOM_CHARS = 3
 
 
+def get_ip_from_vsphere_nic_ips(nic):
+    for ip in nic.ipAddress:
+        if ip.startswith('169.254.') or ip.lower().startswith('fe80::'):
+            # This is a locally assigned IPv4 or IPv6 address and thus we
+            # will assume it is not routable
+            continue
+        else:
+            return ip
+    # No valid IP was found
+    return None
+
+
 def remove_runtime_properties(properties, context):
     for p in properties:
         if p in context.instance.runtime_properties:
@@ -206,6 +218,7 @@ class ServerClient(VsphereClient):
                       resource_pool_name,
                       template_name,
                       vm_name,
+                      os_type='linux',
                       domain=None,
                       dns_servers=None):
         ctx.logger.debug("Entering create_server with parameters %s"
@@ -329,11 +342,62 @@ class ServerClient(VsphereClient):
             customspec = vim.vm.customization.Specification()
             customspec.nicSettingMap = adaptermaps
 
-            ident = vim.vm.customization.LinuxPrep()
-            if domain:
-                ident.domain = domain
-            ident.hostName = \
-                vim.vm.customization.VirtualMachineNameGenerator()
+            if os_type is None or os_type == 'linux':
+                ident = vim.vm.customization.LinuxPrep()
+                if domain:
+                    ident.domain = domain
+                ident.hostName = vim.vm.customization.FixedName()
+                ident.hostName.name = vm_name
+            elif os_type == 'windows':
+                props = ctx.node.properties
+
+                password = props.get('windows_password')
+                if not password:
+                    agent_config = props.get('agent_config', {})
+                    password = agent_config.get('password')
+
+                if not password:
+                    raise cfy_exc.NonRecoverableError(
+                        'When using Windows, a password must be set. '
+                        'Please set either properties.windows_password '
+                        'or properties.agent_config.password'
+                    )
+                # We use GMT without daylight savings if no timezone is
+                # supplied, as this is as close to UTC as we can do
+                timezone = props.get('windows_timezone', 90)
+
+                ident = vim.vm.customization.Sysprep()
+                ident.userData = vim.vm.customization.UserData()
+                ident.guiUnattended = vim.vm.customization.GuiUnattended()
+                ident.identification = vim.vm.customization.Identification()
+
+                # Configure userData
+                ident.userData.computerName = vim.vm.customization.FixedName()
+                ident.userData.computerName.name = vm_name
+                # Without these vars, customization is silently skipped
+                # but deployment 'succeeds'
+                ident.userData.fullName = vm_name
+                ident.userData.orgName = "Organisation"
+                ident.userData.productId = ""
+
+                # Configure guiUnattended
+                ident.guiUnattended.autoLogon = False
+                ident.guiUnattended.password = vim.vm.customization.Password()
+                ident.guiUnattended.password.plainText = True
+                ident.guiUnattended.password.value = password
+                ident.guiUnattended.timeZone = timezone
+
+                # Adding windows options
+                options = vim.vm.customization.WinOptions()
+                options.changeSID = True
+                options.deleteAccounts = False
+                customspec.options = options
+            else:
+                raise cfy_exc.NonRecoverableError(
+                    'os_type {os_type} was specified, but only "windows" and '
+                    '"linux" are supported.'.format(os_type=os_type)
+                )
+
             customspec.identity = ident
 
             globalip = vim.vm.customization.GlobalIPSettings()
@@ -495,19 +559,23 @@ class ServerClient(VsphereClient):
     def get_server_ip(self, vm, network_name):
         ctx.logger.info('Getting server IP from {network}.'
                         .format(network=network_name))
+
         for network in vm.guest.net:
             if not network.network:
                 ctx.logger.info('Ignoring device with MAC {mac} as it is not'
                                 ' on a vSphere network.'
                                 .format(mac=network.macAddress))
                 continue
-            if (network.network
-                and network_name.lower() == network.network.lower()
-                    and len(network.ipAddress) > 0):
+            if (
+                network.network and
+                network_name.lower() == network.network.lower() and
+                len(network.ipAddress) > 0
+            ):
+                ip_address = get_ip_from_vsphere_nic_ips(network)
                 ctx.logger.info('Found {ip} from device with MAC {mac}'
-                                .format(ip=network.ipAddress[0],
+                                .format(ip=ip_address,
                                         mac=network.macAddress))
-                return network.ipAddress[0]
+                return ip_address
 
     def _wait_vm_running(self, task):
         self._wait_for_task(task)
@@ -671,14 +739,14 @@ class NetworkClient(VsphereClient):
             network_obj = self._get_obj_by_name(
                 [vim.dvs.DistributedVirtualPortgroup], network_name)
             for device in vm.config.hardware.device:
-                if (isinstance(device, vim.vm.device.VirtualVmxnet3)
-                    and device.backing.port.switchUuid ==
+                if (isinstance(device, vim.vm.device.VirtualVmxnet3) and
+                    device.backing.port.switchUuid ==
                         network_obj.config.distributedVirtualSwitch.uuid):
                     device_to_delete = device
         else:
             for device in vm.config.hardware.device:
-                if (isinstance(device, vim.vm.device.VirtualVmxnet3)
-                        and device.backing.deviceName == network_name):
+                if (isinstance(device, vim.vm.device.VirtualVmxnet3) and
+                        device.backing.deviceName == network_name):
                     device_to_delete = device
 
         if device_to_delete is None:
@@ -881,8 +949,8 @@ class StorageClient(VsphereClient):
         disk_to_resize = None
         devices = vm.config.hardware.device
         for device in devices:
-            if (isinstance(device, vim.vm.device.VirtualDisk)
-                    and device.backing.fileName == storage_filename):
+            if (isinstance(device, vim.vm.device.VirtualDisk) and
+                    device.backing.fileName == storage_filename):
                 disk_to_resize = device
 
         if disk_to_resize is None:

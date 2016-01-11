@@ -36,6 +36,30 @@ node_types:
                     implementation: vsphere.server_plugin.server.get_state
                     inputs: {}
 
+    cloudify.vsphere.nodes.WindowsServer:
+        derived_from: cloudify.vsphere.nodes.Server
+        properties:
+            windows_password:
+                description: >
+                    Administrator password to set when deploying Windows instances.
+                    If this is not supplied, agent_config.password will be used (if that has been supplied).
+                    Supplying neither of these properties will result in an error.
+                type: string
+                required: false
+            windows_timezone:
+                description: >
+                    Timezone to set Windows instances to.
+                    See https://msdn.microsoft.com/en-us/library/ms912391%28v=winembedded.11%29.aspx
+                    Defaults to GMT without daylight savings.
+                type: integer
+                default: 90
+            os_family:
+                default: windows
+            agent_config:
+                type: cloudify.datatypes.AgentConfig
+                default:
+                    port: 5985
+
     cloudify.vsphere.nodes.Network:
         derived_from: cloudify.nodes.Network
         properties:
