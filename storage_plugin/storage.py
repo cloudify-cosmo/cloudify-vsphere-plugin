@@ -59,7 +59,7 @@ def create(storage_client, **kwargs):
     vm_id = connected_vms[0][VSPHERE_SERVER_ID]
     ctx.logger.info('Connected storage {storage_name} to vm {vm_name}'
                     .format(storage_name=storage['name'],
-                            vm_name=connected_vms[0]['name']))
+                            vm_name=connected_vms[0][VSPHERE_SERVER_ID]))
     storage_file_name = storage_client.create_storage(vm_id, storage_size)
 
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \

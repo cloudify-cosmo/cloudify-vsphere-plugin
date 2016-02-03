@@ -13,13 +13,15 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+import string
+
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
 from vsphere_plugin_common import (with_server_client,
                                    ConnectionConfig,
-                                   transform_resource_name,
-                                   remove_runtime_properties)
+                                   remove_runtime_properties,
+                                   get_ip_from_vsphere_nic_ips)
 
 
 VSPHERE_SERVER_ID = 'vsphere_server_id'
@@ -34,14 +36,13 @@ def create_new_server(server_client):
         'name': ctx.instance.id,
     }
     server.update(ctx.node.properties['server'])
+    vm_name = get_vm_name(server)
     ctx.logger.info('Creating new server with name: {name}'
-                    .format(name=server['name']))
-    transform_resource_name(server, ctx)
+                    .format(name=vm_name))
 
     ctx.logger.info("Server node info: \n%s." %
                     "".join("%s: %s" % item
                             for item in server.items()))
-    vm_name = server['name']
     networks = []
     domain = None
     dns_servers = None
@@ -98,6 +99,22 @@ def create_new_server(server_client):
     template_name = server['template']
     cpus = server['cpus']
     memory = server['memory']
+    # Backwards compatibility- only linux was really working
+    os_type = ctx.node.properties.get('os_family', 'linux')
+
+    # Computer name may only contain A-Z, 0-9, and hyphens
+    # May not be entirely digits
+    valid_name = True
+    if vm_name.strip(string.digits) == '':
+        valid_name = False
+    elif vm_name.strip(string.letters + string.digits + '-') != '':
+        valid_name = False
+    if not valid_name:
+        raise cfy_exc.NonRecoverableError(
+            'Computer name must contain only A-Z, a-z, 0-9, '
+            'and hyphens ("-"), and must not consist entirely of '
+            'numbers. "{name}" was not valid.'.format(name=vm_name)
+        )
 
     server = server_client.create_server(auto_placement,
                                          cpus,
@@ -106,7 +123,8 @@ def create_new_server(server_client):
                                          networks,
                                          resource_pool_name,
                                          template_name,
-                                         ctx.instance.id,
+                                         vm_name,
+                                         os_type,
                                          domain,
                                          dns_servers)
     ctx.logger.info('Created server {name} with ID {id}'
@@ -119,7 +137,7 @@ def create_new_server(server_client):
 def start(server_client, **kwargs):
     server = get_server_by_context(server_client)
     if server is None:
-        ctx.logger.info("Creating server for scratch.")
+        ctx.logger.info("Creating server from scratch.")
         create_new_server(server_client)
     else:
         server_client.start_server(server)
@@ -129,10 +147,11 @@ def start(server_client, **kwargs):
 @with_server_client
 def shutdown_guest(server_client, **kwargs):
     server = get_server_by_context(server_client)
+    vm_name = get_vm_name(ctx.node.properties['server'])
     if server is None:
         raise cfy_exc.NonRecoverableError(
             "Cannot shutdown server guest - server doesn't exist for node: {0}"
-            .format(ctx.node.id))
+            .format(vm_name))
     server_client.shutdown_server_guest(server)
 
 
@@ -140,10 +159,11 @@ def shutdown_guest(server_client, **kwargs):
 @with_server_client
 def stop(server_client, **kwargs):
     server = get_server_by_context(server_client)
+    vm_name = get_vm_name(ctx.node.properties['server'])
     if server is None:
         raise cfy_exc.NonRecoverableError(
             "Cannot stop server - server doesn't exist for node: {0}"
-            .format(ctx.node.id))
+            .format(vm_name))
     server_client.stop_server(server)
 
 
@@ -151,10 +171,11 @@ def stop(server_client, **kwargs):
 @with_server_client
 def delete(server_client, **kwargs):
     server = get_server_by_context(server_client)
+    vm_name = get_vm_name(ctx.node.properties['server'])
     if server is None:
         raise cfy_exc.NonRecoverableError(
             "Cannot delete server - server doesn't exist for node: {0}"
-            .format(ctx.node.id))
+            .format(vm_name))
     server_client.delete_server(server)
     remove_runtime_properties(SERVER_RUNTIME_PROPERTIES, ctx)
 
@@ -183,30 +204,30 @@ def get_state(server_client, **kwargs):
             network_name = network.network
             if management_network_name and \
                     (network_name == management_network_name):
-                manager_network_ip = (network.ipAddress[0]
-                                      if len(network.ipAddress) > 0
-                                      else None)
+                manager_network_ip = get_ip_from_vsphere_nic_ips(network)
                 ctx.logger.info("Server management ip address: {0}"
                                 .format(manager_network_ip))
                 if manager_network_ip is None:
                     ctx.logger.info('Manager network IP not yet present for '
                                     '{server}.'.format(server=server))
                     return False
-            ips[network_name] = network.ipAddress[0]
+            ips[network_name] = get_ip_from_vsphere_nic_ips(network)
 
         ctx.instance.runtime_properties['networks'] = ips
         ctx.instance.runtime_properties['ip'] = \
-            (manager_network_ip
-             or (server.guest.net[0].ipAddress[0]
-                 if len(server.guest.net) > 0
-                 else None)
-             )
+            (manager_network_ip or
+             get_ip_from_vsphere_nic_ips(server.guest.net[0]))
 
         public_ips = [server_client.get_server_ip(server, network['name'])
                       for network in networks
                       if network.get('external', False)]
-        ctx.logger.debug("Server public IP addresses: %s."
-                         % ", ".join(public_ips))
+        if public_ips is None or None in public_ips:
+            return ctx.operation.retry(
+                message="IP addresses not yet assigned.",
+            )
+
+        ctx.logger.info("Server public IP addresses: %s."
+                        % ", ".join(public_ips))
 
         if len(public_ips) == 1:
             ctx.logger.info('Checking public IP for {server}'
@@ -245,7 +266,7 @@ def resize(server_client, **kwargs):
     update = {
         'cpus': ctx.instance.runtime_properties.get('cpus'),
         'memory': ctx.instance.runtime_properties.get('memory')
-        }
+    }
 
     if any(update.values()):
         ctx.logger.info("Server new parameters: cpus - {0}, memory - {1}"
@@ -258,11 +279,31 @@ def resize(server_client, **kwargs):
             "Server resize parameters should be specified.")
 
 
+def get_vm_name(server):
+    # VM name may be at most 15 characters for Windows.
+    os_type = ctx.node.properties.get('os_family', 'linux')
+
+    # Expecting an ID in the format <name>_<id>
+    name_prefix, id_suffix = ctx.instance.id.rsplit('_', 1)
+
+    if 'name' in server and server['name'] != ctx.instance.id:
+        name_prefix = server['name']
+
+    if os_type.lower() == 'windows':
+        max_prefix = 14 - (len(id_suffix) + 1)
+        name_prefix = name_prefix[:max_prefix]
+
+    vm_name = '-'.join([name_prefix, id_suffix])
+    return vm_name
+
+
 def get_server_by_context(server_client):
     ctx.logger.info("Performing look-up for server.")
     if VSPHERE_SERVER_ID in ctx.instance.runtime_properties:
         return server_client.get_server_by_id(
             ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
     else:
-        # Server not found
-        return None
+        # Try to get server by name. None will be returned if it is not found
+        # This may change in future versions of vmomi
+        server = ctx.node.properties['server']
+        return server_client.get_server_by_name(get_vm_name(server))
