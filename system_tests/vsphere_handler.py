@@ -14,7 +14,6 @@
 #    * limitations under the License.
 
 import atexit
-import os
 import pyVmomi
 import random
 import time
@@ -125,8 +124,6 @@ class VsphereHandler(handlers.BaseHandler):
 
     def __init__(self, env):
         super(VsphereHandler, self).__init__(env)
-        # plugins_branch should be set manually when running locally!
-        self.plugins_branch = os.environ.get('BRANCH_NAME_PLUGINS', 'master')
         self.env = env
 
     def client_creds(self):
