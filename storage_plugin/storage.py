@@ -18,7 +18,6 @@ from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
 from server_plugin.server import VSPHERE_SERVER_ID
 from vsphere_plugin_common import (with_storage_client,
-                                   transform_resource_name,
                                    remove_runtime_properties)
 from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_FILE_NAME,
@@ -39,7 +38,6 @@ def create(storage_client, **kwargs):
     ctx.logger.info('Creating new volume with name \'{name}\' and size: {size}'
                     .format(name=storage['name'],
                             size=storage['storage_size']))
-    transform_resource_name(storage, ctx)
     ctx.logger.info("Storage info: \n%s." %
                     "".join("%s: %s" % item
                             for item in storage.items()))

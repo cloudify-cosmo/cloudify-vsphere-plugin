@@ -16,7 +16,6 @@
 from cloudify import ctx
 from cloudify.decorators import operation
 from vsphere_plugin_common import (with_network_client,
-                                   transform_resource_name,
                                    remove_runtime_properties)
 from vsphere_plugin_common.constants import(
     NETWORK_NAME,
@@ -40,7 +39,6 @@ def create(network_client, **kwargs):
                             type=network_type,
                             vlan=network['vlan_id'],
                             vswitch=network['vswitch_name']))
-    transform_resource_name(network, ctx)
 
     port_group_name = ctx.instance.id
     vlan_id = network['vlan_id']
