@@ -495,7 +495,7 @@ class ServerClient(VsphereClient):
             msg = ("Error during trying to place VM: "
                    "datastore and host can't be selected.")
             ctx.logger.error(msg)
-            raise RuntimeError(msg)
+            raise cfy_exc.NonRecoverableError(msg)
         for datastore in datastore_list:
             if datastore._moId not in except_datastores:
                 dtstr_free_spc = datastore.info.freeSpace
@@ -509,7 +509,7 @@ class ServerClient(VsphereClient):
         if selected_datastore is None:
             msg = "Error during placing VM: no datastore found."
             ctx.logger.error(msg)
-            raise RuntimeError(msg)
+            raise cfy_exc.NonRecoverableError(msg)
 
         if auto_placement:
             ctx.logger.info('Using datastore {name}.'
@@ -772,8 +772,10 @@ class NetworkClient(VsphereClient):
         ctx.logger.debug("Entering add network interface procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to add network'
-                               ' interface: invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to add network'
+                ' interface: invalid VM state - \'suspended\''
+            )
 
         devices = []
         if switch_distributed:
@@ -824,8 +826,10 @@ class NetworkClient(VsphereClient):
         ctx.logger.debug("Entering remove network interface procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to remove network'
-                               ' interface: invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to remove network'
+                ' interface: invalid VM state - \'suspended\''
+            )
 
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
         virtual_device_spec.operation =\
@@ -874,8 +878,10 @@ class StorageClient(VsphereClient):
                         "".join("%s: %s" % item
                                 for item in vars(vm).items()))
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to create storage:'
-                               ' invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to create storage:'
+                ' invalid VM state - \'suspended\''
+            )
 
         devices = []
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
@@ -918,9 +924,10 @@ class StorageClient(VsphereClient):
 
         # Exit error if VMDK filename undefined
         if vm_disk_filename is None:
-            raise RuntimeError('Error during trying to create storage:'
-                               ' Invalid VMDK name - \'{0}\''
-                               .format(vm_disk_filename_cur))
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to create storage:'
+                ' Invalid VMDK name - \'{0}\''.format(vm_disk_filename_cur)
+            )
 
         # Set target VMDK filename
         vm_disk_filename =\
@@ -941,9 +948,11 @@ class StorageClient(VsphereClient):
                 num_controller += 1
                 controller = vm_device
         if num_controller != 1:
-            raise RuntimeError('Error during trying to create storage:'
-                               ' SCSI controller cannot be found or'
-                               ' is present more than once.')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to create storage: '
+                'SCSI controller cannot be found or is present more than '
+                'once.'
+            )
 
         controller_key = controller.key
 
@@ -953,9 +962,10 @@ class StorageClient(VsphereClient):
         if vm_vdisk_number < 7:
             unit_number = vm_vdisk_number
         elif vm_vdisk_number == 15:
-            raise RuntimeError('Error during trying to create storage:'
-                               ' one SCSI controller cannot have more'
-                               ' than 15 virtual disks.')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to create storage: one SCSI controller '
+                'cannot have more than 15 virtual disks.'
+            )
         else:
             unit_number = vm_vdisk_number + 1
 
@@ -993,7 +1003,7 @@ class StorageClient(VsphereClient):
                 # We found the right disk, we can't do any better than this
                 break
         if bus_id is None:
-            raise RuntimeError(
+            raise cfy_exc.NonRecoverableError(
                 'Could not find SCSI bus ID for disk with filename: '
                 '{file}'.format(file=vm_disk_filename)
             )
@@ -1010,8 +1020,10 @@ class StorageClient(VsphereClient):
                         "".join("%s: %s" % item
                                 for item in vars(vm).items()))
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to delete storage:'
-                               ' invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                "Error during trying to delete storage: invalid VM state - "
+                "'suspended'"
+            )
 
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
         virtual_device_spec.operation =\
