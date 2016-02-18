@@ -169,6 +169,56 @@ class VsphereClient(object):
                 "Error during executing task on vSphere: '{0}'"
                 .format(task.info.error))
 
+    def get_vm_networks(self, vm):
+        """
+            Get details of every network interface on a VM.
+            A list of dicts with the following network interface information
+            will be returned:
+            {
+                'name': Name of the network,
+                'distributed': True if the network is distributed, otherwise
+                               False,
+                'mac': The MAC address as provided by vsphere,
+            }
+        """
+        nics = []
+        for dev in vm.config.hardware.device:
+            if hasattr(dev, 'macAddress'):
+                nics.append(dev)
+
+        networks = []
+        for nic in nics:
+            distributed = hasattr(nic.backing, 'port') and isinstance(
+                nic.backing.port,
+                vim.dvs.PortConnection,
+            )
+
+            network_name = None
+            if distributed:
+                mapping_id = nic.backing.port.portgroupKey
+            else:
+                network_name = nic.backing.deviceName
+
+            if network_name is None:
+                for network in vm.network:
+                    if hasattr(network, 'key') and distributed:
+                        if mapping_id == network.key:
+                            network_name = network.name
+
+            if network_name is None:
+                raise cfy_exc.NonRecoverableError(
+                    'Could not get network name for device with MAC address '
+                    '{mac} on VM {vm}'.format(mac=nic.macAddress, vm=vm.name)
+                )
+
+            networks.append({
+                'name': network_name,
+                'distributed': distributed,
+                'mac': nic.macAddress,
+            })
+
+        return networks
+
 
 class ServerClient(VsphereClient):
 
@@ -383,6 +433,12 @@ class ServerClient(VsphereClient):
             raise cfy_exc.NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."
                 .format(vm_name))
+
+        vm = self.get_server_by_name(vm_name)
+        ctx.instance.runtime_properties[NETWORKS] = \
+            self.get_vm_networks(vm)
+        ctx.logger.info('Updated runtime properties with network information')
+
         return task.info.result
 
     def start_server(self, server):
@@ -683,6 +739,10 @@ class NetworkClient(VsphereClient):
                                 for item in vars(task).items()))
         self._wait_for_task(task)
         ctx.logger.info("Network interface was added.")
+
+        ctx.instance.runtime_properties[NETWORKS] = \
+            self.get_vm_networks(vm)
+        ctx.logger.info('Updated runtime properties with network information')
 
     def remove_network_interface(self, vm_id, network_name,
                                  switch_distributed):
