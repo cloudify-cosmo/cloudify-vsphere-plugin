@@ -47,6 +47,41 @@ def get_vsphere_vms_list(host, port, username, password):
     return vms
 
 
+def get_vsphere_networks(host, port, username, password):
+    vsphere_conn = SmartConnect(
+        user=username,
+        pwd=password,
+        host=host,
+        port=port,
+    )
+    vsphere_content = vsphere_conn.RetrieveContent()
+    vsphere_container = vsphere_content.viewManager.CreateContainerView(
+        vsphere_content.rootFolder,
+        [vim.Network],
+        True,
+    )
+    nets = vsphere_container.view
+    vsphere_container.Destroy()
+    nets = [
+        {
+            'name': net.name,
+            'distributed': is_distributed(net),
+        }
+        for net in nets
+    ]
+    Disconnect(vsphere_conn)
+    return nets
+
+
+def check_vm_name_in_runtime_properties(runtime_props, name_prefix, logger):
+    logger.info('Checking name is in runtime properties')
+    assert 'name' in runtime_props
+
+    name = runtime_props['name']
+
+    check_name_is_correct(name, name_prefix, logger)
+
+
 def check_correct_vm_name(vms, name_prefix, logger):
     # This will fail if there is more than one machine with the same name
     # However, I can't currently see a way to make this cleaner without
@@ -71,17 +106,60 @@ def check_correct_vm_name(vms, name_prefix, logger):
     vm_name = candidates[0]
     logger.info('Found candidate: {name}'.format(name=vm_name))
 
+    check_name_is_correct(vm_name, name_prefix, logger)
+
+
+def check_name_is_correct(name, name_prefix, logger):
     # Name should be systemte-<id suffix (e.g. abc12)
-    vm_name = vm_name.split('-')
-    assert len(vm_name) == 2
+    name = name.split('-')
+    assert len(name) == 2
     logger.info('Candidate name has correct number of hyphens.')
 
-    assert vm_name[0] == name_prefix
+    assert name[0] == name_prefix
     logger.info('Candidate has correct name prefix.')
 
     # Suffix should be lower case hex
-    suffix = vm_name[1]
+    suffix = name[1]
     suffix = suffix.strip('0123456789abcdef')
     assert suffix == ''
     logger.info('Candidate has hex suffix.')
     logger.info('Candidate name appears correct!')
+
+
+def get_runtime_props(target_node_id, node_instances, logger):
+    logger.info('Searching for runtime properties')
+    for node in node_instances:
+        logger.debug(
+            'Considering node {node}'.format(node=node),
+        )
+        if node['node_id'] == target_node_id:
+            logger.info('Found node!')
+            return node['runtime_properties']
+    raise AssertionError(
+        'Could not find node for {node_id} in {nodes}'.format(
+            node_id=target_node_id,
+            nodes=node_instances,
+        )
+    )
+
+
+def is_distributed(network):
+    if isinstance(network, vim.dvs.DistributedVirtualPortgroup):
+        return True
+    else:
+        return False
+
+
+def network_exists(name, distributed, networks):
+    for network in networks:
+        if network['name'] == name:
+            if network['distributed'] == distributed:
+                return True
+    raise AssertionError(
+        'Failed to find {name} in {networks} where distributed is '
+        '{distributed}'.format(
+            name=name,
+            networks=networks,
+            distributed=distributed,
+        )
+    )

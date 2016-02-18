@@ -2,19 +2,10 @@ tosca_definitions_version: cloudify_dsl_1_2
 
 imports:
   - http://www.getcloudify.org/spec/cloudify/3.3.1/types.yaml
+  - http://www.getcloudify.org/spec/fabric-plugin/1.3/plugin.yaml
   - ../../../plugin.yaml
 
 inputs:
-  vm_user:
-    type: string
-    description: >
-      User of the VM
-    default: giga
-  vm_password:
-    type: string
-    description: >
-      User password for the VM
-    default: P@ssw0rd
   template_name:
     description: >
       Template to clone VMs from
@@ -35,10 +26,6 @@ inputs:
     description: >
       Whether the management network is on a distributed switch
     default: true
-  server_name:
-    description: >
-      What to call the server
-    default: cfyvsphere
   vsphere_username:
     type: string
     description: >
@@ -75,6 +62,14 @@ inputs:
       signifies if server is to be automatically placed on a host
     default: false
     type: boolean
+  username:
+    description: >
+      Username to use when running test script with fabric
+    default: root
+  key_path:
+    description: >
+      Key path to use when running test script with fabric
+    default: ~/.ssh/cloudify-manager-kp.pem
 
 node_types:
   connection_configuration:
@@ -96,11 +91,11 @@ node_templates:
         auto_placement: { get_input: vsphere_auto_placement }
 
   testserver:
-    type: cloudify.vsphere.nodes.WindowsServer
+    type: cloudify.vsphere.nodes.Server
     properties:
       install_agent: false
       server:
-        name: { get_input: server_name }
+        name: systemtestlinuxnaming
         template: { get_input: template_name }
         cpus: 1
         memory: 2048
@@ -111,6 +106,52 @@ node_templates:
             external: True
       connection_config: { get_property: [connection_configuration, connection_config] }
 
+  disk1:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      storage:
+        storage_size: 1
+      connection_config: { get_property: [connection_configuration, connection_config] }
+    relationships:
+      - target: testserver
+        type: cloudify.vsphere.storage_connected_to_server
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file: scripts/test_disk.py
+            task_name: configure
+            fabric_env:
+              user: { get_input: username }
+              key_filename: { get_input: key_path }
+              host_string: { get_attribute: [ testserver, public_ip ] }
+              scsi_id: { get_attribute: [ disk1, scsi_id ] }
+
+  disk2:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      storage:
+        storage_size: 1
+      connection_config: { get_property: [connection_configuration, connection_config] }
+    relationships:
+      - target: testserver
+        type: cloudify.vsphere.storage_connected_to_server
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file: scripts/test_disk.py
+            task_name: configure
+            fabric_env:
+              user: { get_input: username }
+              key_filename: { get_input: key_path }
+              host_string: { get_attribute: [ testserver, public_ip ] }
+              scsi_id: { get_attribute: [ disk2, scsi_id ] }
+
 outputs:
-  vm_ip:
-    value: { get_attribute: [ testserver, public_ip ] }
+  scsi_ids:
+    value: 
+      - { get_attribute: [ disk1, scsi_id ] }
+      - { get_attribute: [ disk2, scsi_id ] }
