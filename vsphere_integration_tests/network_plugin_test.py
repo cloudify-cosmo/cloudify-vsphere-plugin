@@ -18,7 +18,7 @@ import unittest
 import vsphere_plugin_common as vpc
 
 from cloudify import mocks as cfy_mocks
-from network_plugin import network
+from vsphere_network_plugin import network
 from vsphere_integration_tests import common as tests_common
 
 _tests_config = tests_common.TestsConfig().get()

@@ -16,7 +16,7 @@
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
-from server_plugin.server import VSPHERE_SERVER_ID
+from vsphere_server_plugin.server import VSPHERE_SERVER_ID
 from vsphere_plugin_common import (with_storage_client,
                                    remove_runtime_properties)
 from vsphere_plugin_common.constants import (

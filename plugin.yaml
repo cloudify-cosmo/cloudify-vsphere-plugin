@@ -19,20 +19,20 @@ node_types:
         interfaces:
             cloudify.interfaces.lifecycle:
                 start:
-                    implementation: vsphere.server_plugin.server.start
+                    implementation: vsphere.vsphere_server_plugin.server.start
                     inputs: {}
                 stop:
-                    implementation: vsphere.server_plugin.server.stop
+                    implementation: vsphere.vsphere_server_plugin.server.stop
                     inputs: {}
                 shutdown_guest:
-                    implementation: vsphere.server_plugin.server.shutdown_guest
+                    implementation: vsphere.vsphere_server_plugin.server.shutdown_guest
                     inputs: {}
                 delete:
-                    implementation: vsphere.server_plugin.server.delete
+                    implementation: vsphere.vsphere_server_plugin.server.delete
                     inputs: {}
             cloudify.interfaces.host:
                 get_state:
-                    implementation: vsphere.server_plugin.server.get_state
+                    implementation: vsphere.vsphere_server_plugin.server.get_state
                     inputs: {}
 
     cloudify.vsphere.nodes.WindowsServer:
@@ -68,10 +68,10 @@ node_types:
         interfaces:
             cloudify.interfaces.lifecycle:
                 create:
-                    implementation: vsphere.network_plugin.network.create
+                    implementation: vsphere.vsphere_network_plugin.network.create
                     inputs: {}
                 delete:
-                    implementation: vsphere.network_plugin.network.delete
+                    implementation: vsphere.vsphere_network_plugin.network.delete
                     inputs: {}
 
     cloudify.vsphere.nodes.Storage:
@@ -83,10 +83,10 @@ node_types:
         interfaces:
             cloudify.interfaces.lifecycle:
                 create:
-                    implementation: vsphere.storage_plugin.storage.create
+                    implementation: vsphere.vsphere_storage_plugin.storage.create
                     inputs: {}
                 delete:
-                    implementation: vsphere.storage_plugin.storage.delete
+                    implementation: vsphere.vsphere_storage_plugin.storage.delete
                     inputs: {}
 
 relationships:

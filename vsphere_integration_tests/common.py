@@ -18,6 +18,7 @@ import random
 import string
 import unittest
 import vsphere_plugin_common as vpc
+from vsphere_plugin_common.constants import PREFIX_RANDOM_CHARS
 
 
 class TestsConfig(vpc.Config):
@@ -46,7 +47,7 @@ class TestCase(unittest.TestCase):
         chars = string.ascii_uppercase + string.digits
         self.name_prefix = 'vsphere_test_{0}_'\
             .format(''.join(
-                random.choice(chars) for x in range(vpc.PREFIX_RANDOM_CHARS)))
+                random.choice(chars) for x in range(PREFIX_RANDOM_CHARS)))
         self.timeout = 120
 
         self.logger.debug("VSphere provider test setUp() done")

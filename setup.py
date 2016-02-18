@@ -21,9 +21,9 @@ setuptools.setup(
     version='1.5-dev',
     packages=[
         'vsphere_plugin_common',
-        'server_plugin',
-        'network_plugin',
-        'storage_plugin'
+        'vsphere_server_plugin',
+        'vsphere_network_plugin',
+        'vsphere_storage_plugin'
     ],
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
