@@ -17,11 +17,8 @@ import mock
 import unittest
 import vsphere_plugin_common as vpc
 
-from cloudify import context
 from cloudify import mocks as cfy_mocks
 from network_plugin import network
-from network_plugin import port
-from server_plugin import server as server_plugin
 from vsphere_integration_tests import common as tests_common
 
 _tests_config = tests_common.TestsConfig().get()
@@ -86,68 +83,3 @@ class VsphereNetworkTest(tests_common.TestCase):
         dv_port_group = self.network_client.get_dv_port_group(
             self.network_name)
         self.assertTrue(dv_port_group is None)
-
-
-class VspherePortTest(tests_common.TestCase):
-
-    def setUp(self):
-        super(VspherePortTest, self).setUp()
-
-        port_name = self.name_prefix + 'port'
-
-        vm_name = port_config['vm_name']
-        network_name = port_config['network_name']
-        switch_distributed = port_config['switch_distributed']
-
-        server_client = vpc.ServerClient().get()
-        vm = server_client.get_server_by_name(vm_name)
-        vm_runtime_properties = {server_plugin.VSPHERE_SERVER_ID: vm._moId}
-        network_runtime_properties = {
-            network.NETWORK_NAME: network_name,
-            network.SWITCH_DISTRIBUTED: switch_distributed
-        }
-        vm_instance_context = cfy_mocks.MockNodeInstanceContext(
-            runtime_properties=vm_runtime_properties)
-        network_instance_context = cfy_mocks.MockNodeInstanceContext(
-            runtime_properties=network_runtime_properties)
-        vm_relationship = mock.Mock()
-        vm_relationship.target = mock.Mock()
-        vm_relationship.target.instance = vm_instance_context
-        network_relationship = mock.Mock()
-        network_relationship.target = mock.Mock()
-        network_relationship.target.instance = network_instance_context
-        endpoint = None
-        instance = cfy_mocks.MockNodeInstanceContext()
-        context_capabilities_m = context.ContextCapabilities(
-            endpoint, instance)
-        get_all_m = mock.Mock()
-        get_all_m.values = mock.Mock(
-            return_value=[vm_runtime_properties, network_runtime_properties])
-        context_capabilities_m.get_all = mock.Mock(return_value=get_all_m)
-
-        ctx = cfy_mocks.MockCloudifyContext(
-            node_id=port_name,
-            node_name=port_name,
-            properties={
-                'port': {
-                    'mac': port_config['mac'],
-                }
-            },
-            capabilities=context_capabilities_m
-        )
-        ctx._instance.relationships = [vm_relationship, network_relationship]
-        ctx_patch1 = mock.patch('network_plugin.port.ctx', ctx)
-        ctx_patch1.start()
-        ctx_patch2 = mock.patch('vsphere_plugin_common.ctx', ctx)
-        ctx_patch2.start()
-        self.addCleanup(ctx_patch1.stop)
-        self.addCleanup(ctx_patch2.stop)
-        self.network_client = vpc.NetworkClient().get()
-
-    @unittest.skipIf(port_config['switch_distributed'] is False,
-                     "Network 'switch_distributed' property is set to false")
-    @unittest.skipIf(tests_common.able_to_connect() is False,
-                     "vSphere is not reachable.")
-    def test_port_switch_distributed(self):
-        port.create()
-        port.delete()
