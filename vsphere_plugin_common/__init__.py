@@ -972,7 +972,36 @@ class StorageClient(VsphereClient):
                         "".join("%s: %s" % item
                                 for item in vars(task).items()))
         self._wait_for_task(task)
-        return vm_disk_filename
+
+        # Get the SCSI bus and unit IDs
+        scsi_controllers = []
+        disks = []
+        for device in vm.config.hardware.device:
+            if isinstance(device, vim.vm.device.VirtualLsiLogicController):
+                scsi_controllers.append(device)
+            elif isinstance(device, vim.vm.device.VirtualDisk):
+                disks.append(device)
+        # Find the disk we just created
+        for disk in disks:
+            if disk.backing.fileName == vm_disk_filename:
+                unit = disk.unitNumber
+                bus_id = None
+                for controller in scsi_controllers:
+                    if controller.key == disk.controllerKey:
+                        bus_id = controller.busNumber
+                        break
+                # We found the right disk, we can't do any better than this
+                break
+        if bus_id is None:
+            raise RuntimeError(
+                'Could not find SCSI bus ID for disk with filename: '
+                '{file}'.format(file=vm_disk_filename)
+            )
+        else:
+            # Give the SCSI ID in the usual format, e.g. 0:1
+            scsi_id = ':'.join((str(bus_id), str(unit)))
+
+        return vm_disk_filename, scsi_id
 
     def delete_storage(self, vm_id, storage_file_name):
         ctx.logger.debug("Entering delete storage procedure.")

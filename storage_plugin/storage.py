@@ -59,12 +59,21 @@ def create(storage_client, **kwargs):
     ctx.logger.info('Connected storage {storage_name} to vm {vm_name}'
                     .format(storage_name=storage['name'],
                             vm_name=connected_vms[0][VSPHERE_SERVER_ID]))
-    storage_file_name = storage_client.create_storage(vm_id, storage_size)
+    storage_file_name, scsi_id = storage_client.create_storage(
+        vm_id,
+        storage_size,
+    )
 
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
         storage_file_name
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID] = vm_id
-    ctx.logger.info("Storage create with name %s." % storage_file_name)
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
+    ctx.logger.info(
+        "Storage create with name '{file_name}' and SCSI ID: {scsi} ".format(
+            file_name=storage_file_name,
+            scsi=scsi_id,
+        )
+    )
 
 
 @operation
