@@ -18,10 +18,11 @@ from cloudify.decorators import operation
 from vsphere_plugin_common import (with_network_client,
                                    transform_resource_name,
                                    remove_runtime_properties)
-
-NETWORK_NAME = 'network_name'
-SWITCH_DISTRIBUTED = 'switch_distributed'
-NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME, SWITCH_DISTRIBUTED]
+from vsphere_plugin_common.constants import(
+    NETWORK_NAME,
+    SWITCH_DISTRIBUTED,
+    NETWORK_RUNTIME_PROPERTIES,
+)
 
 
 @operation

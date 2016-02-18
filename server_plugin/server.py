@@ -22,13 +22,13 @@ from vsphere_plugin_common import (with_server_client,
                                    ConnectionConfig,
                                    remove_runtime_properties,
                                    get_ip_from_vsphere_nic_ips)
-
-
-VSPHERE_SERVER_ID = 'vsphere_server_id'
-PUBLIC_IP = 'public_ip'
-NETWORKS = 'networks'
-IP = 'ip'
-SERVER_RUNTIME_PROPERTIES = [VSPHERE_SERVER_ID, PUBLIC_IP, NETWORKS, IP]
+from vsphere_plugin_common.constants import (
+    VSPHERE_SERVER_ID,
+    PUBLIC_IP,
+    NETWORKS,
+    IP,
+    SERVER_RUNTIME_PROPERTIES,
+)
 
 
 def create_new_server(server_client):

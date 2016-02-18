@@ -20,11 +20,12 @@ from server_plugin.server import VSPHERE_SERVER_ID
 from vsphere_plugin_common import (with_storage_client,
                                    transform_resource_name,
                                    remove_runtime_properties)
-
-VSPHERE_STORAGE_FILE_NAME = 'vsphere_storage_file_name'
-VSPHERE_STORAGE_VM_ID = 'vsphere_storage_vm_id'
-VSPHERE_STORAGE_RUNTIME_PROPERTIES = [VSPHERE_STORAGE_FILE_NAME,
-                                      VSPHERE_STORAGE_VM_ID]
+from vsphere_plugin_common.constants import (
+    VSPHERE_STORAGE_FILE_NAME,
+    VSPHERE_STORAGE_VM_ID,
+    VSPHERE_STORAGE_SCSI_ID,
+    VSPHERE_STORAGE_RUNTIME_PROPERTIES,
+)
 
 
 @operation

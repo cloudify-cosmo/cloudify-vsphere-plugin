@@ -17,21 +17,19 @@ from functools import wraps
 import yaml
 import os
 import time
+import re
+import atexit
+
+from constants import (
+    TASK_CHECK_SLEEP,
+    NETWORKS,
+)
 
 from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
-import atexit
-
 from cloudify import ctx
 from cloudify import exceptions as cfy_exc
 from netaddr import IPNetwork
-
-import re
-
-
-TASK_CHECK_SLEEP = 15
-
-PREFIX_RANDOM_CHARS = 3
 
 
 def get_ip_from_vsphere_nic_ips(nic):
