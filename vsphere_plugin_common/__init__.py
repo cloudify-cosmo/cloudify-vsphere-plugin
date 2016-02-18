@@ -605,20 +605,75 @@ class ServerClient(VsphereClient):
 
 class NetworkClient(VsphereClient):
 
-    def get_host_list(self):
-        return self.get_obj_list([vim.HostSystem])
+    def get_host_list(self, force_refresh=False):
+        # Each invocation of this takes up to a few seconds, so try to avoid
+        # calling it too frequently by caching
+        if hasattr(self, 'host_list') and not force_refresh:
+            return self.host_list
+        self.host_list = self.get_obj_list([vim.HostSystem])
+        return self.host_list
 
     def delete_port_group(self, name):
-        ctx.logger.debug("Entering delete port procedure.")
-        host_list = self.get_host_list()
-        for host in host_list:
+        ctx.logger.info("Deleting port group {name}.".format(
+                        name=name))
+        for host in self.get_host_list():
             host.configManager.networkSystem.RemovePortGroup(name)
-        ctx.logger.info("Port %s was deleted." % name)
+        ctx.logger.info("Port group {name} was deleted.".format(
+                        name=name))
+
+    def get_vswitches(self):
+        ctx.logger.info('Getting list of vswitches')
+
+        # We only want to list vswitches that are on all hosts, as we will try
+        # to create port groups on the same vswitch on every host.
+        vswitches = set()
+        for host in self.get_host_list():
+            conf = host.config
+            current_host_vswitches = set()
+            for vswitch in conf.network.vswitch:
+                current_host_vswitches.add(vswitch.name)
+            if len(vswitches) == 0:
+                vswitches = current_host_vswitches
+            else:
+                vswitches = vswitches.union(current_host_vswitches)
+
+        return vswitches
+
+    def get_dvswitches(self):
+        ctx.logger.info('Getting list of dvswitches')
+
+        # This does not currently address multiple datacenters (indeed,
+        # much of this code will probably have issues in such an environment).
+        dvswitches = self.get_obj_list([
+            vim.dvs.VmwareDistributedVirtualSwitch,
+        ])
+        dvswitches = [dvswitch.name for dvswitch in dvswitches]
+
+        return dvswitches
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
         ctx.logger.debug("Entering create port procedure.")
-        host_list = self.get_host_list()
-        for host in host_list:
+
+        vswitches = self.get_vswitches()
+
+        if vswitch_name not in vswitches:
+            if len(vswitches) == 0:
+                raise cfy_exc.NonRecoverableError(
+                    'No valid vswitches found. '
+                    'Every physical host in the datacenter must have the '
+                    'same named vswitches available when not using '
+                    'distributed vswitches.'
+                )
+            else:
+                raise cfy_exc.NonRecoverableError(
+                    '{vswitch} was not a valid vswitch name. The valid '
+                    'vswitches are: {vswitches}'.format(
+                        vswitch=vswitch_name,
+                        vswitches=', '.join(vswitches),
+                    )
+                )
+
+        for host in self.get_host_list():
             network_system = host.configManager.networkSystem
             specification = vim.host.PortGroup.Specification()
             specification.name = port_group_name
@@ -655,6 +710,25 @@ class NetworkClient(VsphereClient):
 
     def create_dv_port_group(self, port_group_name, vlan_id, vswitch_name):
         ctx.logger.debug("Entering create dv port group procedure.")
+
+        dvswitches = self.get_dvswitches()
+
+        if vswitch_name not in dvswitches:
+            if len(dvswitches) == 0:
+                raise cfy_exc.NonRecoverableError(
+                    'No valid dvswitches found. '
+                    'A distributed virtual switch must exist for distributed '
+                    'port groups to be used.'
+                )
+            else:
+                raise cfy_exc.NonRecoverableError(
+                    '{dvswitch} was not a valid dvswitch name. The valid '
+                    'dvswitches are: {dvswitches}'.format(
+                        dvswitch=vswitch_name,
+                        dvswitches=', '.join(dvswitches),
+                    )
+                )
+
         dv_port_group_type = 'earlyBinding'
         dvswitch = self._get_obj_by_name([vim.DistributedVirtualSwitch],
                                          vswitch_name)
@@ -677,14 +751,15 @@ class NetworkClient(VsphereClient):
                                 dvswitch_name=vswitch_name))
         task = dvswitch.AddPortgroup(specification)
         self._wait_for_task(task)
-        ctx.info("Port created.")
+        ctx.logger.info("Port created.")
 
     def delete_dv_port_group(self, name):
-        ctx.logger.debug("Entering delete dv port group.")
+        ctx.logger.info("Deleting dv port group {name}.".format(
+                        name=name))
         dv_port_group = self.get_dv_port_group(name)
         task = dv_port_group.Destroy()
         self._wait_for_task(task)
-        ctx.info("Port deleted.")
+        ctx.logger.info("Port deleted.")
 
     def get_dv_port_group(self, name):
         dv_port_group = self._get_obj_by_name(
