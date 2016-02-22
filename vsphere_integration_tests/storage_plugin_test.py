@@ -21,8 +21,8 @@ import vsphere_plugin_common as vpc
 from cloudify import context
 from cloudify import mocks
 
-from server_plugin import server as server_plugin
-from storage_plugin import storage as storage_plugin
+from vsphere_server_plugin import server as server_plugin
+from vsphere_storage_plugin import storage as storage_plugin
 from vsphere_integration_tests import common as tests_common
 
 _tests_config = tests_common.TestsConfig().get()

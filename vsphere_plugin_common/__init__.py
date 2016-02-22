@@ -17,21 +17,19 @@ from functools import wraps
 import yaml
 import os
 import time
+import re
+import atexit
+
+from constants import (
+    TASK_CHECK_SLEEP,
+    NETWORKS,
+)
 
 from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
-import atexit
-
 from cloudify import ctx
 from cloudify import exceptions as cfy_exc
 from netaddr import IPNetwork
-
-import re
-
-
-TASK_CHECK_SLEEP = 15
-
-PREFIX_RANDOM_CHARS = 3
 
 
 def get_ip_from_vsphere_nic_ips(nic):
@@ -50,41 +48,6 @@ def remove_runtime_properties(properties, context):
     for p in properties:
         if p in context.instance.runtime_properties:
             del context.instance.runtime_properties[p]
-
-
-def transform_resource_name(res, ctx):
-
-    if isinstance(res, basestring):
-        res = {'name': res}
-
-    if not isinstance(res, dict):
-        raise ValueError("transform_resource_name() expects either string or "
-                         "dict as the first parameter")
-
-    pfx = ctx.bootstrap_context.resources_prefix
-
-    if not pfx:
-        return res['name']
-
-    name = res['name']
-    res['name'] = pfx + name
-
-    if name.startswith(pfx):
-        ctx.logger.warn("Prefixing resource '{0}' with '{1}' but it "
-                        "already has this prefix".format(name, pfx))
-    else:
-        ctx.logger.info("Transformed resource name '{0}' to '{1}'".format(
-                        name, res['name']))
-
-    if name != res['name']:
-        ctx.logger.info(
-            'Updated resource name from {name} to {new_name}.'.format(
-                name=res['name'],
-                new_name=name,
-            )
-        )
-
-    return res['name']
 
 
 class Config(object):
@@ -205,6 +168,56 @@ class VsphereClient(object):
             raise cfy_exc.NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
                 .format(task.info.error))
+
+    def get_vm_networks(self, vm):
+        """
+            Get details of every network interface on a VM.
+            A list of dicts with the following network interface information
+            will be returned:
+            {
+                'name': Name of the network,
+                'distributed': True if the network is distributed, otherwise
+                               False,
+                'mac': The MAC address as provided by vsphere,
+            }
+        """
+        nics = []
+        for dev in vm.config.hardware.device:
+            if hasattr(dev, 'macAddress'):
+                nics.append(dev)
+
+        networks = []
+        for nic in nics:
+            distributed = hasattr(nic.backing, 'port') and isinstance(
+                nic.backing.port,
+                vim.dvs.PortConnection,
+            )
+
+            network_name = None
+            if distributed:
+                mapping_id = nic.backing.port.portgroupKey
+            else:
+                network_name = nic.backing.deviceName
+
+            if network_name is None:
+                for network in vm.network:
+                    if hasattr(network, 'key') and distributed:
+                        if mapping_id == network.key:
+                            network_name = network.name
+
+            if network_name is None:
+                raise cfy_exc.NonRecoverableError(
+                    'Could not get network name for device with MAC address '
+                    '{mac} on VM {vm}'.format(mac=nic.macAddress, vm=vm.name)
+                )
+
+            networks.append({
+                'name': network_name,
+                'distributed': distributed,
+                'mac': nic.macAddress,
+            })
+
+        return networks
 
 
 class ServerClient(VsphereClient):
@@ -420,6 +433,12 @@ class ServerClient(VsphereClient):
             raise cfy_exc.NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."
                 .format(vm_name))
+
+        vm = self.get_server_by_name(vm_name)
+        ctx.instance.runtime_properties[NETWORKS] = \
+            self.get_vm_networks(vm)
+        ctx.logger.info('Updated runtime properties with network information')
+
         return task.info.result
 
     def start_server(self, server):
@@ -476,7 +495,7 @@ class ServerClient(VsphereClient):
             msg = ("Error during trying to place VM: "
                    "datastore and host can't be selected.")
             ctx.logger.error(msg)
-            raise RuntimeError(msg)
+            raise cfy_exc.NonRecoverableError(msg)
         for datastore in datastore_list:
             if datastore._moId not in except_datastores:
                 dtstr_free_spc = datastore.info.freeSpace
@@ -490,7 +509,7 @@ class ServerClient(VsphereClient):
         if selected_datastore is None:
             msg = "Error during placing VM: no datastore found."
             ctx.logger.error(msg)
-            raise RuntimeError(msg)
+            raise cfy_exc.NonRecoverableError(msg)
 
         if auto_placement:
             ctx.logger.info('Using datastore {name}.'
@@ -586,20 +605,75 @@ class ServerClient(VsphereClient):
 
 class NetworkClient(VsphereClient):
 
-    def get_host_list(self):
-        return self.get_obj_list([vim.HostSystem])
+    def get_host_list(self, force_refresh=False):
+        # Each invocation of this takes up to a few seconds, so try to avoid
+        # calling it too frequently by caching
+        if hasattr(self, 'host_list') and not force_refresh:
+            return self.host_list
+        self.host_list = self.get_obj_list([vim.HostSystem])
+        return self.host_list
 
     def delete_port_group(self, name):
-        ctx.logger.debug("Entering delete port procedure.")
-        host_list = self.get_host_list()
-        for host in host_list:
+        ctx.logger.info("Deleting port group {name}.".format(
+                        name=name))
+        for host in self.get_host_list():
             host.configManager.networkSystem.RemovePortGroup(name)
-        ctx.logger.info("Port %s was deleted." % name)
+        ctx.logger.info("Port group {name} was deleted.".format(
+                        name=name))
+
+    def get_vswitches(self):
+        ctx.logger.info('Getting list of vswitches')
+
+        # We only want to list vswitches that are on all hosts, as we will try
+        # to create port groups on the same vswitch on every host.
+        vswitches = set()
+        for host in self.get_host_list():
+            conf = host.config
+            current_host_vswitches = set()
+            for vswitch in conf.network.vswitch:
+                current_host_vswitches.add(vswitch.name)
+            if len(vswitches) == 0:
+                vswitches = current_host_vswitches
+            else:
+                vswitches = vswitches.union(current_host_vswitches)
+
+        return vswitches
+
+    def get_dvswitches(self):
+        ctx.logger.info('Getting list of dvswitches')
+
+        # This does not currently address multiple datacenters (indeed,
+        # much of this code will probably have issues in such an environment).
+        dvswitches = self.get_obj_list([
+            vim.dvs.VmwareDistributedVirtualSwitch,
+        ])
+        dvswitches = [dvswitch.name for dvswitch in dvswitches]
+
+        return dvswitches
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
         ctx.logger.debug("Entering create port procedure.")
-        host_list = self.get_host_list()
-        for host in host_list:
+
+        vswitches = self.get_vswitches()
+
+        if vswitch_name not in vswitches:
+            if len(vswitches) == 0:
+                raise cfy_exc.NonRecoverableError(
+                    'No valid vswitches found. '
+                    'Every physical host in the datacenter must have the '
+                    'same named vswitches available when not using '
+                    'distributed vswitches.'
+                )
+            else:
+                raise cfy_exc.NonRecoverableError(
+                    '{vswitch} was not a valid vswitch name. The valid '
+                    'vswitches are: {vswitches}'.format(
+                        vswitch=vswitch_name,
+                        vswitches=', '.join(vswitches),
+                    )
+                )
+
+        for host in self.get_host_list():
             network_system = host.configManager.networkSystem
             specification = vim.host.PortGroup.Specification()
             specification.name = port_group_name
@@ -636,6 +710,25 @@ class NetworkClient(VsphereClient):
 
     def create_dv_port_group(self, port_group_name, vlan_id, vswitch_name):
         ctx.logger.debug("Entering create dv port group procedure.")
+
+        dvswitches = self.get_dvswitches()
+
+        if vswitch_name not in dvswitches:
+            if len(dvswitches) == 0:
+                raise cfy_exc.NonRecoverableError(
+                    'No valid dvswitches found. '
+                    'A distributed virtual switch must exist for distributed '
+                    'port groups to be used.'
+                )
+            else:
+                raise cfy_exc.NonRecoverableError(
+                    '{dvswitch} was not a valid dvswitch name. The valid '
+                    'dvswitches are: {dvswitches}'.format(
+                        dvswitch=vswitch_name,
+                        dvswitches=', '.join(dvswitches),
+                    )
+                )
+
         dv_port_group_type = 'earlyBinding'
         dvswitch = self._get_obj_by_name([vim.DistributedVirtualSwitch],
                                          vswitch_name)
@@ -658,14 +751,15 @@ class NetworkClient(VsphereClient):
                                 dvswitch_name=vswitch_name))
         task = dvswitch.AddPortgroup(specification)
         self._wait_for_task(task)
-        ctx.info("Port created.")
+        ctx.logger.info("Port created.")
 
     def delete_dv_port_group(self, name):
-        ctx.logger.debug("Entering delete dv port group.")
+        ctx.logger.info("Deleting dv port group {name}.".format(
+                        name=name))
         dv_port_group = self.get_dv_port_group(name)
         task = dv_port_group.Destroy()
         self._wait_for_task(task)
-        ctx.info("Port deleted.")
+        ctx.logger.info("Port deleted.")
 
     def get_dv_port_group(self, name):
         dv_port_group = self._get_obj_by_name(
@@ -678,8 +772,10 @@ class NetworkClient(VsphereClient):
         ctx.logger.debug("Entering add network interface procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to add network'
-                               ' interface: invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to add network'
+                ' interface: invalid VM state - \'suspended\''
+            )
 
         devices = []
         if switch_distributed:
@@ -721,13 +817,19 @@ class NetworkClient(VsphereClient):
         self._wait_for_task(task)
         ctx.logger.info("Network interface was added.")
 
+        ctx.instance.runtime_properties[NETWORKS] = \
+            self.get_vm_networks(vm)
+        ctx.logger.info('Updated runtime properties with network information')
+
     def remove_network_interface(self, vm_id, network_name,
                                  switch_distributed):
         ctx.logger.debug("Entering remove network interface procedure.")
         vm = self._get_obj_by_id([vim.VirtualMachine], vm_id)
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to remove network'
-                               ' interface: invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to remove network'
+                ' interface: invalid VM state - \'suspended\''
+            )
 
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
         virtual_device_spec.operation =\
@@ -776,8 +878,10 @@ class StorageClient(VsphereClient):
                         "".join("%s: %s" % item
                                 for item in vars(vm).items()))
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to create storage:'
-                               ' invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to create storage:'
+                ' invalid VM state - \'suspended\''
+            )
 
         devices = []
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
@@ -820,9 +924,10 @@ class StorageClient(VsphereClient):
 
         # Exit error if VMDK filename undefined
         if vm_disk_filename is None:
-            raise RuntimeError('Error during trying to create storage:'
-                               ' Invalid VMDK name - \'{0}\''
-                               .format(vm_disk_filename_cur))
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to create storage:'
+                ' Invalid VMDK name - \'{0}\''.format(vm_disk_filename_cur)
+            )
 
         # Set target VMDK filename
         vm_disk_filename =\
@@ -843,9 +948,11 @@ class StorageClient(VsphereClient):
                 num_controller += 1
                 controller = vm_device
         if num_controller != 1:
-            raise RuntimeError('Error during trying to create storage:'
-                               ' SCSI controller cannot be found or'
-                               ' is present more than once.')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to create storage: '
+                'SCSI controller cannot be found or is present more than '
+                'once.'
+            )
 
         controller_key = controller.key
 
@@ -855,9 +962,10 @@ class StorageClient(VsphereClient):
         if vm_vdisk_number < 7:
             unit_number = vm_vdisk_number
         elif vm_vdisk_number == 15:
-            raise RuntimeError('Error during trying to create storage:'
-                               ' one SCSI controller cannot have more'
-                               ' than 15 virtual disks.')
+            raise cfy_exc.NonRecoverableError(
+                'Error during trying to create storage: one SCSI controller '
+                'cannot have more than 15 virtual disks.'
+            )
         else:
             unit_number = vm_vdisk_number + 1
 
@@ -874,7 +982,36 @@ class StorageClient(VsphereClient):
                         "".join("%s: %s" % item
                                 for item in vars(task).items()))
         self._wait_for_task(task)
-        return vm_disk_filename
+
+        # Get the SCSI bus and unit IDs
+        scsi_controllers = []
+        disks = []
+        for device in vm.config.hardware.device:
+            if isinstance(device, vim.vm.device.VirtualLsiLogicController):
+                scsi_controllers.append(device)
+            elif isinstance(device, vim.vm.device.VirtualDisk):
+                disks.append(device)
+        # Find the disk we just created
+        for disk in disks:
+            if disk.backing.fileName == vm_disk_filename:
+                unit = disk.unitNumber
+                bus_id = None
+                for controller in scsi_controllers:
+                    if controller.key == disk.controllerKey:
+                        bus_id = controller.busNumber
+                        break
+                # We found the right disk, we can't do any better than this
+                break
+        if bus_id is None:
+            raise cfy_exc.NonRecoverableError(
+                'Could not find SCSI bus ID for disk with filename: '
+                '{file}'.format(file=vm_disk_filename)
+            )
+        else:
+            # Give the SCSI ID in the usual format, e.g. 0:1
+            scsi_id = ':'.join((str(bus_id), str(unit)))
+
+        return vm_disk_filename, scsi_id
 
     def delete_storage(self, vm_id, storage_file_name):
         ctx.logger.debug("Entering delete storage procedure.")
@@ -883,8 +1020,10 @@ class StorageClient(VsphereClient):
                         "".join("%s: %s" % item
                                 for item in vars(vm).items()))
         if self.is_server_suspended(vm):
-            raise RuntimeError('Error during trying to delete storage:'
-                               ' invalid VM state - \'suspended\'')
+            raise cfy_exc.NonRecoverableError(
+                "Error during trying to delete storage: invalid VM state - "
+                "'suspended'"
+            )
 
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
         virtual_device_spec.operation =\

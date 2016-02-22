@@ -16,32 +16,30 @@
 from cloudify import ctx
 from cloudify.decorators import operation
 from vsphere_plugin_common import (with_network_client,
-                                   transform_resource_name,
                                    remove_runtime_properties)
-
-NETWORK_NAME = 'network_name'
-SWITCH_DISTRIBUTED = 'switch_distributed'
-NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME, SWITCH_DISTRIBUTED]
+from vsphere_plugin_common.constants import(
+    NETWORK_NAME,
+    SWITCH_DISTRIBUTED,
+    NETWORK_RUNTIME_PROPERTIES,
+)
 
 
 @operation
 @with_network_client
 def create(network_client, **kwargs):
-    network = {
-        'name': ctx.instance.id,
-    }
+    network = {}
     network.update(ctx.node.properties['network'])
-    network_type = ('port group' if network['switch_distributed']
-                    else 'distributed port group')
+    network['name'] = get_network_name(network)
+    network_type = ('distributed port group' if network['switch_distributed']
+                    else 'port group')
     ctx.logger.info('Creating new {type} with name \'{name}\' on VLAN {vlan} '
                     'attached to vSwitch: {vswitch}'
                     .format(name=network['name'],
                             type=network_type,
                             vlan=network['vlan_id'],
                             vswitch=network['vswitch_name']))
-    transform_resource_name(network, ctx)
 
-    port_group_name = ctx.instance.id
+    port_group_name = network['name']
     vlan_id = network['vlan_id']
     vswitch_name = network['vswitch_name']
     switch_distributed = network['switch_distributed']
@@ -61,8 +59,7 @@ def create(network_client, **kwargs):
 @operation
 @with_network_client
 def delete(network_client, **kwargs):
-    port_group_name = ctx.node.properties['network'].get(
-        'name') or ctx.instance.id
+    port_group_name = get_network_name(ctx.node.properties['network'])
     switch_distributed = ctx.node.properties[
         'network'].get('switch_distributed')
 
@@ -71,3 +68,11 @@ def delete(network_client, **kwargs):
     else:
         network_client.delete_port_group(port_group_name)
     remove_runtime_properties(NETWORK_RUNTIME_PROPERTIES, ctx)
+
+
+def get_network_name(network):
+    if 'name' in network:
+        net_name = network['name']
+    else:
+        net_name = ctx.instance.id
+    return net_name

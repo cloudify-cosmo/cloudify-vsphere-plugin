@@ -16,15 +16,15 @@
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
-from server_plugin.server import VSPHERE_SERVER_ID
+from vsphere_server_plugin.server import VSPHERE_SERVER_ID
 from vsphere_plugin_common import (with_storage_client,
-                                   transform_resource_name,
                                    remove_runtime_properties)
-
-VSPHERE_STORAGE_FILE_NAME = 'vsphere_storage_file_name'
-VSPHERE_STORAGE_VM_ID = 'vsphere_storage_vm_id'
-VSPHERE_STORAGE_RUNTIME_PROPERTIES = [VSPHERE_STORAGE_FILE_NAME,
-                                      VSPHERE_STORAGE_VM_ID]
+from vsphere_plugin_common.constants import (
+    VSPHERE_STORAGE_FILE_NAME,
+    VSPHERE_STORAGE_VM_ID,
+    VSPHERE_STORAGE_SCSI_ID,
+    VSPHERE_STORAGE_RUNTIME_PROPERTIES,
+)
 
 
 @operation
@@ -38,7 +38,6 @@ def create(storage_client, **kwargs):
     ctx.logger.info('Creating new volume with name \'{name}\' and size: {size}'
                     .format(name=storage['name'],
                             size=storage['storage_size']))
-    transform_resource_name(storage, ctx)
     ctx.logger.info("Storage info: \n%s." %
                     "".join("%s: %s" % item
                             for item in storage.items()))
@@ -60,12 +59,21 @@ def create(storage_client, **kwargs):
     ctx.logger.info('Connected storage {storage_name} to vm {vm_name}'
                     .format(storage_name=storage['name'],
                             vm_name=connected_vms[0][VSPHERE_SERVER_ID]))
-    storage_file_name = storage_client.create_storage(vm_id, storage_size)
+    storage_file_name, scsi_id = storage_client.create_storage(
+        vm_id,
+        storage_size,
+    )
 
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
         storage_file_name
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID] = vm_id
-    ctx.logger.info("Storage create with name %s." % storage_file_name)
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
+    ctx.logger.info(
+        "Storage create with name '{file_name}' and SCSI ID: {scsi} ".format(
+            file_name=storage_file_name,
+            scsi=scsi_id,
+        )
+    )
 
 
 @operation

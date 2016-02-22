@@ -21,7 +21,12 @@ from cosmo_tester.framework.testenv import TestCase
 from cloudify.workflows import local
 from cloudify_cli import constants as cli_constants
 import winrm
-from . import get_vsphere_vms_list, check_correct_vm_name
+from . import (
+    get_vsphere_vms_list,
+    check_correct_vm_name,
+    get_runtime_props,
+    check_vm_name_in_runtime_properties,
+)
 
 
 class VsphereLocalWindowsTest(TestCase):
@@ -39,6 +44,8 @@ class VsphereLocalWindowsTest(TestCase):
             'vsphere_host': self.env.cloudify_config['vsphere_host'],
             'vsphere_datacenter_name': self.env.cloudify_config[
                 'vsphere_datacenter_name'],
+            'vsphere_resource_pool_name': self.env.cloudify_config[
+                'vsphere_resource_pool_name'],
         }
 
         if 'vsphere_port' not in self.env.cloudify_config.keys():
@@ -196,9 +203,21 @@ class VsphereLocalWindowsTest(TestCase):
             port=self.ext_inputs['vsphere_port'],
         )
 
+        runtime_properties = get_runtime_props(
+            target_node_id='aaaaaaaaaaaaaaaaaaaaaa',
+            node_instances=self.naming_env.storage.get_node_instances(),
+            logger=self.logger,
+        )
+
+        name_prefix = 'aaaaaaaa'
         check_correct_vm_name(
             vms=vms,
-            name_prefix='aaaaaaaa',
+            name_prefix=name_prefix,
+            logger=self.logger,
+        )
+        check_vm_name_in_runtime_properties(
+            runtime_props=runtime_properties,
+            name_prefix=name_prefix,
             logger=self.logger,
         )
 
@@ -208,7 +227,7 @@ class VsphereLocalWindowsTest(TestCase):
 
         self.logger.info('Trying to retrieve timezone info')
         # Huge retry to allow Windows to finish sysprep+reboot
-        while timezone_info is None and retries <= 50:
+        while timezone_info is None and retries <= 100:
             try:
                 winrmsession = winrm.Session(
                     vm_ip,

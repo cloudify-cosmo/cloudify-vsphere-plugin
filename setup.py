@@ -18,12 +18,12 @@ import setuptools
 setuptools.setup(
     zip_safe=True,
     name='cloudify-vsphere-plugin',
-    version='1.5-dev',
+    version='2.0.dev',
     packages=[
         'vsphere_plugin_common',
-        'server_plugin',
-        'network_plugin',
-        'storage_plugin'
+        'vsphere_server_plugin',
+        'vsphere_network_plugin',
+        'vsphere_storage_plugin'
     ],
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',

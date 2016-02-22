@@ -22,13 +22,13 @@ from vsphere_plugin_common import (with_server_client,
                                    ConnectionConfig,
                                    remove_runtime_properties,
                                    get_ip_from_vsphere_nic_ips)
-
-
-VSPHERE_SERVER_ID = 'vsphere_server_id'
-PUBLIC_IP = 'public_ip'
-NETWORKS = 'networks'
-IP = 'ip'
-SERVER_RUNTIME_PROPERTIES = [VSPHERE_SERVER_ID, PUBLIC_IP, NETWORKS, IP]
+from vsphere_plugin_common.constants import (
+    VSPHERE_SERVER_ID,
+    PUBLIC_IP,
+    NETWORKS,
+    IP,
+    SERVER_RUNTIME_PROPERTIES,
+)
 
 
 def create_new_server(server_client):
@@ -130,6 +130,7 @@ def create_new_server(server_client):
     ctx.logger.info('Created server {name} with ID {id}'
                     .format(name=vm_name, id=server._moId))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server._moId
+    ctx.instance.runtime_properties['name'] = vm_name
 
 
 @operation
@@ -186,11 +187,12 @@ def get_state(server_client, **kwargs):
     ctx.logger.debug("Entering server state validation procedure.")
     server = get_server_by_context(server_client)
     ctx.logger.info('Getting state for server {server}'.format(server=server))
+
+    nets = ctx.instance.runtime_properties[NETWORKS]
     if server_client.is_server_guest_running(server):
         ctx.logger.info("Server is running.")
         networking = ctx.node.properties.get('networking')
         networks = networking.get('connect_networks', []) if networking else []
-        ips = {}
         manager_network_ip = None
         management_networks = \
             [network['name'] for network
@@ -200,6 +202,8 @@ def get_state(server_client, **kwargs):
                                    if len(management_networks) == 1
                                    else None)
 
+        # We must obtain IPs at this stage, as they are not populated until
+        # after the VM is fully booted
         for network in server.guest.net:
             network_name = network.network
             if management_network_name and \
@@ -211,10 +215,12 @@ def get_state(server_client, **kwargs):
                     ctx.logger.info('Manager network IP not yet present for '
                                     '{server}.'.format(server=server))
                     return False
-            ips[network_name] = get_ip_from_vsphere_nic_ips(network)
+            for net in nets:
+                if net['name'] == network_name:
+                    net['ip'] = get_ip_from_vsphere_nic_ips(network)
 
-        ctx.instance.runtime_properties['networks'] = ips
-        ctx.instance.runtime_properties['ip'] = \
+        ctx.instance.runtime_properties[NETWORKS] = nets
+        ctx.instance.runtime_properties[IP] = \
             (manager_network_ip or
              get_ip_from_vsphere_nic_ips(server.guest.net[0]))
 
