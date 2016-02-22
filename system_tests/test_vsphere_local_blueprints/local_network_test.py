@@ -90,8 +90,13 @@ class VsphereLocalNetworkTest(TestCase):
 
         self.addCleanup(self.cleanup_network)
 
-        # TODO: No, this is horrible
+        # This arbitrary sleep is horrible, and is in place because sometimes
+        # network creation takes some time.
+        # It is not currently being fixed because it is unlikely to affect
+        # users in a significant way- it is generally fast enough, and in
+        # cases where it isn't, a retry will deal with it.
         sleep(10)
+
         nets = get_vsphere_networks(
             username=self.ext_inputs['vsphere_username'],
             password=self.ext_inputs['vsphere_password'],
@@ -147,8 +152,13 @@ class VsphereLocalNetworkTest(TestCase):
 
         self.addCleanup(self.cleanup_distributed_network)
 
-        # TODO: No, this is horrible
+        # This arbitrary sleep is horrible, and is in place because sometimes
+        # network creation takes some time.
+        # It is not currently being fixed because it is unlikely to affect
+        # users in a significant way- it is generally fast enough, and in
+        # cases where it isn't, a retry will deal with it.
         sleep(10)
+
         nets = get_vsphere_networks(
             username=self.ext_inputs['vsphere_username'],
             password=self.ext_inputs['vsphere_password'],
