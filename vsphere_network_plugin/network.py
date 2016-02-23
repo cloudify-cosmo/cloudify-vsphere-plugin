@@ -30,20 +30,19 @@ def create(network_client, **kwargs):
     network = {}
     network.update(ctx.node.properties['network'])
     network['name'] = get_network_name(network)
-    network_type = ('distributed port group' if network['switch_distributed']
-                    else 'port group')
-    ctx.logger.info('Creating new {type} with name \'{name}\' on VLAN {vlan} '
-                    'attached to vSwitch: {vswitch}'
-                    .format(name=network['name'],
-                            type=network_type,
-                            vlan=network['vlan_id'],
-                            vswitch=network['vswitch_name']))
-
     port_group_name = network['name']
     vlan_id = network['vlan_id']
     vswitch_name = network['vswitch_name']
     switch_distributed = network['switch_distributed']
 
+    ctx.logger.info(
+        'Creating {type} called {name} and VLAN {vlan} on {vswitch}'.format(
+            type=get_network_type(network),
+            name=network['name'],
+            vlan=network['vlan_id'],
+            vswitch=network['vswitch_name'],
+        )
+    )
     if switch_distributed:
         network_client.create_dv_port_group(port_group_name,
                                             vlan_id,
@@ -52,6 +51,9 @@ def create(network_client, **kwargs):
         network_client.create_port_group(port_group_name,
                                          vlan_id,
                                          vswitch_name)
+    ctx.logger.info('Successfully created {type}: {name}'.format(
+                    type=get_network_type(network),
+                    name=network['name']))
     ctx.instance.runtime_properties[NETWORK_NAME] = port_group_name
     ctx.instance.runtime_properties[SWITCH_DISTRIBUTED] = switch_distributed
 
@@ -59,15 +61,26 @@ def create(network_client, **kwargs):
 @operation
 @with_network_client
 def delete(network_client, **kwargs):
-    port_group_name = get_network_name(ctx.node.properties['network'])
-    switch_distributed = ctx.node.properties[
-        'network'].get('switch_distributed')
+    network = ctx.node.properties['network']
+    port_group_name = get_network_name(network)
+    switch_distributed = network.get('switch_distributed')
 
+    ctx.logger.info('Deleting {type}: {name}'.format(
+                    type=get_network_type(network),
+                    name=network['name']))
     if switch_distributed:
         network_client.delete_dv_port_group(port_group_name)
     else:
         network_client.delete_port_group(port_group_name)
+    ctx.logger.info('Successfully deleted {type}: {name}'.format(
+                    type=get_network_type(network),
+                    name=network['name']))
     remove_runtime_properties(NETWORK_RUNTIME_PROPERTIES, ctx)
+
+
+def get_network_type(network):
+    return ('distributed port group' if network['switch_distributed']
+            else 'port group')
 
 
 def get_network_name(network):
