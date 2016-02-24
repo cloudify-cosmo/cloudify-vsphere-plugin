@@ -1,0 +1,11 @@
+2.0:
+  - Add extra runtime attribute data for attached networks to include MAC address for servers.
+  - Add extra runtime attribute for SCSI ID on storage nodes.
+  - Remove undocumented and redundant port resource.
+  - Make module naming more explicit.
+  - Improve error output when trying to create network.
+  - Completely remove transform_resource.
+  - Make logging meet draft guidelines.
+  - More tests.
+  - Improvements to network naming.
+  - Factor out constants.

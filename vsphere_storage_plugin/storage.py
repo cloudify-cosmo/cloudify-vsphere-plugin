@@ -18,10 +18,12 @@ from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
 from vsphere_server_plugin.server import VSPHERE_SERVER_ID
 from vsphere_plugin_common import (with_storage_client,
+                                   prepare_for_log,
                                    remove_runtime_properties)
 from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_FILE_NAME,
     VSPHERE_STORAGE_VM_ID,
+    VSPHERE_STORAGE_VM_NAME,
     VSPHERE_STORAGE_SCSI_ID,
     VSPHERE_STORAGE_RUNTIME_PROPERTIES,
 )
@@ -35,12 +37,13 @@ def create(storage_client, **kwargs):
         'name': ctx.node.id,
     }
     storage.update(ctx.node.properties['storage'])
-    ctx.logger.info('Creating new volume with name \'{name}\' and size: {size}'
-                    .format(name=storage['name'],
-                            size=storage['storage_size']))
-    ctx.logger.info("Storage info: \n%s." %
-                    "".join("%s: %s" % item
-                            for item in storage.items()))
+    # This should be debug, but left as info until CFY-4867 makes logs more
+    # visible
+    ctx.logger.info(
+        'Storage properties: {properties}'.format(
+            properties=prepare_for_log(storage),
+        )
+    )
     storage_size = storage['storage_size']
     capabilities = ctx.capabilities.get_all().values()
     if not capabilities:
@@ -56,33 +59,55 @@ def create(storage_client, **kwargs):
             'connected to at most one VM')
 
     vm_id = connected_vms[0][VSPHERE_SERVER_ID]
-    ctx.logger.info('Connected storage {storage_name} to vm {vm_name}'
-                    .format(storage_name=storage['name'],
-                            vm_name=connected_vms[0][VSPHERE_SERVER_ID]))
+    vm_name = connected_vms[0]['name']
+    ctx.logger.info(
+        "Creating new volume on VM '{vm}' with name '{name}' and size: "
+        "{size}".format(
+            vm=vm_name,
+            name=storage['name'],
+            size=storage['storage_size']
+        )
+    )
     storage_file_name, scsi_id = storage_client.create_storage(
         vm_id,
         storage_size,
+    )
+    ctx.logger.info(
+        "Storage successfully created on VM '{vm}' with file name "
+        "'{file_name}' and SCSI ID: {scsi} ".format(
+            vm=vm_name,
+            file_name=storage_file_name,
+            scsi=scsi_id,
+        )
     )
 
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
         storage_file_name
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID] = vm_id
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME] = vm_name
     ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
-    ctx.logger.info(
-        "Storage create with name '{file_name}' and SCSI ID: {scsi} ".format(
-            file_name=storage_file_name,
-            scsi=scsi_id,
-        )
-    )
 
 
 @operation
 @with_storage_client
 def delete(storage_client, **kwargs):
     vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
+    vm_name = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME]
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
+    ctx.logger.info(
+        "Deleting storage {file} from {vm}".format(
+            file=storage_file_name,
+            vm=vm_name,
+        )
+    )
     storage_client.delete_storage(vm_id, storage_file_name)
+    ctx.logger.info(
+        "Successfully deleted storage {file} from {vm}".format(
+            file=storage_file_name,
+            vm=vm_name,
+        )
+    )
     remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
 
 
@@ -90,6 +115,7 @@ def delete(storage_client, **kwargs):
 @with_storage_client
 def resize(storage_client, **kwargs):
     vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
+    vm_name = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME]
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
     storage_size = ctx.instance.runtime_properties.get('storage_size')
@@ -97,6 +123,20 @@ def resize(storage_client, **kwargs):
         raise cfy_exc.NonRecoverableError(
             'Error during trying to resize storage: new storage size wasn\'t'
             ' specified.')
+    ctx.logger.info(
+        "Resizing storage {file} on {vm} to {new_size}".format(
+            file=storage_file_name,
+            vm=vm_name,
+            new_size=storage_size,
+        )
+    )
     storage_client.resize_storage(vm_id,
                                   storage_file_name,
                                   storage_size)
+    ctx.logger.info(
+        "Successfully resized storage {file} on {vm} to {new_size}".format(
+            file=storage_file_name,
+            vm=vm_name,
+            new_size=storage_size,
+        )
+    )
