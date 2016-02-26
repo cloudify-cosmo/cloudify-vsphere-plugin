@@ -67,6 +67,9 @@ def remove_runtime_properties(properties, context):
 
 class Config(object):
 
+    # Required during vsphere manager bootstrap
+    CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.yaml'
+
     def get(self):
         cfg = {}
         which = self.__class__.which
@@ -993,7 +996,7 @@ class StorageClient(VsphereClient):
         scsi_controllers = []
         disks = []
         for device in vm.config.hardware.device:
-            if isinstance(device, vim.vm.device.VirtualLsiLogicController):
+            if isinstance(device, vim.vm.device.VirtualSCSIController):
                 scsi_controllers.append(device)
             elif isinstance(device, vim.vm.device.VirtualDisk):
                 disks.append(device)
