@@ -463,6 +463,12 @@ class ServerClient(VsphereClient):
             customspec.globalIPSettings = globalip
 
             clonespec.customization = customspec
+
+        if (self.get_server_by_name(vm_name)):
+            raise cfy_exc.NonRecoverableError(
+                "We allready have some VM with name: {0}."
+                .format(vm_name))
+
         ctx.logger.info('Cloning {server} from {template}.'
                         .format(server=vm_name, template=template_name))
         task = template_vm.Clone(folder=destfolder,
@@ -708,6 +714,7 @@ class ServerClient(VsphereClient):
                 return ip_address
 
     def _wait_vm_running(self, task):
+        time.sleep(TASK_CHECK_SLEEP)
         self._wait_for_task(task)
         while not task.info.result.guest.guestState == "running"\
                 or not task.info.result.guest.net:
