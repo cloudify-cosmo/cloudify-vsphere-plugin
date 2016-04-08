@@ -352,7 +352,8 @@ def get_vm_name(server):
         name_prefix = name_prefix[:max_prefix]
 
     vm_name = '-'.join([name_prefix, id_suffix])
-    return vm_name
+    # replace underscore to hyphens
+    return vm_name.replace("_", "-")
 
 
 def get_server_by_context(server_client):
