@@ -290,13 +290,22 @@ def get_state(server_client, **kwargs):
         else:
             ctx.logger.debug('Public IP check not required for {server}'
                              .format(server=server))
+            # Ensure the property still exists
+            ctx.instance.runtime_properties[PUBLIC_IP] = None
+
+        message = 'Server {name} has started with management IP {mgmt}'
+        if len(public_ips) > 0:
+            public_ip = public_ips[0]
+            message += ' and public IP {public}'
+        else:
+            public_ip = None
+        message += '.'
 
         ctx.logger.info(
-            'Server {name} has started with management IP {mgmt} and public '
-            'IP {public}.'.format(
+            message.format(
                 name=vm_name,
                 mgmt=manager_network_ip,
-                public=public_ips[0],
+                public=public_ip,
             )
         )
         return True
