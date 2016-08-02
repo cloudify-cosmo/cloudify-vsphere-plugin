@@ -82,7 +82,7 @@ def check_vm_name_in_runtime_properties(runtime_props, name_prefix, logger):
     check_name_is_correct(name, name_prefix, logger)
 
 
-def check_correct_vm_name(vms, name_prefix, logger):
+def check_correct_vm_name(vms, name_prefix, logger, hyphens=2):
     # This will fail if there is more than one machine with the same name
     # However, I can't currently see a way to make this cleaner without
     # exporting the vsphere vm name as a runtime property
@@ -112,16 +112,26 @@ def check_correct_vm_name(vms, name_prefix, logger):
 def check_name_is_correct(name, name_prefix, logger):
     # Name should be systemte-<id suffix (e.g. abc12)
     name = name.split('-')
-    assert len(name) == 2
-    logger.info('Candidate name has correct number of hyphens.')
+    assert (
+        len(name) > 1,
+        'Name is expected to have at least one hyphen, before the instance ID'
+    )
 
-    assert name[0] == name_prefix
+    assert (
+        '-'.join(name[:-1]) == name_prefix,
+        'Name {prefix} does not match expected {expected}'.format(
+            prefix='-'.join(name[:-1]),
+            expected=name_prefix,
+        )
+    )
     logger.info('Candidate has correct name prefix.')
 
     # Suffix should be lower case hex
-    suffix = name[1]
-    suffix = suffix.strip('0123456789abcdef')
-    assert suffix == ''
+    suffix = name[-1]
+    suffix = suffix.strip(string.ascii_letters + string.digits)
+    assert suffix == '', 'Suffix contained invalid characters: {}'.format(
+        suffix,
+    )
     logger.info('Candidate has hex suffix.')
     logger.info('Candidate name appears correct!')
 

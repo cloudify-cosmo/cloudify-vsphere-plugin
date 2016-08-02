@@ -118,6 +118,60 @@ class VsphereLocalLinuxTest(TestCase):
             logger=self.logger,
         )
 
+    def test_naming_underscore_to_hyphen(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'naming_underscore-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.naming_underscore_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.naming_underscore_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.addCleanup(self.cleanup_naming_underscore)
+
+        self.logger.info('Searching for appropriately named VM')
+        vms = get_vsphere_vms_list(
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+
+        runtime_properties = get_runtime_props(
+            target_node_id='testserver',
+            node_instances=(
+                self.naming_underscore_env.storage.get_node_instances()
+            ),
+            logger=self.logger,
+        )
+
+        name_prefix = 'systemtest-linuxnaming'
+        check_correct_vm_name(
+            vms=vms,
+            name_prefix=name_prefix,
+            logger=self.logger,
+        )
+        check_vm_name_in_runtime_properties(
+            runtime_props=runtime_properties,
+            name_prefix=name_prefix,
+            logger=self.logger,
+        )
+
     def test_naming_no_name(self):
         blueprint = os.path.join(
             self.blueprints_path,
@@ -383,6 +437,13 @@ class VsphereLocalLinuxTest(TestCase):
 
     def cleanup_naming(self):
         self.naming_env.execute(
+            'uninstall',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+    def cleanup_naming_underscore(self):
+        self.naming_underscore_env.execute(
             'uninstall',
             task_retries=50,
             task_retry_interval=3,

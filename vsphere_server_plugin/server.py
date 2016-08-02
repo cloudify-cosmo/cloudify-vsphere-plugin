@@ -119,7 +119,8 @@ def create_new_server(server_client):
         raise cfy_exc.NonRecoverableError(
             'Computer name must contain only A-Z, a-z, 0-9, '
             'and hyphens ("-"), and must not consist entirely of '
-            'numbers. "{name}" was not valid.'.format(name=vm_name)
+            'numbers. Underscores will be converted to hyphens. '
+            '"{name}" was not valid.'.format(name=vm_name)
         )
 
     ctx.logger.info('Creating server called {name}'.format(name=vm_name))
@@ -352,6 +353,17 @@ def get_vm_name(server):
         name_prefix = name_prefix[:max_prefix]
 
     vm_name = '-'.join([name_prefix, id_suffix])
+
+    if '_' in vm_name:
+        orig = vm_name
+        vm_name = vm_name.replace('_', '-')
+        ctx.logger.warn(
+            'Changing all _ to - in VM name. Name changed from {orig} to '
+            '{new}.'.format(
+                orig=orig,
+                new=vm_name,
+            )
+        )
     return vm_name
 
 
