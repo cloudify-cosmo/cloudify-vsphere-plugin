@@ -8,14 +8,113 @@ plugins:
         package_name: cloudify-vsphere-plugin
         package_version: '2.0'
 
+data_types:
+    cloudify.datatypes.vsphere.Config:
+        properties:
+            username:
+                description: >
+                    vSphere username.
+                type: string
+                required: false
+            host:
+                description: >
+                    vCenter hostname or IP address.
+                type: string
+                required: false
+            password:
+                description: >
+                    vCenter password.
+                type: string
+                required: false
+            datacenter_name:
+                description: >
+                    datacenter name.
+                type: string
+                required: false
+            auto_placement:
+                description: >
+                    Signifies whether to use vSphere's auto-placement instead of the plugin's.
+                    Must be true if you are using clusters.
+                type: string
+                required: false
+                default: false
+            resource_pool_name:
+                description: >
+                    Name of a resource pool.
+                    Defaults to Resources, which is a hidden resource pool on vSphere.
+                type: string
+                required: false
+                default: 'Resources'
+            port:
+                description: >
+                    vCenter port for SDK.
+                type: integer
+                required: false
+                default: 443
+
+    cloudify.datatypes.vsphere.ServerProperties:
+        properties:
+            memory:
+                description: >
+                    Amount of RAM, in MB.
+                type: integer
+                required: true
+            cpus:
+                description: >
+                    Number of CPUs.
+                type: integer
+                required: true
+            template:
+                description: >
+                    Virtual machine template from which server will be spawned.
+                    See full documentation at docs.getcloudify.org for requirements.
+                type: string
+                required: true
+            name:
+                description: >
+                    Server name.
+                    Will use node name if this is not set.
+                    Must consist of only ASCII letters, numbers, and hyphens.
+                    Will automatically convert underscores to hyphens.
+                type: string
+                required: false
+
+    cloudify.datatypes.vsphere.NetworkingProperties:
+        properties:
+            domain:
+                description: >
+                    The fully qualified domain name.
+                type: string
+                required: false
+            dns_servers:
+                description: >
+                    List of DNS servers.
+                required: false
+            connect_networks:
+                description: |
+                    List of network interfaces to connect.
+                    These should be in the form of dicts with:
+                    name: Network name
+                    management: true/false- determines if this is a management network interface (default false)
+                    external: true/false- determines if this is a external network interface (default false)
+                    switch_distributed: determines if this is connected to a distributed port group (default false)
+                    use_dhcp: whether to use DHCP for IP addressing (default true)
+                    network: network CIDR to use if use_dhcp is false
+                    gateway: default gateway to use if use_dhcp is false. You should only set this on one interface.
+                    ip: IP address to use if use_dhcp is false
+                required: false
+
 node_types:
     cloudify.vsphere.nodes.Server:
         derived_from: cloudify.nodes.Compute
         properties:
-            server: {}
-            networking: {}
+            server:
+                type: cloudify.datatypes.vsphere.ServerProperties
+            networking:
+                type: cloudify.datatypes.vsphere.NetworkingProperties
             connection_config:
                 default: {}
+                type: cloudify.datatypes.vsphere.Config
         interfaces:
             cloudify.interfaces.lifecycle:
                 start:
@@ -65,6 +164,7 @@ node_types:
             network: {}
             connection_config:
                 default: {}
+                type: cloudify.datatypes.vsphere.Config
         interfaces:
             cloudify.interfaces.lifecycle:
                 create:
@@ -80,6 +180,7 @@ node_types:
             storage: {}
             connection_config:
                 default: {}
+                type: cloudify.datatypes.vsphere.Config
         interfaces:
             cloudify.interfaces.lifecycle:
                 create:

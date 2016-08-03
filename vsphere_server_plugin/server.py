@@ -32,6 +32,51 @@ from vsphere_plugin_common.constants import (
 )
 
 
+def validate_connect_network(network):
+    if 'name' not in network.keys():
+        raise cfy_exc.NonRecoverableError(
+            'All networks connected to a server must have a name specified. '
+            'Network details: {}'.format(str(network))
+        )
+
+    allowed = {
+        'name': basestring,
+        'management': bool,
+        'external': bool,
+        'switch_distributed': bool,
+        'use_dhcp': bool,
+        'network': basestring,
+        'gateway': basestring,
+        'ip': basestring,
+    }
+
+    friendly_type_mapping = {
+        basestring: 'string',
+        bool: 'boolean',
+    }
+
+    for key, value in network.items():
+        if key in allowed:
+            if not isinstance(value, allowed[key]):
+                raise cfy_exc.NonRecoverableError(
+                    'network.{key} must be of type {expected_type}'.format(
+                        key=key,
+                        expected_type=friendly_type_mapping[allowed[key]],
+                    )
+                )
+        else:
+            raise cfy_exc.NonRecoverableError(
+                'Key {key} is not valid in a connect_networks network. '
+                'Network was {name}. Valid keys are: {valid}'.format(
+                    key=key,
+                    name=network['name'],
+                    valid=','.join(allowed.keys()),
+                )
+            )
+
+    return True
+
+
 def create_new_server(server_client):
     server = {}
     server.update(ctx.node.properties['server'])
@@ -64,7 +109,7 @@ def create_new_server(server_client):
         dns_servers = networking.get('dns_servers')
         connect_networks = networking.get('connect_networks', [])
 
-        err_msg = "No more that one %s network can be specified."
+        err_msg = "No more than one %s network can be specified."
         if len([network for network in connect_networks
                 if network.get('external', False)]) > 1:
             raise cfy_exc.NonRecoverableError(err_msg % 'external')
@@ -73,6 +118,7 @@ def create_new_server(server_client):
             raise cfy_exc.NonRecoverableError(err_msg % 'management')
 
         for network in connect_networks:
+            validate_connect_network(network)
             if network.get('external', False):
                 networks.insert(
                     0,
