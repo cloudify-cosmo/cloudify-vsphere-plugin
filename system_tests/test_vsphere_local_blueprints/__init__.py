@@ -18,6 +18,8 @@ from cosmo_tester.framework.testenv import (initialize_without_bootstrap,
 from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
 
+import string
+
 
 def setUp():
     initialize_without_bootstrap()
@@ -126,7 +128,6 @@ def check_name_is_correct(name, name_prefix, logger):
     )
     logger.info('Candidate has correct name prefix.')
 
-    # Suffix should be lower case hex
     suffix = name[-1]
     suffix = suffix.strip(string.ascii_letters + string.digits)
     assert suffix == '', 'Suffix contained invalid characters: {}'.format(

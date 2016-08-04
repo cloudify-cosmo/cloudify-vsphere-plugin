@@ -524,6 +524,208 @@ class VsphereLocalLinuxTest(TestCase):
         test_results = self.distributed_network_env.outputs()['test_results']
         assert True in test_results
 
+    def test_invalid_network_name(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-fail-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info('Attempting to deploy with invalid network name')
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = False
+        inputs['test_network_name'] = 'notarealnetworkdonotuse'
+
+        self.invalid_network_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.invalid_network_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.invalid_network_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with an invalid network was expected to fail, but '
+                'succeeded. Network name was {}'.format(
+                    inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert inputs['test_network_name'] in err.message
+            assert 'not present' in err.message
+            assert 'Available networks are:' in err.message
+
+    def test_incorrect_switch_distributed_true(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-fail-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Attempting to deploy on standard network with '
+            'switch_distributed set to true'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = True
+        inputs['test_network_name'] = (
+            self.env.cloudify_config['existing_standard_network']
+        )
+
+        self.incorrect_distributed_true_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.incorrect_distributed_true_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.incorrect_distributed_true_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with an invalid distributed network was expected '
+                'to fail, but succeeded. Network name was {}'.format(
+                    inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert inputs['test_network_name'] in err.message
+            assert 'not present' in err.message
+            assert (
+                'You may need to set the switch_distributed setting for this '
+                'network to false'
+            ) in err.message
+
+    def test_invalid_distributed_network_name(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-fail-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Attempting to deploy with invalid distributed network name'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = True
+        inputs['test_network_name'] = 'notarealdistributednetworkdonotuse'
+
+        self.invalid_distributed_network_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.invalid_distributed_network_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.invalid_distributed_network_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with an invalid distributed network was expected '
+                'to fail, but succeeded. Network name was {}'.format(
+                    inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert inputs['test_network_name'] in err.message
+            assert 'not present' in err.message
+            assert 'Available distributed networks are:' in err.message
+
+    def test_incorrect_switch_distributed_false(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-fail-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Attempting to deploy on distributed network with '
+            'switch_distributed set to false'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = False
+        inputs['test_network_name'] = (
+            self.env.cloudify_config['existing_distributed_network']
+        )
+
+        self.incorrect_distributed_false_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.incorrect_distributed_false_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.incorrect_distributed_false_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with an invalid standard network was expected '
+                'to fail, but succeeded. Network name was {}'.format(
+                    inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert inputs['test_network_name'] in err.message
+            assert 'not present' in err.message
+            assert (
+                'You may need to set the switch_distributed setting for this '
+                'network to true'
+            ) in err.message
+
     def cleanup_network(self):
         self.network_env.execute(
             'uninstall',

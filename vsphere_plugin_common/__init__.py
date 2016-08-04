@@ -262,6 +262,20 @@ class VsphereClient(object):
 
 class ServerClient(VsphereClient):
 
+    def _get_port_group_names(self):
+        all_port_groups = self.get_obj_list([vim.Network])
+
+        port_groups = []
+        distributed_port_groups = []
+
+        for port_group in all_port_groups:
+            if isinstance(port_group, vim.dvs.DistributedVirtualPortgroup):
+                distributed_port_groups.append(port_group.name.lower())
+            else:
+                port_groups.append(port_group.name.lower())
+
+        return port_groups, distributed_port_groups
+
     def create_server(self,
                       auto_placement,
                       cpus,
@@ -322,9 +336,57 @@ class ServerClient(VsphereClient):
                     vim.vm.device.VirtualDeviceSpec.Operation.remove
                 devices.append(nicspec)
 
+        port_groups, distributed_port_groups = self._get_port_group_names()
+
         for network in networks:
             network_name = network['name']
+            network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
+
+            # Check network exists and provide helpful message if it doesn't
+            # Note that we special-case alerting if switch_distributed appears
+            # to be set incorrectly.
+            # Use lowercase name for comparison as vSphere appears to be case
+            # insensitive for this.
+            if switch_distributed:
+                error_message = (
+                    'Distributed network "{name}" not present on vSphere.'
+                )
+                if network_name_lower not in distributed_port_groups:
+                    if network_name_lower in port_groups:
+                        raise cfy_exc.NonRecoverableError(
+                            (error_message + ' However, this is present as a '
+                             'standard network. You may need to set the '
+                             'switch_distributed setting for this network to '
+                             'false.').format(name=network_name)
+                        )
+                    else:
+                        raise cfy_exc.NonRecoverableError(
+                            (error_message + ' Available distributed networks '
+                             'are: {nets}').format(
+                                name=network_name,
+                                nets=', '.join(distributed_port_groups),
+                            )
+                        )
+            else:
+                error_message = 'Network "{name}" not present on vSphere.'
+                if network_name_lower not in port_groups:
+                    if network_name_lower in distributed_port_groups:
+                        raise cfy_exc.NonRecoverableError(
+                            (error_message + ' However, this is present as a '
+                             'distributed network. You may need to set the '
+                             'switch_distributed setting for this network to '
+                             'true.').format(name=network_name)
+                        )
+                    else:
+                        raise cfy_exc.NonRecoverableError(
+                            (error_message + ' Available networks are: '
+                             '{nets}').format(
+                                name=network_name,
+                                nets=', '.join(port_groups),
+                            )
+                        )
+
             use_dhcp = network['use_dhcp']
             if switch_distributed:
                 network_obj = self._get_obj_by_name(
