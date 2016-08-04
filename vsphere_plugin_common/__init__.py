@@ -25,7 +25,7 @@ from constants import (
     NETWORKS,
 )
 
-from pyVmomi import vim
+from pyVmomi import vim, vmodl
 from pyVim.connect import SmartConnect, Disconnect
 from cloudify import ctx
 from cloudify import exceptions as cfy_exc
@@ -472,7 +472,7 @@ class ServerClient(VsphereClient):
             ctx.logger.debug("Task info: \n%s." %
                              "".join("%s: %s" % item
                                      for item in vars(task).items()))
-            self._wait_vm_running(task)
+            self._wait_vm_running(task, adaptermaps)
         except task.info.error:
             raise cfy_exc.NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."
@@ -707,10 +707,32 @@ class ServerClient(VsphereClient):
                 )
                 return ip_address
 
-    def _wait_vm_running(self, task):
+    def _task_guest_state_is_running(self, task):
+        try:
+            return task.info.result.guest.guestState == "running"
+        except vmodl.fault.ManagedObjectNotFound:
+            raise cfy_exc.NonRecoverableError(
+                'Server failed to enter running state, task has been deleted '
+                'by vCenter after failing.'
+            )
+
+    def _task_guest_has_networks(self, task, adaptermaps):
+        # We should possibly be checking that it has the number of networks
+        # expected here, but investigation will be required to confirm this
+        # behaves as expected (and the VM state check later handles it anyway)
+        if len(adaptermaps) == 0:
+            return True
+        else:
+            if len(task.info.result.guest.net) > 0:
+                return True
+            else:
+                return False
+
+    def _wait_vm_running(self, task, adaptermaps):
         self._wait_for_task(task)
-        while not task.info.result.guest.guestState == "running"\
-                or not task.info.result.guest.net:
+
+        while not self._task_guest_state_is_running(task) \
+                or not self._task_guest_has_networks(task, adaptermaps):
             time.sleep(TASK_CHECK_SLEEP)
 
 

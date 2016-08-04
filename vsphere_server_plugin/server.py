@@ -299,22 +299,31 @@ def get_state(server_client, **kwargs):
                     net['ip'] = get_ip_from_vsphere_nic_ips(network)
 
         ctx.instance.runtime_properties[NETWORKS] = nets
-        ctx.instance.runtime_properties[IP] = \
-            (manager_network_ip or
-             get_ip_from_vsphere_nic_ips(server.guest.net[0]))
-
-        public_ips = [server_client.get_server_ip(server, network['name'])
-                      for network in networks
-                      if network.get('external', False)]
-        if public_ips is None or None in public_ips:
-            return ctx.operation.retry(
-                message="IP addresses not yet assigned.",
+        try:
+            ctx.instance.runtime_properties[IP] = (
+                manager_network_ip or
+                get_ip_from_vsphere_nic_ips(server.guest.net[0])
             )
+        except IndexError:
+            ctx.logger.warn("Server has no IP addresses.")
+            ctx.instance.runtime_properties[IP] = None
 
-        # This should be debug, but left as info until CFY-4867 makes logs
-        # more visible
-        ctx.logger.info("Server public IP addresses: %s."
-                        % ", ".join(public_ips))
+        if len(server.guest.net) > 0:
+            public_ips = [server_client.get_server_ip(server, network['name'])
+                          for network in networks
+                          if network.get('external', False)]
+
+            if public_ips is None or None in public_ips:
+                return ctx.operation.retry(
+                    message="IP addresses not yet assigned.",
+                )
+
+            # This should be debug, but left as info until CFY-4867 makes logs
+            # more visible
+            ctx.logger.info("Server public IP addresses: %s."
+                            % ", ".join(public_ips))
+        else:
+            public_ips = []
 
         # I am uncertain if the logic here is correct, but as this should be
         # refactored to use the more up to date retry logic it's likely not
@@ -339,10 +348,14 @@ def get_state(server_client, **kwargs):
             # Ensure the property still exists
             ctx.instance.runtime_properties[PUBLIC_IP] = None
 
-        message = 'Server {name} has started with management IP {mgmt}'
+        message = 'Server {name} has started'
+        if manager_network_ip:
+            message += ' with management IP {mgmt}'
         if len(public_ips) > 0:
             public_ip = public_ips[0]
-            message += ' and public IP {public}'
+            if manager_network_ip:
+                message += ' and'
+            message += ' public IP {public}'
         else:
             public_ip = None
         message += '.'

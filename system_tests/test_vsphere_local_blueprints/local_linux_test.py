@@ -303,6 +303,45 @@ class VsphereLocalLinuxTest(TestCase):
         assert runtime_properties['public_ip'] is not None
         assert runtime_properties['ip'] == runtime_properties['public_ip']
 
+    def test_no_interfaces(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'no-interfaces-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Deploying linux host with no interfaces attached'
+        )
+
+        self.no_interfaces_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.no_interfaces_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        runtime_properties = get_runtime_props(
+            target_node_id='testserver',
+            node_instances=(
+                self.no_interfaces_env.storage.get_node_instances()
+            ),
+            logger=self.logger,
+        )
+
+        self.addCleanup(self.cleanup_no_interfaces)
+
+        assert runtime_properties['public_ip'] is None
+        assert runtime_properties['ip'] is None
+
     def test_storage(self):
         blueprint = os.path.join(
             self.blueprints_path,
@@ -543,6 +582,13 @@ class VsphereLocalLinuxTest(TestCase):
 
     def cleanup_no_management_net(self):
         self.no_management_net_env.execute(
+            'uninstall',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+    def cleanup_no_interfaces(self):
+        self.no_interfaces_env.execute(
             'uninstall',
             task_retries=50,
             task_retry_interval=3,
