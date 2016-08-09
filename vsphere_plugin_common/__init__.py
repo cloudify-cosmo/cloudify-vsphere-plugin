@@ -850,43 +850,133 @@ class NetworkClient(VsphereClient):
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
         ctx.logger.debug("Entering create port procedure.")
+        runtime_properties = ctx.instance.runtime_properties
+        if 'status' not in runtime_properties.keys():
+            runtime_properties['status'] = 'preparing'
 
         vswitches = self.get_vswitches()
 
-        if vswitch_name not in vswitches:
-            if len(vswitches) == 0:
+        if runtime_properties['status'] == 'preparing':
+            if vswitch_name not in vswitches:
+                if len(vswitches) == 0:
+                    raise cfy_exc.NonRecoverableError(
+                        'No valid vswitches found. '
+                        'Every physical host in the datacenter must have the '
+                        'same named vswitches available when not using '
+                        'distributed vswitches.'
+                    )
+                else:
+                    raise cfy_exc.NonRecoverableError(
+                        '{vswitch} was not a valid vswitch name. The valid '
+                        'vswitches are: {vswitches}'.format(
+                            vswitch=vswitch_name,
+                            vswitches=', '.join(vswitches),
+                        )
+                    )
+
+            if self.port_group_is_on_any_hosts(port_group_name):
                 raise cfy_exc.NonRecoverableError(
-                    'No valid vswitches found. '
-                    'Every physical host in the datacenter must have the '
-                    'same named vswitches available when not using '
-                    'distributed vswitches.'
-                )
-            else:
-                raise cfy_exc.NonRecoverableError(
-                    '{vswitch} was not a valid vswitch name. The valid '
-                    'vswitches are: {vswitches}'.format(
-                        vswitch=vswitch_name,
-                        vswitches=', '.join(vswitches),
+                    'Port group {name} already exists on vSphere.'.format(
+                        name=port_group_name,
                     )
                 )
 
-        for host in self.get_host_list():
-            network_system = host.configManager.networkSystem
-            specification = vim.host.PortGroup.Specification()
-            specification.name = port_group_name
-            specification.vlanId = vlan_id
-            specification.vswitchName = vswitch_name
-            vswitch = network_system.networkConfig.vswitch[0]
-            specification.policy = vswitch.spec.policy
-            ctx.logger.debug(
-                'Adding port group {group_name} to vSwitch {vswitch_name} on '
-                'host {host_name}'.format(
-                    group_name=port_group_name,
-                    vswitch_name=vswitch_name,
-                    host_name=host.name,
+        if runtime_properties['status'] in ('preparing', 'creating'):
+            runtime_properties['status'] = 'creating'
+            if 'created_on' not in runtime_properties.keys():
+                runtime_properties['created_on'] = []
+
+            hosts = [
+                host for host in self.get_host_list()
+                if host.name not in runtime_properties['created_on']
+            ]
+
+            for host in hosts:
+                network_system = host.configManager.networkSystem
+                specification = vim.host.PortGroup.Specification()
+                specification.name = port_group_name
+                specification.vlanId = vlan_id
+                specification.vswitchName = vswitch_name
+                vswitch = network_system.networkConfig.vswitch[0]
+                specification.policy = vswitch.spec.policy
+                ctx.logger.debug(
+                    'Adding port group {group_name} to vSwitch '
+                    '{vswitch_name} on host {host_name}'.format(
+                        group_name=port_group_name,
+                        vswitch_name=vswitch_name,
+                        host_name=host.name,
+                    )
                 )
+                try:
+                    network_system.AddPortGroup(specification)
+                except vim.fault.AlreadyExists:
+                    # We tried to create it on a previous pass, but didn't see
+                    # any confirmation (e.g. due to a problem communicating
+                    # with the vCenter)
+                    # However, we shouldn't have reached this point if it
+                    # existed before we tried to create it anywhere, so it
+                    # should be safe to proceed.
+                    pass
+                runtime_properties['created_on'].append(host.name)
+
+            if self.port_group_is_on_all_hosts(port_group_name):
+                runtime_properties['status'] = 'created'
+            else:
+                return ctx.operation.retry(
+                    'Waiting for port group {name} to be created on all '
+                    'hosts.'.format(
+                        name=port_group_name,
+                    )
+                )
+
+    def port_group_is_on_all_hosts(self, port_group_name, distributed=False):
+        port_groups, hosts = self._get_port_group_host_count(
+            port_group_name,
+            distributed,
+        )
+        return hosts == port_groups
+
+    def port_group_is_on_any_hosts(self, port_group_name, distributed=False):
+        port_groups, _ = self._get_port_group_host_count(
+            port_group_name,
+            distributed,
+        )
+        return port_groups > 0
+
+    def _get_port_group_host_count(self, port_group_name, distributed=False):
+        hosts = self.get_host_list()
+        host_count = len(hosts)
+
+        port_groups = self.get_obj_list([vim.Network])
+
+        if distributed:
+            port_groups = [
+                pg.name
+                for pg in port_groups
+                if isinstance(pg, vim.dvs.DistributedVirtualPortgroup)
+            ]
+        else:
+            port_groups = [
+                pg.name
+                for pg in port_groups
+                if not isinstance(pg, vim.dvs.DistributedVirtualPortgroup)
+            ]
+
+        port_groups = [pg for pg in port_groups if pg == port_group_name]
+
+        port_group_count = len(port_groups)
+
+        ctx.logger.debug(
+            '{type} group {name} found on {port_group_count} out of '
+            '{host_count} hosts.'.format(
+                type='Distributed port' if distributed else 'Port',
+                name=port_group_name,
+                port_group_count=port_group_count,
+                host_count=host_count,
             )
-            network_system.AddPortGroup(specification)
+        )
+
+        return port_group_count, host_count
 
     def get_port_group_by_name(self, name):
         ctx.logger.debug("Getting port group by name.")
