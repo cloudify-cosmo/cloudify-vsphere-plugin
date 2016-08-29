@@ -84,7 +84,7 @@ def check_vm_name_in_runtime_properties(runtime_props, name_prefix, logger):
     check_name_is_correct(name, name_prefix, logger)
 
 
-def check_correct_vm_name(vms, name_prefix, logger, hyphens=2):
+def check_correct_vm_name(vms, name_prefix, logger):
     # This will fail if there is more than one machine with the same name
     # However, I can't currently see a way to make this cleaner without
     # exporting the vsphere vm name as a runtime property
@@ -114,13 +114,11 @@ def check_correct_vm_name(vms, name_prefix, logger, hyphens=2):
 def check_name_is_correct(name, name_prefix, logger):
     # Name should be systemte-<id suffix (e.g. abc12)
     name = name.split('-')
-    assert (
-        len(name) > 1,
+    assert len(name) > 1, (
         'Name is expected to have at least one hyphen, before the instance ID'
     )
 
-    assert (
-        '-'.join(name[:-1]) == name_prefix,
+    assert '-'.join(name[:-1]) == name_prefix, (
         'Name {prefix} does not match expected {expected}'.format(
             prefix='-'.join(name[:-1]),
             expected=name_prefix,

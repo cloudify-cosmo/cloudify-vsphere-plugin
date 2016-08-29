@@ -63,13 +63,26 @@ def interface_has_ip(interface, ip):
 
 
 def set_ip_address(interface, ip):
+    ctx.logger.info('Assigning {ip} to {interface}'.format(
+        interface=interface,
+        ip=ip,
+    ))
+
     for i in range(0, 30):
-        if i == 0:
-            ctx.logger.info('Assigning {ip} to {interface}'.format(
-                interface=interface,
-                ip=ip,
-            ))
-        elif interface_has_ip(interface, ip):
+        # We do this each time as in troubleshooting of this test it has not
+        # always taken effect on the first run despite a 0 return code
+        with settings(
+            hide('warnings', 'running', 'stdout', 'stderr'),
+            warn_only=True,
+        ):
+            run(
+                'ip addr add {ip}/24 dev {interface}'.format(
+                    ip=ip,
+                    interface=interface,
+                )
+            )
+
+        if interface_has_ip(interface, ip):
             ctx.logger.info('{ip} assigned to {interface}'.format(
                 interface=interface,
                 ip=ip,
@@ -83,18 +96,6 @@ def set_ip_address(interface, ip):
                 )
             )
             time.sleep(1)
-        # We do this each time as in troubleshooting of this test it has not
-        # always taken effect on the first run despite a 0 return code
-        with settings(
-            hide('warnings', 'running', 'stdout', 'stderr'),
-            warn_only=True,
-        ):
-            run(
-                'ip addr add {ip}/24 dev {interface}'.format(
-                    ip=ip,
-                    interface=interface,
-                )
-            )
 
 
 def clear_ip_address(interface, ip):

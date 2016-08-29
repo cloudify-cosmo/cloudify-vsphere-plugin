@@ -90,7 +90,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_naming)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.naming_env,
+        )
 
         self.logger.info('Searching for appropriately named VM')
         vms = get_vsphere_vms_list(
@@ -142,7 +145,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_naming_underscore)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.naming_underscore_env,
+        )
 
         self.logger.info('Searching for appropriately named VM')
         vms = get_vsphere_vms_list(
@@ -196,7 +202,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_naming_no_name)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.naming_no_name_env,
+        )
 
         self.logger.info('Searching for appropriately named VM')
         vms = get_vsphere_vms_list(
@@ -251,7 +260,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_no_external_net)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.no_external_net_env,
+        )
 
         runtime_properties = get_runtime_props(
             target_node_id='testserver',
@@ -290,7 +302,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_no_management_net)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.no_management_net_env,
+        )
 
         runtime_properties = get_runtime_props(
             target_node_id='testserver',
@@ -337,7 +352,10 @@ class VsphereLocalLinuxTest(TestCase):
             logger=self.logger,
         )
 
-        self.addCleanup(self.cleanup_no_interfaces)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.no_interfaces_env,
+        )
 
         assert runtime_properties['public_ip'] is None
         assert runtime_properties['ip'] is None
@@ -372,7 +390,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_storage)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.storage_env,
+        )
 
         scsi_id = self.storage_env.outputs()['scsi_id']
         scsi_id = scsi_id.split(':')
@@ -418,7 +439,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_double_storage)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.double_storage_env,
+        )
 
         scsi_ids = self.double_storage_env.outputs()['scsi_ids']
         for scsi_id in scsi_ids:
@@ -473,7 +497,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_network)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.network_env,
+        )
 
         test_results = self.network_env.outputs()['test_results']
         assert True in test_results
@@ -519,7 +546,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_distributed_network)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.distributed_network_env,
+        )
 
         test_results = self.distributed_network_env.outputs()['test_results']
         assert True in test_results
@@ -726,71 +756,8 @@ class VsphereLocalLinuxTest(TestCase):
                 'network to true'
             ) in err.message
 
-    def cleanup_network(self):
-        self.network_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_distributed_network(self):
-        self.distributed_network_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_storage(self):
-        self.storage_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_double_storage(self):
-        self.double_storage_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_naming(self):
-        self.naming_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_naming_underscore(self):
-        self.naming_underscore_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_naming_no_name(self):
-        self.naming_no_name_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_no_external_net(self):
-        self.no_external_net_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_no_management_net(self):
-        self.no_management_net_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
-
-    def cleanup_no_interfaces(self):
-        self.no_interfaces_env.execute(
+    def generic_cleanup(self, component):
+        component.execute(
             'uninstall',
             task_retries=50,
             task_retry_interval=3,
