@@ -1,8 +1,14 @@
-from cloudify import ctx
-from cloudify.exceptions import NonRecoverableError
+# Stdlib imports
+import time
+
+# Third party imports
 from fabric.api import run, env, settings, hide
 
-import time
+# Cloudify imports
+from cloudify import ctx
+from cloudify.exceptions import NonRecoverableError
+
+# This package imports
 
 
 def check_arp(interface, ip):

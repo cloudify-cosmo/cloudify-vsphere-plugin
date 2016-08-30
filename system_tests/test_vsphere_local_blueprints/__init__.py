@@ -13,12 +13,20 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
-from cosmo_tester.framework.testenv import (initialize_without_bootstrap,
-                                            clear_environment)
+# Stdlib imports
+import string
+
+# Third party imports
 from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
 
-import string
+# Cloudify imports
+from cosmo_tester.framework.testenv import (
+    initialize_without_bootstrap,
+    clear_environment,
+)
+
+# This package imports
 
 
 def setUp():

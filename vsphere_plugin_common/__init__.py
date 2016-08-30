@@ -13,23 +13,28 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from functools import wraps
-import yaml
+# Stdlib imports
 import os
-import time
 import re
+import time
 import atexit
+from functools import wraps
 
-from constants import (
-    TASK_CHECK_SLEEP,
-    NETWORKS,
-)
-
+# Third party imports
+import yaml
+from netaddr import IPNetwork
 from pyVmomi import vim, vmodl
 from pyVim.connect import SmartConnect, Disconnect
+
+# Cloudify imports
 from cloudify import ctx
 from cloudify import exceptions as cfy_exc
-from netaddr import IPNetwork
+
+# This package imports
+from constants import (
+    NETWORKS,
+    TASK_CHECK_SLEEP,
+)
 
 
 def prepare_for_log(inputs):

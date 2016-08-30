@@ -1,6 +1,13 @@
+# Stdlib imports
+
+# Third party imports
+from fabric.api import run, env
+
+# Cloudify imports
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
-from fabric.api import run, env
+
+# This package imports
 
 
 def configure():

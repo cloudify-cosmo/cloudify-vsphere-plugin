@@ -13,16 +13,22 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
-from copy import copy
+# Stdlib imports
 import os
+from copy import copy
 
-from cosmo_tester.framework.testenv import TestCase
+# Third party imports
+
+# Cloudify imports
 from cloudify.workflows import local
 from cloudify_cli import constants as cli_constants
+from cosmo_tester.framework.testenv import TestCase
+
+# This package imports
 from . import (
+    get_runtime_props,
     get_vsphere_vms_list,
     check_correct_vm_name,
-    get_runtime_props,
     check_vm_name_in_runtime_properties,
 )
 

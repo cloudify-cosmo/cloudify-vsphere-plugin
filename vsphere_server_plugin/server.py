@@ -13,21 +13,29 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+# Stdlib imports
 import string
 
+# Third party imports
+
+# Cloudify imports
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
-from vsphere_plugin_common import (with_server_client,
-                                   ConnectionConfig,
-                                   remove_runtime_properties,
-                                   prepare_for_log,
-                                   get_ip_from_vsphere_nic_ips)
+
+# This package imports
+from vsphere_plugin_common import (
+    prepare_for_log,
+    ConnectionConfig,
+    with_server_client,
+    remove_runtime_properties,
+    get_ip_from_vsphere_nic_ips,
+)
 from vsphere_plugin_common.constants import (
-    VSPHERE_SERVER_ID,
-    PUBLIC_IP,
-    NETWORKS,
     IP,
+    NETWORKS,
+    PUBLIC_IP,
+    VSPHERE_SERVER_ID,
     SERVER_RUNTIME_PROPERTIES,
 )
 

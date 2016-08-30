@@ -13,20 +13,29 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+# Stdlib imports
+
+# Third party imports
+
+# Cloudify imports
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
-from vsphere_server_plugin.server import VSPHERE_SERVER_ID
-from vsphere_plugin_common import (with_storage_client,
-                                   prepare_for_log,
-                                   remove_runtime_properties)
+
+# This package imports
+from vsphere_plugin_common import (
+    prepare_for_log,
+    with_storage_client,
+    remove_runtime_properties,
+)
 from vsphere_plugin_common.constants import (
-    VSPHERE_STORAGE_FILE_NAME,
     VSPHERE_STORAGE_VM_ID,
     VSPHERE_STORAGE_VM_NAME,
     VSPHERE_STORAGE_SCSI_ID,
+    VSPHERE_STORAGE_FILE_NAME,
     VSPHERE_STORAGE_RUNTIME_PROPERTIES,
 )
+from vsphere_server_plugin.server import VSPHERE_SERVER_ID
 
 
 @operation

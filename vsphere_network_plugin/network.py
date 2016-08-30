@@ -13,10 +13,19 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+# Stdlib imports
+
+# Third party imports
+
+# Cloudify imports
 from cloudify import ctx
 from cloudify.decorators import operation
-from vsphere_plugin_common import (with_network_client,
-                                   remove_runtime_properties)
+
+# This package imports
+from vsphere_plugin_common import (
+    with_network_client,
+    remove_runtime_properties,
+)
 from vsphere_plugin_common.constants import(
     NETWORK_NAME,
     SWITCH_DISTRIBUTED,

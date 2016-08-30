@@ -12,6 +12,15 @@
 #  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
+
+# Stdlib imports
 import pkgutil
+
+# Third party imports
+
+# Cloudify imports
+
+# This package imports
+
 
 __path__ = pkgutil.extend_path(__path__, __name__)
