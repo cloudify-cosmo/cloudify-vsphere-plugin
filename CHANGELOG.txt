@@ -1,3 +1,11 @@
+2.0.1:
+  - Make naming of servers automatically replace underscores with hyphens, allowing nodecellar to work.
+  - Don't fail when no public or management networks are set.
+  - More consistent setting of runtime properties when public or management networks are not set.
+  - Do not fail when no interfaces are attached.
+  - Fail fast when invalid properties are provided for servers.
+  - Provide more useful feedback if network names or switch_distributed settings are incorrect.
+  - Don't return from network creation before network is created.
 2.0:
   - Add extra runtime attribute data for attached networks to include MAC address for servers.
   - Add extra runtime attribute for SCSI ID on storage nodes.

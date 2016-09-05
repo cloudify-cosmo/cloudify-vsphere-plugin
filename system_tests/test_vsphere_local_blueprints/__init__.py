@@ -13,10 +13,20 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
-from cosmo_tester.framework.testenv import (initialize_without_bootstrap,
-                                            clear_environment)
+# Stdlib imports
+import string
+
+# Third party imports
 from pyVmomi import vim
 from pyVim.connect import SmartConnect, Disconnect
+
+# Cloudify imports
+from cosmo_tester.framework.testenv import (
+    initialize_without_bootstrap,
+    clear_environment,
+)
+
+# This package imports
 
 
 def setUp():
@@ -112,16 +122,23 @@ def check_correct_vm_name(vms, name_prefix, logger):
 def check_name_is_correct(name, name_prefix, logger):
     # Name should be systemte-<id suffix (e.g. abc12)
     name = name.split('-')
-    assert len(name) == 2
-    logger.info('Candidate name has correct number of hyphens.')
+    assert len(name) > 1, (
+        'Name is expected to have at least one hyphen, before the instance ID'
+    )
 
-    assert name[0] == name_prefix
+    assert '-'.join(name[:-1]) == name_prefix, (
+        'Name {prefix} does not match expected {expected}'.format(
+            prefix='-'.join(name[:-1]),
+            expected=name_prefix,
+        )
+    )
     logger.info('Candidate has correct name prefix.')
 
-    # Suffix should be lower case hex
-    suffix = name[1]
-    suffix = suffix.strip('0123456789abcdef')
-    assert suffix == ''
+    suffix = name[-1]
+    suffix = suffix.strip(string.ascii_letters + string.digits)
+    assert suffix == '', 'Suffix contained invalid characters: {}'.format(
+        suffix,
+    )
     logger.info('Candidate has hex suffix.')
     logger.info('Candidate name appears correct!')
 

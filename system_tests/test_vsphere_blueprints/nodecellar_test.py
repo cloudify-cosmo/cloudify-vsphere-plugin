@@ -13,7 +13,14 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
+# Stdlib imports
+
+# Third party imports
+
+# Cloudify imports
 from cosmo_tester.test_suites.test_blueprints import nodecellar_test
+
+# This package imports
 
 
 class VsphereNodeCellarTest(nodecellar_test.NodecellarAppTest):

@@ -13,23 +13,76 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+# Stdlib imports
 import string
 
+# Third party imports
+
+# Cloudify imports
 from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
-from vsphere_plugin_common import (with_server_client,
-                                   ConnectionConfig,
-                                   remove_runtime_properties,
-                                   prepare_for_log,
-                                   get_ip_from_vsphere_nic_ips)
+
+# This package imports
+from vsphere_plugin_common import (
+    prepare_for_log,
+    ConnectionConfig,
+    with_server_client,
+    remove_runtime_properties,
+    get_ip_from_vsphere_nic_ips,
+)
 from vsphere_plugin_common.constants import (
-    VSPHERE_SERVER_ID,
-    PUBLIC_IP,
-    NETWORKS,
     IP,
+    NETWORKS,
+    PUBLIC_IP,
+    VSPHERE_SERVER_ID,
     SERVER_RUNTIME_PROPERTIES,
 )
+
+
+def validate_connect_network(network):
+    if 'name' not in network.keys():
+        raise cfy_exc.NonRecoverableError(
+            'All networks connected to a server must have a name specified. '
+            'Network details: {}'.format(str(network))
+        )
+
+    allowed = {
+        'name': basestring,
+        'management': bool,
+        'external': bool,
+        'switch_distributed': bool,
+        'use_dhcp': bool,
+        'network': basestring,
+        'gateway': basestring,
+        'ip': basestring,
+    }
+
+    friendly_type_mapping = {
+        basestring: 'string',
+        bool: 'boolean',
+    }
+
+    for key, value in network.items():
+        if key in allowed:
+            if not isinstance(value, allowed[key]):
+                raise cfy_exc.NonRecoverableError(
+                    'network.{key} must be of type {expected_type}'.format(
+                        key=key,
+                        expected_type=friendly_type_mapping[allowed[key]],
+                    )
+                )
+        else:
+            raise cfy_exc.NonRecoverableError(
+                'Key {key} is not valid in a connect_networks network. '
+                'Network was {name}. Valid keys are: {valid}'.format(
+                    key=key,
+                    name=network['name'],
+                    valid=','.join(allowed.keys()),
+                )
+            )
+
+    return True
 
 
 def create_new_server(server_client):
@@ -64,7 +117,7 @@ def create_new_server(server_client):
         dns_servers = networking.get('dns_servers')
         connect_networks = networking.get('connect_networks', [])
 
-        err_msg = "No more that one %s network can be specified."
+        err_msg = "No more than one %s network can be specified."
         if len([network for network in connect_networks
                 if network.get('external', False)]) > 1:
             raise cfy_exc.NonRecoverableError(err_msg % 'external')
@@ -73,6 +126,7 @@ def create_new_server(server_client):
             raise cfy_exc.NonRecoverableError(err_msg % 'management')
 
         for network in connect_networks:
+            validate_connect_network(network)
             if network.get('external', False):
                 networks.insert(
                     0,
@@ -119,7 +173,8 @@ def create_new_server(server_client):
         raise cfy_exc.NonRecoverableError(
             'Computer name must contain only A-Z, a-z, 0-9, '
             'and hyphens ("-"), and must not consist entirely of '
-            'numbers. "{name}" was not valid.'.format(name=vm_name)
+            'numbers. Underscores will be converted to hyphens. '
+            '"{name}" was not valid.'.format(name=vm_name)
         )
 
     ctx.logger.info('Creating server called {name}'.format(name=vm_name))
@@ -252,22 +307,31 @@ def get_state(server_client, **kwargs):
                     net['ip'] = get_ip_from_vsphere_nic_ips(network)
 
         ctx.instance.runtime_properties[NETWORKS] = nets
-        ctx.instance.runtime_properties[IP] = \
-            (manager_network_ip or
-             get_ip_from_vsphere_nic_ips(server.guest.net[0]))
-
-        public_ips = [server_client.get_server_ip(server, network['name'])
-                      for network in networks
-                      if network.get('external', False)]
-        if public_ips is None or None in public_ips:
-            return ctx.operation.retry(
-                message="IP addresses not yet assigned.",
+        try:
+            ctx.instance.runtime_properties[IP] = (
+                manager_network_ip or
+                get_ip_from_vsphere_nic_ips(server.guest.net[0])
             )
+        except IndexError:
+            ctx.logger.warn("Server has no IP addresses.")
+            ctx.instance.runtime_properties[IP] = None
 
-        # This should be debug, but left as info until CFY-4867 makes logs
-        # more visible
-        ctx.logger.info("Server public IP addresses: %s."
-                        % ", ".join(public_ips))
+        if len(server.guest.net) > 0:
+            public_ips = [server_client.get_server_ip(server, network['name'])
+                          for network in networks
+                          if network.get('external', False)]
+
+            if public_ips is None or None in public_ips:
+                return ctx.operation.retry(
+                    message="IP addresses not yet assigned.",
+                )
+
+            # This should be debug, but left as info until CFY-4867 makes logs
+            # more visible
+            ctx.logger.info("Server public IP addresses: %s."
+                            % ", ".join(public_ips))
+        else:
+            public_ips = []
 
         # I am uncertain if the logic here is correct, but as this should be
         # refactored to use the more up to date retry logic it's likely not
@@ -289,13 +353,26 @@ def get_state(server_client, **kwargs):
         else:
             ctx.logger.debug('Public IP check not required for {server}'
                              .format(server=server))
+            # Ensure the property still exists
+            ctx.instance.runtime_properties[PUBLIC_IP] = None
+
+        message = 'Server {name} has started'
+        if manager_network_ip:
+            message += ' with management IP {mgmt}'
+        if len(public_ips) > 0:
+            public_ip = public_ips[0]
+            if manager_network_ip:
+                message += ' and'
+            message += ' public IP {public}'
+        else:
+            public_ip = None
+        message += '.'
 
         ctx.logger.info(
-            'Server {name} has started with management IP {mgmt} and public '
-            'IP {public}.'.format(
+            message.format(
                 name=vm_name,
                 mgmt=manager_network_ip,
-                public=public_ips[0],
+                public=public_ip,
             )
         )
         return True
@@ -352,6 +429,17 @@ def get_vm_name(server):
         name_prefix = name_prefix[:max_prefix]
 
     vm_name = '-'.join([name_prefix, id_suffix])
+
+    if '_' in vm_name:
+        orig = vm_name
+        vm_name = vm_name.replace('_', '-')
+        ctx.logger.warn(
+            'Changing all _ to - in VM name. Name changed from {orig} to '
+            '{new}.'.format(
+                orig=orig,
+                new=vm_name,
+            )
+        )
     return vm_name
 
 

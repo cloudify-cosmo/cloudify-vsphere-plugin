@@ -1,6 +1,14 @@
+# Stdlib imports
+import time
+
+# Third party imports
+from fabric.api import run, env, settings, hide
+
+# Cloudify imports
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
-from fabric.api import run, env, settings, hide
+
+# This package imports
 
 
 def check_arp(interface, ip):
@@ -44,13 +52,56 @@ def get_interface(mac):
     return interface
 
 
-def set_ip_address(interface, ip):
-    run(
-        'ip addr add {ip}/24 dev {interface}'.format(
-            ip=ip,
+def interface_has_ip(interface, ip):
+    with settings(
+        hide('warnings', 'running', 'stdout', 'stderr'),
+        warn_only=True,
+    ):
+        command = 'ip addr show {interface} | grep {ip}'.format(
             interface=interface,
+            ip=ip,
         )
-    )
+        result = run(command)
+    if result.return_code == 0:
+        return False
+    elif result.return_code == 1:
+        return True
+
+
+def set_ip_address(interface, ip):
+    ctx.logger.info('Assigning {ip} to {interface}'.format(
+        interface=interface,
+        ip=ip,
+    ))
+
+    for i in range(0, 30):
+        # We do this each time as in troubleshooting of this test it has not
+        # always taken effect on the first run despite a 0 return code
+        with settings(
+            hide('warnings', 'running', 'stdout', 'stderr'),
+            warn_only=True,
+        ):
+            run(
+                'ip addr add {ip}/24 dev {interface}'.format(
+                    ip=ip,
+                    interface=interface,
+                )
+            )
+
+        if interface_has_ip(interface, ip):
+            ctx.logger.info('{ip} assigned to {interface}'.format(
+                interface=interface,
+                ip=ip,
+            ))
+            return True
+        else:
+            ctx.logger.info(
+                '{ip} not yet assigned to {interface}. Retrying...'.format(
+                    interface=interface,
+                    ip=ip,
+                )
+            )
+            time.sleep(1)
 
 
 def clear_ip_address(interface, ip):

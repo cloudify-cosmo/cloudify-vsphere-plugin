@@ -13,16 +13,22 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
-from copy import copy
+# Stdlib imports
 import os
+from copy import copy
 
-from cosmo_tester.framework.testenv import TestCase
+# Third party imports
+
+# Cloudify imports
 from cloudify.workflows import local
 from cloudify_cli import constants as cli_constants
+from cosmo_tester.framework.testenv import TestCase
+
+# This package imports
 from . import (
+    get_runtime_props,
     get_vsphere_vms_list,
     check_correct_vm_name,
-    get_runtime_props,
     check_vm_name_in_runtime_properties,
 )
 
@@ -90,7 +96,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_naming)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.naming_env,
+        )
 
         self.logger.info('Searching for appropriately named VM')
         vms = get_vsphere_vms_list(
@@ -107,6 +116,63 @@ class VsphereLocalLinuxTest(TestCase):
         )
 
         name_prefix = 'systemtestlinuxnaming'
+        check_correct_vm_name(
+            vms=vms,
+            name_prefix=name_prefix,
+            logger=self.logger,
+        )
+        check_vm_name_in_runtime_properties(
+            runtime_props=runtime_properties,
+            name_prefix=name_prefix,
+            logger=self.logger,
+        )
+
+    def test_naming_underscore_to_hyphen(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'naming_underscore-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.naming_underscore_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.naming_underscore_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.addCleanup(
+            self.generic_cleanup,
+            self.naming_underscore_env,
+        )
+
+        self.logger.info('Searching for appropriately named VM')
+        vms = get_vsphere_vms_list(
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+
+        runtime_properties = get_runtime_props(
+            target_node_id='testserver',
+            node_instances=(
+                self.naming_underscore_env.storage.get_node_instances()
+            ),
+            logger=self.logger,
+        )
+
+        name_prefix = 'systemtest-linuxnaming'
         check_correct_vm_name(
             vms=vms,
             name_prefix=name_prefix,
@@ -142,7 +208,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_naming_no_name)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.naming_no_name_env,
+        )
 
         self.logger.info('Searching for appropriately named VM')
         vms = get_vsphere_vms_list(
@@ -170,6 +239,132 @@ class VsphereLocalLinuxTest(TestCase):
             name_prefix=name_prefix,
             logger=self.logger,
         )
+
+    def test_no_external_net(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'no-external-net-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Deploying linux host with no external network assigned'
+        )
+
+        self.no_external_net_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.no_external_net_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.addCleanup(
+            self.generic_cleanup,
+            self.no_external_net_env,
+        )
+
+        runtime_properties = get_runtime_props(
+            target_node_id='testserver',
+            node_instances=(
+                self.no_external_net_env.storage.get_node_instances()
+            ),
+            logger=self.logger,
+        )
+
+        assert runtime_properties['ip'] is not None
+        assert runtime_properties['public_ip'] is None
+
+    def test_no_management_net(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'no-management-net-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Deploying linux host with no management network assigned'
+        )
+
+        self.no_management_net_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.no_management_net_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.addCleanup(
+            self.generic_cleanup,
+            self.no_management_net_env,
+        )
+
+        runtime_properties = get_runtime_props(
+            target_node_id='testserver',
+            node_instances=(
+                self.no_management_net_env.storage.get_node_instances()
+            ),
+            logger=self.logger,
+        )
+
+        assert runtime_properties['public_ip'] is not None
+        assert runtime_properties['ip'] == runtime_properties['public_ip']
+
+    def test_no_interfaces(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'no-interfaces-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Deploying linux host with no interfaces attached'
+        )
+
+        self.no_interfaces_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.no_interfaces_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        runtime_properties = get_runtime_props(
+            target_node_id='testserver',
+            node_instances=(
+                self.no_interfaces_env.storage.get_node_instances()
+            ),
+            logger=self.logger,
+        )
+
+        self.addCleanup(
+            self.generic_cleanup,
+            self.no_interfaces_env,
+        )
+
+        assert runtime_properties['public_ip'] is None
+        assert runtime_properties['ip'] is None
 
     def test_storage(self):
         blueprint = os.path.join(
@@ -201,7 +396,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_storage)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.storage_env,
+        )
 
         scsi_id = self.storage_env.outputs()['scsi_id']
         scsi_id = scsi_id.split(':')
@@ -247,7 +445,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_double_storage)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.double_storage_env,
+        )
 
         scsi_ids = self.double_storage_env.outputs()['scsi_ids']
         for scsi_id in scsi_ids:
@@ -302,7 +503,10 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_network)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.network_env,
+        )
 
         test_results = self.network_env.outputs()['test_results']
         assert True in test_results
@@ -348,48 +552,218 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_distributed_network)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.distributed_network_env,
+        )
 
         test_results = self.distributed_network_env.outputs()['test_results']
         assert True in test_results
 
-    def cleanup_network(self):
-        self.network_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
+    def test_invalid_network_name(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-fail-blueprint.yaml'
         )
 
-    def cleanup_distributed_network(self):
-        self.distributed_network_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info('Attempting to deploy with invalid network name')
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = False
+        inputs['test_network_name'] = 'notarealnetworkdonotuse'
+
+        self.invalid_network_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.invalid_network_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.invalid_network_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with an invalid network was expected to fail, but '
+                'succeeded. Network name was {}'.format(
+                    inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert inputs['test_network_name'] in err.message
+            assert 'not present' in err.message
+            assert 'Available networks are:' in err.message
+
+    def test_incorrect_switch_distributed_true(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-fail-blueprint.yaml'
         )
 
-    def cleanup_storage(self):
-        self.storage_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Attempting to deploy on standard network with '
+            'switch_distributed set to true'
         )
 
-    def cleanup_double_storage(self):
-        self.double_storage_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = True
+        inputs['test_network_name'] = (
+            self.env.cloudify_config['existing_standard_network']
         )
 
-    def cleanup_naming(self):
-        self.naming_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
+        self.incorrect_distributed_true_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.incorrect_distributed_true_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.incorrect_distributed_true_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with an invalid distributed network was expected '
+                'to fail, but succeeded. Network name was {}'.format(
+                    inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert inputs['test_network_name'] in err.message
+            assert 'not present' in err.message
+            assert (
+                'You may need to set the switch_distributed setting for this '
+                'network to false'
+            ) in err.message
+
+    def test_invalid_distributed_network_name(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-fail-blueprint.yaml'
         )
 
-    def cleanup_naming_no_name(self):
-        self.naming_no_name_env.execute(
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Attempting to deploy with invalid distributed network name'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = True
+        inputs['test_network_name'] = 'notarealdistributednetworkdonotuse'
+
+        self.invalid_distributed_network_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.invalid_distributed_network_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.invalid_distributed_network_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with an invalid distributed network was expected '
+                'to fail, but succeeded. Network name was {}'.format(
+                    inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert inputs['test_network_name'] in err.message
+            assert 'not present' in err.message
+            assert 'Available distributed networks are:' in err.message
+
+    def test_incorrect_switch_distributed_false(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-fail-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info(
+            'Attempting to deploy on distributed network with '
+            'switch_distributed set to false'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = False
+        inputs['test_network_name'] = (
+            self.env.cloudify_config['existing_distributed_network']
+        )
+
+        self.incorrect_distributed_false_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.incorrect_distributed_false_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.incorrect_distributed_false_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with an invalid standard network was expected '
+                'to fail, but succeeded. Network name was {}'.format(
+                    inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert inputs['test_network_name'] in err.message
+            assert 'not present' in err.message
+            assert (
+                'You may need to set the switch_distributed setting for this '
+                'network to true'
+            ) in err.message
+
+    def generic_cleanup(self, component):
+        component.execute(
             'uninstall',
             task_retries=50,
             task_retry_interval=3,
