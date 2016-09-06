@@ -26,7 +26,7 @@ from vsphere_plugin_common import (
     with_network_client,
     remove_runtime_properties,
 )
-from vsphere_plugin_common.constants import(
+from vsphere_plugin_common.constants import (
     NETWORK_NAME,
     SWITCH_DISTRIBUTED,
     NETWORK_RUNTIME_PROPERTIES,
