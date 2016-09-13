@@ -1081,9 +1081,9 @@ class StorageClient(VsphereClient):
             vim.vm.device.VirtualDeviceSpec.FileOperation.create
 
         virtual_device_spec.device = vim.vm.device.VirtualDisk()
-        virtual_device_spec.device.capacityInKB = storage_size*1024*1024
+        virtual_device_spec.device.capacityInKB = storage_size * 1024 * 1024
         virtual_device_spec.device.capacityInBytes =\
-            storage_size*1024*1024*1024
+            storage_size * 1024 * 1024 * 1024
         virtual_device_spec.device.backing =\
             vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
         virtual_device_spec.device.backing.diskMode = 'Persistent'
@@ -1281,9 +1281,9 @@ class StorageClient(VsphereClient):
             vim.vm.device.VirtualDeviceSpec.Operation.edit
 
         virtual_device_spec.device = disk_to_resize
-        virtual_device_spec.device.capacityInKB = storage_size*1024*1024
+        virtual_device_spec.device.capacityInKB = storage_size * 1024 * 1024
         virtual_device_spec.device.capacityInBytes =\
-            storage_size*1024*1024*1024
+            storage_size * 1024 * 1024 * 1024
 
         updated_devices.append(virtual_device_spec)
 

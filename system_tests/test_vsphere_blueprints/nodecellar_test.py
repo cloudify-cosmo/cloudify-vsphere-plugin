@@ -39,7 +39,7 @@ class VsphereNodeCellarTest(nodecellar_test.NodecellarAppTest):
             'template_name': self.env.template,
             'agent_user': self.env.agent_user,
             # from manager blueprint inputs
-            'management_network':  self.env.management_network_name,
+            'management_network': self.env.management_network_name,
             'external_network': self.env.external_network_name,
         }
 
