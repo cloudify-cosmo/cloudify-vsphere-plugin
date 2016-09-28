@@ -105,6 +105,16 @@ def create_new_server(server_client):
     dns_servers = None
     networking = ctx.node.properties.get('networking')
 
+    allowed_hosts = ctx.node.properties.get('allowed_hosts')
+    if isinstance(allowed_hosts, basestring):
+        allowed_hosts = [allowed_hosts]
+    allowed_clusters = ctx.node.properties.get('allowed_clusters')
+    if isinstance(allowed_clusters, basestring):
+        allowed_clusters = [allowed_clusters]
+    allowed_datastores = ctx.node.properties.get('allowed_datastores')
+    if isinstance(allowed_datastores, basestring):
+        allowed_datastores = [allowed_datastores]
+
     # This should be debug, but left as info until CFY-4867 makes logs more
     # visible
     ctx.logger.info(
@@ -188,7 +198,10 @@ def create_new_server(server_client):
                                          vm_name,
                                          os_type,
                                          domain,
-                                         dns_servers)
+                                         dns_servers,
+                                         allowed_hosts,
+                                         allowed_clusters,
+                                         allowed_datastores)
     ctx.logger.info('Successfully created server called {name}'.format(
                     name=vm_name))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server._moId

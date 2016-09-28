@@ -9,22 +9,14 @@ inputs:
     description: >
       Template to clone VMs from
     default: WindowsServer2012R2ByCloudifyDefault
-  external_network:
-    description: >
-      Which external network to deploy the VM on
-    default: VM Network
-  external_network_distributed:
-    description: >
-      Whether the external network is on a distributed switch
-    default: true
   management_network:
     description: >
-      Which management network to deploy the VM on
-    default: VM Network
-  management_network_distributed:
+      Not used in this test, kept to simplify test code.
+    default: notused
+  external_network:
     description: >
-      Whether the management network is on a distributed switch
-    default: true
+      Not used in this test, kept to simplify test code.
+    default: notused
   vsphere_username:
     type: string
     description: >
@@ -61,6 +53,28 @@ inputs:
       signifies if server is to be automatically placed on a host
     default: false
     type: boolean
+  cpus:
+    description: >
+      How many CPUs to assign to the VM
+    default: 1
+    type: integer
+  memory:
+    description: >
+      How much memory to assign to the VM
+    default: 1024
+    type: integer
+  allowed_hosts:
+    description: >
+      Which hosts are allowed for deployment.
+    default: []
+  allowed_clusters:
+    description: >
+      Which clusters are allowed for deployment.
+    default: []
+  allowed_datastores:
+    description: >
+      Which datastores are allowed for deployment.
+    default: []
 
 node_types:
   connection_configuration:
@@ -81,18 +95,16 @@ node_templates:
         resource_pool_name: { get_input: vsphere_resource_pool_name }
         auto_placement: { get_input: vsphere_auto_placement }
 
-  testserver:
+  testserver1:
     type: cloudify.vsphere.nodes.Server
     properties:
       install_agent: false
+      allowed_hosts: { get_input: allowed_hosts }
+      allowed_clusters: { get_input: allowed_clusters }
+      allowed_datastores: { get_input: allowed_datastores }
       server:
-        name: systemtestlinuxnoexternalnet
+        name: systestfail
         template: { get_input: template_name }
-        cpus: 1
-        memory: 2048
-      networking:
-        connect_networks:
-          - name: { get_input: external_network }
-            switch_distributed: { get_input: external_network_distributed }
-            management: True
+        cpus: { get_input: cpus }
+        memory: { get_input: memory }
       connection_config: { get_property: [connection_configuration, connection_config] }

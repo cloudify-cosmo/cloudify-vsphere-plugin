@@ -18,7 +18,7 @@ import socket
 import time
 import unittest
 
-from vsphere_integration_tests import common as tests_common
+import vsphere_tests_common as tests_common
 
 from cloudify import mocks
 from vsphere_server_plugin import server as server_plugin
