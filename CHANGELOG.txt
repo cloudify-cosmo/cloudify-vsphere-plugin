@@ -2,6 +2,7 @@
   - Support restrictions on deployment location by setting one or more allowed hosts, clusters, or datastores.
   - Better logic for selecting deployment locations to ensure selected hosts have all required resources.
   - Improve health checks on hypervisors and datastores when determining availability for VM deployment.
+  - Remove defaults from plugin.yaml connection config to avoid them always overriding manager connection config.
 2.0.1:
   - Make naming of servers automatically replace underscores with hyphens, allowing nodecellar to work.
   - Don't fail when no public or management networks are set.

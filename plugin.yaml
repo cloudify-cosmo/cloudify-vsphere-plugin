@@ -38,20 +38,17 @@ data_types:
                     Must be true if you are using clusters.
                 type: string
                 required: false
-                default: false
             resource_pool_name:
                 description: >
                     Name of a resource pool.
                     Defaults to Resources, which is a hidden resource pool on vSphere.
                 type: string
                 required: false
-                default: 'Resources'
             port:
                 description: >
                     vCenter port for SDK.
                 type: integer
                 required: false
-                default: 443
 
     cloudify.datatypes.vsphere.ServerProperties:
         properties:
@@ -126,7 +123,6 @@ node_types:
             networking:
                 type: cloudify.datatypes.vsphere.NetworkingProperties
             connection_config:
-                default: {}
                 type: cloudify.datatypes.vsphere.Config
         interfaces:
             cloudify.interfaces.lifecycle:
