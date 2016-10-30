@@ -192,6 +192,12 @@ class VsphereClient(object):
                 "Error during executing task on vSphere: '{0}'"
                 .format(task.info.error))
 
+    def _port_group_is_distributed(self, port_group):
+        return isinstance(
+            port_group,
+            vim.dvs.DistributedVirtualPortgroup,
+        )
+
     def get_vm_networks(self, vm):
         """
             Get details of every network interface on a VM.
@@ -274,12 +280,185 @@ class ServerClient(VsphereClient):
         distributed_port_groups = []
 
         for port_group in all_port_groups:
-            if isinstance(port_group, vim.dvs.DistributedVirtualPortgroup):
+            if self._port_group_is_distributed(port_group):
                 distributed_port_groups.append(port_group.name.lower())
             else:
                 port_groups.append(port_group.name.lower())
 
         return port_groups, distributed_port_groups
+
+    def _validate_allowed(self, thing_type, allowed_things, existing_things):
+        """
+            Validate that an allowed hosts, clusters, or datastores list is
+            valid.
+        """
+        ctx.logger.debug(
+            'Checking allowed {thing}s list.'.format(thing=thing_type)
+        )
+        not_things = set(allowed_things).difference(set(existing_things))
+        if len(not_things) == len(allowed_things):
+            return (
+                'No allowed {thing}s exist. Allowed {thing}(s): {allow}. '
+                'Existing {thing}(s): {exist}.'.format(
+                    allow=', '.join(allowed_things),
+                    exist=', '.join(existing_things),
+                    thing=thing_type,
+                )
+            )
+        elif len(not_things) > 0:
+            ctx.logger.warn(
+                'One or more specified allowed {thing}s do not exist: '
+                '{not_things}'.format(
+                    thing=thing_type,
+                    not_things=', '.join(not_things),
+                )
+            )
+
+    def _validate_inputs(self,
+                         allowed_hosts,
+                         allowed_clusters,
+                         allowed_datastores,
+                         template_name,
+                         datacenter_name,
+                         resource_pool_name,
+                         networks,
+                         vm_cpus,
+                         vm_memory):
+        """
+            Make sure we can actually continue with the inputs given.
+            If we can't, we want to report all of the issues t once.
+        """
+        ctx.logger.debug('Validating inputs for this platform.')
+        issues = []
+
+        hosts = self.get_obj_list([vim.HostSystem])
+        host_names = [host.name for host in hosts]
+
+        if allowed_hosts:
+            error = self._validate_allowed('host', allowed_hosts, host_names)
+            if error:
+                issues.append(error)
+
+        if allowed_clusters:
+            cluster_list = self.get_clusters()
+            cluster_names = [cluster.name for cluster in cluster_list]
+            error = self._validate_allowed(
+                'cluster',
+                allowed_clusters,
+                cluster_names,
+            )
+            if error:
+                issues.append(error)
+
+        if allowed_datastores:
+            datastore_list = self.get_datastores()
+            datastore_names = [datastore.name for datastore in datastore_list]
+            error = self._validate_allowed(
+                'datastore',
+                allowed_datastores,
+                datastore_names,
+            )
+            if error:
+                issues.append(error)
+
+        ctx.logger.debug('Checking template exists.')
+        template_vm = self._get_obj_by_name([vim.VirtualMachine],
+                                            template_name)
+        if template_vm is None:
+            issues.append("VM template {0} could not be found.".format(
+                template_name
+            ))
+
+        ctx.logger.debug('Checking resource pool exists.')
+        resource_pool = self._get_obj_by_name(
+            [vim.ResourcePool],
+            resource_pool_name,
+        )
+        if resource_pool is None:
+            issues.append("Resource pool {0} could not be found.".format(
+                resource_pool_name,
+            ))
+
+        ctx.logger.debug('Checking datacenter exists.')
+        datacenter = self._get_obj_by_name([vim.Datacenter],
+                                           datacenter_name)
+        if datacenter is None:
+            issues.append("Datacenter {0} could not be found.".format(
+                datacenter_name
+            ))
+
+        ctx.logger.debug(
+            'Checking networks exist.'
+        )
+        port_groups, distributed_port_groups = self._get_port_group_names()
+        for network in networks:
+            network_name = network['name']
+            network_name_lower = network_name.lower()
+            switch_distributed = network['switch_distributed']
+
+            list_distributed_networks = False
+            list_networks = False
+            # Check network exists and provide helpful message if it doesn't
+            # Note that we special-case alerting if switch_distributed appears
+            # to be set incorrectly.
+            # Use lowercase name for comparison as vSphere appears to be case
+            # insensitive for this.
+            if switch_distributed:
+                error_message = (
+                    'Distributed network "{name}" not present on vSphere.'
+                )
+                if network_name_lower not in distributed_port_groups:
+                    if network_name_lower in port_groups:
+                        issues.append(
+                            (error_message + ' However, this is present as a '
+                             'standard network. You may need to set the '
+                             'switch_distributed setting for this network to '
+                             'false.').format(name=network_name)
+                        )
+                    else:
+                        issues.append(error_message.format(name=network_name))
+                        list_distributed_networks = True
+            else:
+                error_message = 'Network "{name}" not present on vSphere.'
+                if network_name_lower not in port_groups:
+                    if network_name_lower in distributed_port_groups:
+                        issues.append(
+                            (error_message + ' However, this is present as a '
+                             'distributed network. You may need to set the '
+                             'switch_distributed setting for this network to '
+                             'true.').format(name=network_name)
+                        )
+                    else:
+                        issues.append(error_message.format(name=network_name))
+                        list_networks = True
+
+            if list_distributed_networks:
+                issues.append(
+                    (' Available distributed networks '
+                     'are: {nets}.').format(
+                        name=network_name,
+                        nets=', '.join(distributed_port_groups),
+                    )
+                )
+            if list_networks:
+                issues.append(
+                    (' Available networks are: '
+                     '{nets}.').format(
+                        name=network_name,
+                        nets=', '.join(port_groups),
+                    )
+                )
+
+        if vm_cpus < 1:
+            issues.append('At least one vCPU must be assigned.')
+
+        if vm_memory < 1:
+            issues.append('Assigned memory cannot be less than 1MB.')
+
+        if issues:
+            issues.insert(0, 'Issues found while validating inputs:')
+            message = ' '.join(issues)
+            raise cfy_exc.NonRecoverableError(message)
 
     def create_server(self,
                       auto_placement,
@@ -292,37 +471,60 @@ class ServerClient(VsphereClient):
                       vm_name,
                       os_type='linux',
                       domain=None,
-                      dns_servers=None):
+                      dns_servers=None,
+                      allowed_hosts=None,
+                      allowed_clusters=None,
+                      allowed_datastores=None):
         ctx.logger.debug("Entering create_server with parameters %s"
                          % prepare_for_log(locals()))
-        host, datastore = self.place_vm(auto_placement)
 
-        # This should be debug, but left as info until CFY-4867 makes logs
-        # more visible
-        ctx.logger.info("Using datastore %s for manager node." % datastore)
-        devices = []
-        adaptermaps = []
+        self._validate_inputs(
+            allowed_hosts=allowed_hosts,
+            allowed_clusters=allowed_clusters,
+            allowed_datastores=allowed_datastores,
+            template_name=template_name,
+            networks=networks,
+            resource_pool_name=resource_pool_name,
+            datacenter_name=datacenter_name,
+            vm_cpus=cpus,
+            vm_memory=memory,
+        )
 
-        datacenter = self._get_obj_by_name([vim.Datacenter],
-                                           datacenter_name)
-        if datacenter is None:
-            msg = "Datacenter {0} could not be found".format(datacenter_name)
-            raise cfy_exc.NonRecoverableError(msg)
-
-        resource_pool = self._get_obj_by_name([vim.ResourcePool],
-                                              resource_pool_name,
-                                              host.name if host else None,
-                                              recursive_parent=True)
-        if resource_pool is None:
-            msg = ("Resource pool {0} could not be found.".format(
-                   resource_pool_name))
-            raise cfy_exc.NonRecoverableError(msg)
+        candidate_hosts = self.find_candidate_hosts(
+            resource_pool=resource_pool_name,
+            vm_cpus=cpus,
+            vm_memory=memory,
+            vm_networks=networks,
+            allowed_hosts=allowed_hosts,
+            allowed_clusters=allowed_clusters,
+        )
 
         template_vm = self._get_obj_by_name([vim.VirtualMachine],
                                             template_name)
-        if template_vm is None:
-            msg = "VM template {0} could not be found.".format(template_name)
-            raise cfy_exc.NonRecoverableError(msg)
+
+        host, datastore = self.select_host_and_datastore(
+            candidate_hosts=candidate_hosts,
+            vm_memory=memory,
+            template=template_vm,
+            allowed_datastores=allowed_datastores,
+        )
+        ctx.logger.debug(
+            'Using host {host} and datastore {ds} for deployment.'.format(
+                host=host.name,
+                ds=datastore.name,
+            )
+        )
+
+        devices = []
+        adaptermaps = []
+
+        resource_pool = self.get_resource_pool(
+            host=host,
+            resource_pool_name=resource_pool_name,
+        )
+
+        datacenter = self._get_obj_by_name([vim.Datacenter],
+                                           datacenter_name)
 
         destfolder = datacenter.vmFolder
         relospec = vim.vm.RelocateSpec()
@@ -347,50 +549,6 @@ class ServerClient(VsphereClient):
             network_name = network['name']
             network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
-
-            # Check network exists and provide helpful message if it doesn't
-            # Note that we special-case alerting if switch_distributed appears
-            # to be set incorrectly.
-            # Use lowercase name for comparison as vSphere appears to be case
-            # insensitive for this.
-            if switch_distributed:
-                error_message = (
-                    'Distributed network "{name}" not present on vSphere.'
-                )
-                if network_name_lower not in distributed_port_groups:
-                    if network_name_lower in port_groups:
-                        raise cfy_exc.NonRecoverableError(
-                            (error_message + ' However, this is present as a '
-                             'standard network. You may need to set the '
-                             'switch_distributed setting for this network to '
-                             'false.').format(name=network_name)
-                        )
-                    else:
-                        raise cfy_exc.NonRecoverableError(
-                            (error_message + ' Available distributed networks '
-                             'are: {nets}').format(
-                                name=network_name,
-                                nets=', '.join(distributed_port_groups),
-                            )
-                        )
-            else:
-                error_message = 'Network "{name}" not present on vSphere.'
-                if network_name_lower not in port_groups:
-                    if network_name_lower in distributed_port_groups:
-                        raise cfy_exc.NonRecoverableError(
-                            (error_message + ' However, this is present as a '
-                             'distributed network. You may need to set the '
-                             'switch_distributed setting for this network to '
-                             'true.').format(name=network_name)
-                        )
-                    else:
-                        raise cfy_exc.NonRecoverableError(
-                            (error_message + ' Available networks are: '
-                             '{nets}').format(
-                                name=network_name,
-                                nets=', '.join(port_groups),
-                            )
-                        )
 
             use_dhcp = network['use_dhcp']
             if switch_distributed:
@@ -596,139 +754,526 @@ class ServerClient(VsphereClient):
         ctx.logger.debug("Entering server list procedure.")
         return self.get_obj_list([vim.VirtualMachine])
 
-    def place_vm(self, auto_placement, except_datastores=[]):
-        ctx.logger.debug("Entering place VM procedure.")
-        selected_datastore = None
-        selected_host = None
-        selected_host_memory = 0
-        selected_host_memory_used = 0
-        datastore_list = self.get_obj_list([vim.Datastore])
-        if len(except_datastores) == len(datastore_list):
-            msg = ("Error during trying to place VM: "
-                   "datastore and host can't be selected.")
-            raise cfy_exc.NonRecoverableError(msg)
+    def find_candidate_hosts(self,
+                             resource_pool,
+                             vm_cpus,
+                             vm_memory,
+                             vm_networks,
+                             allowed_hosts=None,
+                             allowed_clusters=None):
+        ctx.logger.debug('Finding suitable hosts for deployment.')
+
+        hosts = self.get_obj_list([vim.HostSystem])
+        host_names = [host.name for host in hosts]
         ctx.logger.debug(
-            'Looking for datastore with most remaining space from '
-            '{datastores}'.format(
-                datastores=''.join(
-                    [datastore.name for datastore in datastore_list]
-                )
+            'Found hosts: {hosts}'.format(
+                hosts=', '.join(host_names),
             )
         )
-        for datastore in datastore_list:
-            if datastore._moId not in except_datastores:
-                dtstr_free_spc = datastore.info.freeSpace
-                if selected_datastore is None:
-                    selected_datastore = datastore
-                    ctx.logger.debug(
-                        'Using first datastore {name} with remaining '
-                        '{space}'.format(
-                            name=datastore.name,
-                            space=datastore.info.freeSpace,
-                        )
-                    )
-                else:
-                    selected_dtstr_free_spc = selected_datastore.info.freeSpace
-                    ctx.logger.debug(
-                        'Checking datastore {name} with remaining '
-                        '{space}'.format(
-                            name=datastore.name,
-                            space=datastore.info.freeSpace,
-                        )
-                    )
-                    if dtstr_free_spc > selected_dtstr_free_spc:
-                        selected_datastore = datastore
-                        ctx.logger.debug(
-                            'Selected this datastore as a better candidate.'
-                        )
 
-        if selected_datastore is None:
-            msg = "Error during placing VM: no datastore found."
-            raise cfy_exc.NonRecoverableError(msg)
+        if allowed_hosts:
+            hosts = [host for host in hosts if host.name in allowed_hosts]
+            ctx.logger.debug(
+                'Filtered list of hosts to be considered: {hosts}'.format(
+                    hosts=', '.join(host_names),
+                )
+            )
 
-        if auto_placement:
-            # This should be debug, but left as info until CFY-4867 makes logs
-            # more visible
-            ctx.logger.info('Using datastore {name}.'
-                            .format(name=selected_datastore.name))
-            return None, selected_datastore
+        if allowed_clusters:
+            cluster_list = self.get_clusters()
+            cluster_names = [cluster.name for cluster in cluster_list]
+            valid_clusters = set(allowed_clusters).union(set(cluster_names))
+            ctx.logger.debug(
+                'Only hosts on the following clusters will be used: '
+                '{clusters}'.format(
+                    clusters=', '.join(valid_clusters),
+                )
+            )
 
-        # This should be debug, but left as info until CFY-4867 makes logs
-        # more visible
-        ctx.logger.info('Trying to use datastore {name} for deployment.'
-                        .format(name=selected_datastore.name))
-
-        for host_mount in selected_datastore.host:
-            host = host_mount.key
-            if host.overallStatus != vim.ManagedEntity.Status.red:
-                if selected_host is None:
-                    selected_host = host
-                    ctx.logger.debug(
-                        'Using first host {name}'.format(
-                            name=host.name,
-                        )
-                    )
-                else:
-                    host_memory = host.hardware.memorySize
-                    host_memory_used = 0
-                    for vm in host.vm:
-                        if not vm.summary.config.template:
-                            host_memory_used += vm.summary.config.memorySizeMB
-
-                    host_memory_delta = host_memory - host_memory_used
-                    selected_host_memory_delta =\
-                        selected_host_memory - selected_host_memory_used
-                    ctx.logger.debug(
-                        'Comparing candidate host {candidate_name} with '
-                        'available memory {candidate_memory} to current '
-                        'selected host {host} with available memory '
-                        '{memory}'.format(
-                            candidate_name=host.name,
-                            candidate_memory=host_memory_delta,
-                            host=selected_host.name,
-                            memory=selected_host_memory_delta,
-                        )
-                    )
-                    if host_memory_delta > selected_host_memory_delta:
-                        selected_host = host
-                        selected_host_memory = host_memory
-                        selected_host_memory_used = host_memory_used
-            else:
+        candidate_hosts = []
+        for host in hosts:
+            if not self.host_is_usable(host):
                 ctx.logger.warn(
-                    'Can not use host {name} for deployment. Status is '
-                    'red.'.format(
-                        name=selected_datastore.name,
+                    'Host {host} not usable due to health status.'.format(
+                        host=host.name,
+                    )
+                )
+                continue
+
+            if allowed_clusters:
+                cluster = self.get_host_cluster_membership(host)
+                if cluster not in allowed_clusters:
+                    if cluster:
+                        ctx.logger.warn(
+                            'Host {host} is in cluster {cluster}, '
+                            'which is not an allowed cluster.'.format(
+                                host=host.name,
+                                cluster=cluster,
+                            )
+                        )
+                    else:
+                        ctx.logger.warn(
+                            'Host {host} is not in a cluster, '
+                            'and allowed clusters have been set.'.format(
+                                host=host.name,
+                            )
+                        )
+                    continue
+
+            free_memory = self.get_host_free_memory(host)
+
+            if free_memory - vm_memory < 0:
+                ctx.logger.warn(
+                    'Host {host} does not have enough free memory.'.format(
+                        host=host.name,
+                    )
+                )
+                continue
+
+            resource_pools = self.get_host_resource_pools(host)
+            resource_pools = [pool.name for pool in resource_pools]
+            if resource_pool not in resource_pools:
+                ctx.logger.warn(
+                    'Host {host} does not have resource pool {rp}.'.format(
+                        host=host.name,
+                        rp=resource_pool,
+                    )
+                )
+                continue
+
+            host_nets = set([
+                (
+                    network['name'],
+                    network['switch_distributed'],
+                )
+                for network in self.get_host_networks(host)
+            ])
+            vm_nets = set([
+                (
+                    network['name'],
+                    network['switch_distributed'],
+                )
+                for network in vm_networks
+            ])
+
+            nets_not_on_host = vm_nets.difference(host_nets)
+
+            if nets_not_on_host:
+                message = 'Host {host} does not have all required networks. '
+
+                missing_standard_nets = ', '.join([
+                    net[0] for net in nets_not_on_host
+                    if not net[1]
+                ])
+                missing_distributed_nets = ', '.join([
+                    net[0] for net in nets_not_on_host
+                    if net[1]
+                ])
+
+                if missing_standard_nets:
+                    message += 'Missing standard networks: {nets}. '
+
+                if missing_distributed_nets:
+                    message += 'Missing distributed networks: {dnets}. '
+
+                ctx.logger.warn(
+                    message.format(
+                        host=host.name,
+                        nets=missing_standard_nets,
+                        dnets=missing_distributed_nets,
+                    )
+                )
+                continue
+
+            ctx.logger.debug(
+                'Host {host} is a candidate for deployment.'.format(
+                    host=host.name,
+                )
+            )
+            candidate_hosts.append(host)
+
+        # Sort hosts based on the best processor ratio after deployment
+        candidate_hosts = [
+            (
+                host,
+                self.host_cpu_thread_usage_ratio(host, vm_cpus)
+            ) for host in candidate_hosts
+        ]
+        if candidate_hosts:
+            ctx.logger.debug(
+                'Host CPU ratios: {ratios}'.format(
+                    ratios=', '.join([
+                        '{hostname}: {ratio}'.format(
+                            hostname=c[0].name,
+                            ratio=c[1]
+                        ) for c in candidate_hosts
+                    ])
+                )
+            )
+        candidate_hosts.sort(
+            reverse=True,
+            key=lambda host_rating: host_rating[1]
+        )
+        candidate_hosts = [
+            host[0] for host in candidate_hosts
+        ]
+
+        if candidate_hosts:
+            return candidate_hosts
+        else:
+            message = (
+                "No healthy hosts could be found with resource pool {pool}, "
+                "all required networks, and at least {memory} free memory."
+            ).format(pool=resource_pool, memory=vm_memory)
+
+            if allowed_hosts:
+                message += " Only these hosts were allowed: {hosts}".format(
+                    hosts=', '.join(allowed_hosts)
+                )
+            if allowed_clusters:
+                message += (
+                    " Only hosts in these clusters were allowed: {clusters}"
+                ).format(
+                    clusters=', '.join(allowed_clusters)
+                )
+
+            raise cfy_exc.NonRecoverableError(message)
+
+    def get_resource_pool(self, host, resource_pool_name):
+        """
+            Get the correct resource pool object from the given host.
+        """
+        resource_pools = self.get_host_resource_pools(host)
+        for resource_pool in resource_pools:
+            if resource_pool.name == resource_pool_name:
+                return resource_pool
+        # If we get here, we somehow selected a host without the right
+        # resource pool. This should not be able to happen.
+        raise cfy_exc.NonRecoverableError(
+            'Resource pool {rp} not found on host {host}. '
+            'Pools found were: {pools}'.format(
+                rp=resource_pool_name,
+                host=host.name,
+                pools=', '.join([p.name for p in resource_pools]),
+            )
+        )
+
+    def select_host_and_datastore(self,
+                                  candidate_hosts,
+                                  vm_memory,
+                                  template,
+                                  allowed_datastores=None):
+        """
+            Select which host and datastore to use.
+            This will assume that the hosts are sorted from most desirable to
+            least desirable.
+        """
+        ctx.logger.debug('Selecting best host and datastore.')
+
+        best_host = None
+        best_datastore = None
+        best_datastore_weighting = None
+
+        if allowed_datastores:
+            datastore_list = self.get_datastores()
+            datastore_names = [datastore.name for datastore in datastore_list]
+
+            valid_datastores = set(allowed_datastores).union(
+                set(datastore_names)
+            )
+            ctx.logger.debug(
+                'Only the following datastores will be used: '
+                '{datastores}'.format(
+                    datastores=', '.join(valid_datastores),
+                )
+            )
+
+        for host in candidate_hosts:
+            ctx.logger.debug('Considering host {host}'.format(host=host.name))
+
+            datastores = host.datastore
+            ctx.logger.debug(
+                'Host {host} has datastores: {ds}'.format(
+                    host=host.name,
+                    ds=', '.join([ds.name for ds in datastores]),
+                )
+            )
+            if allowed_datastores:
+                ctx.logger.debug(
+                    'Checking only allowed datastores: {allow}'.format(
+                        allow=', '.join(allowed_datastores),
                     )
                 )
 
-        if selected_host is None:
-            except_datastores.append(selected_datastore._moId)
-            ctx.logger.warn(
-                'Not using datastore {datastore}. No suitable host '
-                'found.'.format(
-                    datastore=selected_datastore.name,
+                datastores = [
+                    ds for ds in datastores
+                    if ds.name in allowed_datastores
+                ]
+
+                if len(datastores) == 0:
+                    ctx.logger.warn(
+                        'Host {host} had no allowed datastores.'.format(
+                            host=host.name,
+                        )
+                    )
+                    continue
+
+            ctx.logger.debug(
+                'Filtering for healthy datastores on host {host}'.format(
+                    host=host.name,
                 )
             )
-            return self.place_vm(auto_placement, except_datastores)
 
-        # This should be debug, but left as info until CFY-4867 makes logs
-        # more visible
-        ctx.logger.info(
-            'Deploying to host {name} on datastore {datastore}'.format(
-                name=host.name,
-                datastore=selected_datastore.name,
-            )
-        )
-        ctx.logger.debug("Selected datastore info: \n%s." %
-                         "".join("%s: %s" % item
-                                 for item in
-                                 vars(selected_datastore).items()))
-        ctx.logger.debug("Selected host info: \n%s." %
-                         "".join("%s: %s" % item
-                                 for item in
-                                 vars(selected_host).items()))
+            healthy_datastores = []
+            for datastore in datastores:
+                if self.datastore_is_usable(datastore):
+                    ctx.logger.debug(
+                        'Datastore {ds} on host {host} is healthy.'.format(
+                            ds=datastore.name,
+                            host=host.name,
+                        )
+                    )
+                    healthy_datastores.append(datastore)
+                else:
+                    ctx.logger.warn(
+                        'Excluding datastore {ds} on host {host} as it is '
+                        'not healthy.'.format(
+                            ds=datastore.name,
+                            host=host.name,
+                        )
+                    )
 
-        return selected_host, selected_datastore
+            if len(healthy_datastores) == 0:
+                ctx.logger.warn(
+                    'Host {host} has no usable datastores.'.format(
+                        host=host.name,
+                    )
+                )
+
+            candidate_datastores = []
+            for datastore in healthy_datastores:
+                weighting = self.calculate_datastore_weighting(
+                    datastore=datastore,
+                    vm_memory=vm_memory,
+                    template=template,
+                )
+                if weighting is not None:
+                    ctx.logger.debug(
+                        'Datastore {ds} on host {host} has suitability '
+                        '{weight}'.format(
+                            ds=datastore.name,
+                            weight=weighting,
+                            host=host.name,
+                        )
+                    )
+                    candidate_datastores.append((datastore, weighting))
+                else:
+                    ctx.logger.warn(
+                        'Datastore {ds} on host {host} does not have enough '
+                        'free space.'.format(
+                            ds=datastore.name,
+                            host=host.name,
+                        )
+                    )
+
+            if candidate_datastores:
+                candidate_host = host
+                candidate_datastore, candidate_datastore_weighting = max(
+                    candidate_datastores,
+                    key=lambda datastore: datastore[1],
+                )
+
+                if best_datastore is None:
+                    best_host = candidate_host
+                    best_datastore = candidate_datastore
+                    best_datastore_weighting = candidate_datastore_weighting
+                else:
+                    if best_datastore_weighting < 0:
+                        # Use the most desirable host unless it can't house
+                        # the VM's maximum space usage (assuming the entire
+                        # virtual disk is filled up), and unless this
+                        # datastore can.
+                        if candidate_datastore_weighting >= 0:
+                            best_host = candidate_host
+                            best_datastore = candidate_datastore
+                            best_datastore_weighting = (
+                                candidate_datastore_weighting
+                            )
+
+                if candidate_host == best_host and (
+                    candidate_datastore == best_datastore
+                ):
+                    ctx.logger.debug(
+                        'Host {host} and datastore {datastore} are current '
+                        'best candidate. Best datastore weighting '
+                        '{weight}.'.format(
+                            host=best_host.name,
+                            datastore=best_datastore.name,
+                            weight=best_datastore_weighting,
+                        )
+                    )
+
+        if best_host is not None:
+            return best_host, best_datastore
+        else:
+            message = 'No datastores found with enough space.'
+            if allowed_datastores:
+                message += ' Only these datastores were allowed: {ds}'
+                message = message.format(ds=', '.join(allowed_datastores))
+            message += ' Only the suitable candidate hosts were checked: '
+            message += '{hosts}'.format(hosts=', '.join(
+                [host.name for host in candidate_hosts]
+            ))
+            raise cfy_exc.NonRecoverableError(message)
+
+    def get_host_free_memory(self, host):
+        """
+            Get the amount of unallocated memory on a host.
+        """
+        total_memory = host.hardware.memorySize
+        used_memory = 0
+        for vm in host.vm:
+            if not vm.summary.config.template:
+                used_memory += vm.summary.config.memorySizeMB
+        return total_memory - used_memory
+
+    def host_cpu_thread_usage_ratio(self, host, vm_cpus):
+        """
+            Check the usage ratio of actual CPU threads to assigned threads.
+            This should give a higher rating to those hosts with less threads
+            assigned compared to their total available CPU threads.
+
+            This is used rather than a simple absolute number of cores
+            remaining to avoid allocating to a less sensible host if, for
+            example, there are two hypervisors, one with 12 CPU threads and
+            one with 6, both of which have 4 more virtual CPUs assigned than
+            actual CPU threads. In this case, both would be rated at -4, but
+            the actual impact on the one with 12 threads would be lower.
+        """
+        total_threads = host.hardware.cpuInfo.numCpuThreads
+
+        # Convert total_threads to float to allow a non-integer return
+        total_threads = float(total_threads)
+
+        total_assigned = vm_cpus
+        for vm in host.vm:
+            total_assigned += vm.summary.config.numCpu
+
+        return total_threads / total_assigned
+
+    def datastore_is_usable(self, datastore):
+        """
+            Return True if this datastore is usable for deployments,
+            based on its health.
+            Return False otherwise.
+        """
+        return datastore.overallStatus in (
+            vim.ManagedEntity.Status.green,
+            vim.ManagedEntity.Status.yellow,
+        ) and datastore.summary.accessible
+
+    def calculate_datastore_weighting(self,
+                                      datastore,
+                                      vm_memory,
+                                      template):
+        """
+            Determine how suitable this datastore is for this deployment.
+            Returns None if it is not suitable. Otherwise, returns a weighting
+            where higher is better.
+        """
+        # We assign memory in MB, but free space is in B
+        vm_memory = vm_memory * 1024 * 1024
+
+        free_space = datastore.summary.freeSpace
+        minimum_disk = template.summary.storage.committed
+        maximum_disk = template.summary.storage.uncommitted
+
+        minimum_used = minimum_disk + vm_memory
+        maximum_used = minimum_used + maximum_disk
+
+        if free_space - minimum_used < 0:
+            return None
+        else:
+            return free_space - maximum_used
+
+    def recurse_resource_pools(self, resource_pool):
+        """
+            Recursively get all child resource pools given a resource pool.
+            Return a list of all resource pools found.
+        """
+        resource_pool_names = []
+        for pool in resource_pool.resourcePool:
+            resource_pool_names.append(pool)
+            resource_pool_names.extend(self.recurse_resource_pools(pool))
+        return resource_pool_names
+
+    def get_host_networks(self, host):
+        """
+            Get all networks attached to this host.
+            Returns a list of dicts in the form:
+            {
+                'name': <name of network>,
+                'switch_distributed': <whether net is distributed>,
+            }
+        """
+        nets = [
+            {
+                'name': net.name,
+                'switch_distributed': self._port_group_is_distributed(net),
+            }
+            for net in host.network
+        ]
+        return nets
+
+    def get_host_resource_pools(self, host):
+        """
+            Get all resource pools available on this host.
+            This will work for hosts inside and outside clusters.
+            A list of resource pools will be returned, e.g.
+            ['Resources', 'myresourcepool', 'anotherone']
+        """
+        base_resource_pool = host.parent.resourcePool
+        resource_pools = [base_resource_pool]
+        child_resource_pools = self.recurse_resource_pools(base_resource_pool)
+        resource_pools.extend(child_resource_pools)
+        return resource_pools
+
+    def get_clusters(self):
+        """
+            Get a list of all clusters.
+        """
+        return self.get_obj_list([vim.ClusterComputeResource])
+
+    def get_datastores(self):
+        """
+            Get a list of all datastores.
+        """
+        return self.get_obj_list([vim.Datastore])
+
+    def get_host_cluster_membership(self, host):
+        """
+            Return the name of the cluster this host is part of,
+            or None if it is not part of a cluster.
+        """
+        if isinstance(host.parent, vim.ClusterComputeResource):
+            return host.parent.name
+        else:
+            return None
+
+    def host_is_usable(self, host):
+        """
+            Return True if this host is usable for deployments,
+            based on its health.
+            Return False otherwise.
+        """
+        if host.overallStatus in (
+            vim.ManagedEntity.Status.green,
+            vim.ManagedEntity.Status.yellow,
+        ) and host.summary.runtime.connectionState == 'connected':
+            # TODO: Check license state (will be yellow for bad license)
+            return True
+        else:
+            return False
 
     def resize_server(self, server, cpus=None, memory=None):
         ctx.logger.debug("Entering resize reconfiguration.")
@@ -956,20 +1501,24 @@ class NetworkClient(VsphereClient):
 
         if distributed:
             port_groups = [
-                pg.name
+                pg
                 for pg in port_groups
-                if isinstance(pg, vim.dvs.DistributedVirtualPortgroup)
+                if self._port_group_is_distributed(pg)
             ]
         else:
             port_groups = [
-                pg.name
+                pg
                 for pg in port_groups
-                if not isinstance(pg, vim.dvs.DistributedVirtualPortgroup)
+                if not self._port_group_is_distributed(pg)
             ]
 
-        port_groups = [pg for pg in port_groups if pg == port_group_name]
+        # Observed to create multiple port groups in some circumstances,
+        # but with different amounts of attached hosts
+        port_groups = [pg for pg in port_groups if pg.name == port_group_name]
 
-        port_group_count = len(port_groups)
+        port_group_counts = [len(pg.host) for pg in port_groups]
+
+        port_group_count = sum(port_group_counts)
 
         ctx.logger.debug(
             '{type} group {name} found on {port_group_count} out of '

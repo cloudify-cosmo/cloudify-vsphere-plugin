@@ -86,7 +86,7 @@ node_templates:
     properties:
       install_agent: false
       server:
-        name: systemtestlinuxnaming
+        name: systemtestlinuxnointerfaces
         template: { get_input: template_name }
         cpus: 1
         memory: 2048

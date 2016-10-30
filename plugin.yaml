@@ -6,8 +6,8 @@ plugins:
     vsphere:
         executor: central_deployment_agent
         package_name: cloudify-vsphere-plugin
-        package_version: '2.0.1'
-        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.0.1.zip
+        package_version: '2.1.0'
+        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.1.0.zip
 
 data_types:
     cloudify.datatypes.vsphere.Config:
@@ -38,20 +38,17 @@ data_types:
                     Must be true if you are using clusters.
                 type: string
                 required: false
-                default: false
             resource_pool_name:
                 description: >
                     Name of a resource pool.
                     Defaults to Resources, which is a hidden resource pool on vSphere.
                 type: string
                 required: false
-                default: 'Resources'
             port:
                 description: >
                     vCenter port for SDK.
                 type: integer
                 required: false
-                default: 443
 
     cloudify.datatypes.vsphere.ServerProperties:
         properties:
@@ -109,12 +106,23 @@ node_types:
     cloudify.vsphere.nodes.Server:
         derived_from: cloudify.nodes.Compute
         properties:
+            allowed_hosts:
+                description: >
+                    Which ESX host(s) this server is allowed to be deployed on.
+                required: false
+            allowed_clusters:
+                description: >
+                    Which ESX cluster(s) this server is allowed to be deployed on.
+                required: false
+            allowed_datastores:
+                description: >
+                    Which ESX datastore(s) this server is allowed to be deployed on.
+                required: false
             server:
                 type: cloudify.datatypes.vsphere.ServerProperties
             networking:
                 type: cloudify.datatypes.vsphere.NetworkingProperties
             connection_config:
-                default: {}
                 type: cloudify.datatypes.vsphere.Config
         interfaces:
             cloudify.interfaces.lifecycle:

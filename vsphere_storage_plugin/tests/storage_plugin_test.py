@@ -23,7 +23,7 @@ from cloudify import mocks
 
 from vsphere_server_plugin import server as server_plugin
 from vsphere_storage_plugin import storage as storage_plugin
-from vsphere_integration_tests import common as tests_common
+import vsphere_tests_common as tests_common
 
 _tests_config = tests_common.TestsConfig().get()
 storage_config = _tests_config['storage_test']

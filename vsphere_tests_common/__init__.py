@@ -53,6 +53,9 @@ class TestCase(unittest.TestCase):
         self.logger.debug("VSphere provider test setUp() done")
 
     def tearDown(self):
+        # TODO: Remove all of this, or move it somewhere more sensible.
+        # This file claims to be running unit tests, so it should not be
+        # making any connections to the outside world.
         self.logger.debug("VSphere provider test tearDown() called")
         # Compute
         self.logger.debug("Check are there any server to delete")

@@ -762,6 +762,92 @@ class VsphereLocalLinuxTest(TestCase):
                 'network to true'
             ) in err.message
 
+    def test_incorrect_inputs(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'fail-blueprint.yaml'
+        )
+
+        if self.env.install_plugins:
+            self.logger.info('installing required plugins')
+            self.cfy.install_plugins_locally(
+                blueprint_path=blueprint)
+
+        self.logger.info('Attempting to deploy with bad inputs.')
+
+        bad_allowed_hosts = ['not a real host', 'really not a real host']
+        bad_allowed_clusters = ['not a real cluster',
+                                'really not a real cluster']
+        bad_allowed_datastores = ['not a real datastore',
+                                  'really not a real datastore']
+        expected_bad_datacenter = 'this is not a real datacenter'
+        expected_bad_resource_pool = 'this is not a real resource pool'
+        expected_bad_template = 'this is not a real template'
+
+        inputs = copy(self.ext_inputs)
+        inputs['cpus'] = 0
+        inputs['memory'] = 0
+        inputs['allowed_hosts'] = bad_allowed_hosts
+        inputs['allowed_clusters'] = bad_allowed_clusters
+        inputs['allowed_datastores'] = bad_allowed_datastores
+        inputs['vsphere_datacenter_name'] = expected_bad_datacenter
+        inputs['vsphere_resource_pool_name'] = expected_bad_resource_pool
+        inputs['template_name'] = expected_bad_template
+
+        for undesirable_input in [
+            'external_network_distributed',
+            'management_network_distributed',
+        ]:
+            try:
+                inputs.pop(undesirable_input)
+            except KeyError:
+                # Optional input not present, ignore
+                pass
+
+        self.incorrect_inputs_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.incorrect_inputs_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.incorrect_inputs_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with invalid inputs was expected '
+                'to fail, but succeeded.'
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            for information in [
+                'No allowed hosts exist',
+                'No allowed clusters exist',
+                'No allowed datastores exist',
+                'Existing host(s):',
+                'Existing cluster(s):',
+                'Existing datastore(s):',
+                'VM template {name} could not be found'.format(
+                    name=expected_bad_template,
+                ),
+                'Resource pool {name} could not be found'.format(
+                    name=expected_bad_resource_pool,
+                ),
+                'Datacenter {name} could not be found'.format(
+                    name=expected_bad_datacenter,
+                ),
+                'At least one vCPU',
+                'memory cannot be less than 1MB',
+            ]:
+                assert information in err.message
+
     def generic_cleanup(self, component):
         component.execute(
             'uninstall',
