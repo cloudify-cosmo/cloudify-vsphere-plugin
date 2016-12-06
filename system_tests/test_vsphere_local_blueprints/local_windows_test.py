@@ -20,10 +20,10 @@ from cosmo_tester.framework.testenv import TestCase
 from cloudify.workflows import local
 from cloudify_cli import constants as cli_constants
 from . import (
-    get_vsphere_vms_list,
     check_correct_vm_name,
-    get_runtime_props,
     check_vm_name_in_runtime_properties,
+    get_runtime_props,
+    get_vsphere_vms_list,
 )
 from .windows_command_helper import WindowsCommandHelper
 
@@ -74,11 +74,6 @@ class VsphereLocalWindowsTest(TestCase):
             'no_password-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Deploying windows host with no password set')
 
         self.no_password_fail_env = local.init_env(
@@ -106,11 +101,6 @@ class VsphereLocalWindowsTest(TestCase):
             self.blueprints_path,
             'windows_basic_config-blueprint.yaml'
         )
-
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
 
         self.logger.info(
             'Deploying windows host with '
@@ -167,11 +157,6 @@ class VsphereLocalWindowsTest(TestCase):
             'agent_config_password_and_default_timezone-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info(
             'Deploying windows host with '
             'agent_config password and no timezone set'
@@ -196,11 +181,6 @@ class VsphereLocalWindowsTest(TestCase):
             'naming-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Deploying windows host without name assigned')
 
         self.naming_env = local.init_env(
@@ -224,22 +204,25 @@ class VsphereLocalWindowsTest(TestCase):
             port=self.ext_inputs['vsphere_port'],
         )
 
+        node_id = 'aaaaaaaaaaaaaaaaaaaaaa'
         runtime_properties = get_runtime_props(
-            target_node_id='aaaaaaaaaaaaaaaaaaaaaa',
+            target_node_id=node_id,
             node_instances=self.naming_env.storage.get_node_instances(),
             logger=self.logger,
         )
 
-        name_prefix = 'aaaaaaa'
+        name_prefix = node_id
         check_correct_vm_name(
             vms=vms,
             name_prefix=name_prefix,
             logger=self.logger,
+            windows=True,
         )
         check_vm_name_in_runtime_properties(
             runtime_props=runtime_properties,
             name_prefix=name_prefix,
             logger=self.logger,
+            windows=True,
         )
 
     def test_validation_empty_org_name(self):
@@ -315,6 +298,108 @@ class VsphereLocalWindowsTest(TestCase):
                 )
 
         self.assertIn('64', str(e.exception))
+
+    def test_sysprep_and_password_fails(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'windows_sysprep_and_password-blueprint.yaml',
+        )
+
+        self.logger.info(
+            'Confirming custom sysprep with password specified fails.'
+        )
+
+        inputs = copy(self.ext_inputs)
+
+        self.custom_sysprep_and_password_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES,
+        )
+
+        with self.assertRaises(RuntimeError) as e:
+            try:
+                self.custom_sysprep_and_password_env.execute(
+                    'install',
+                    task_retries=50,
+                    task_retry_interval=3,
+                )
+            except:
+                raise
+            else:
+                self.custom_sysprep_and_password_env.execute(
+                    'uninstall',
+                    task_retries=50,
+                    task_retry_interval=3,
+                )
+
+        for word in ('custom_sysprep', 'but', 'windows_password'):
+            self.assertIn(word, str(e.exception))
+
+    def test_windows_custom_sysprep(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'windows_custom_sysprep-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying windows host with custom sysprep answers')
+
+        custom_sysprep_path = os.path.join(self.blueprints_path,
+                                           'custom_sysprep.xml')
+        with open(custom_sysprep_path) as custom_sysprep_handle:
+            custom_sysprep_answers = custom_sysprep_handle.read()
+
+        inputs = copy(self.ext_inputs)
+        inputs['custom_sysprep'] = custom_sysprep_answers
+
+        self.windows_custom_sysprep_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES,
+        )
+
+        self._add_env_cleanup(self.windows_custom_sysprep_env)
+        self.windows_custom_sysprep_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        vt = WindowsCommandHelper(
+            self.logger,
+            self.ext_inputs['vsphere_host'],
+            self.ext_inputs['vsphere_username'],
+            self.ext_inputs['vsphere_password'],
+        )
+
+        custom_user = 'user'
+        custom_pass = 'pass'
+
+        value = vt.run_windows_command(
+            self.windows_custom_sysprep_env.outputs()['vm_name'],
+            custom_user,
+            custom_pass,
+            'reg query "HKLM\\Software\\Microsoft\\Windows NT\\'
+            'CurrentVersion" /v RegisteredOrganization',
+        )['output']
+
+        self.assertEqual(
+            'Custom sysprep test',
+            value.split('REG_SZ')[1].strip())
+
+        tz_value = vt.run_windows_command(
+            self.windows_custom_sysprep_env.outputs()['vm_name'],
+            custom_user,
+            custom_pass,
+            'reg query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\'
+            'TimeZoneInformation" /v TimeZoneKeyName',
+        )['output']
+
+        self.assertEqual(
+            'Eastern Standard Time',
+            tz_value.split('REG_SZ')[1].strip())
 
     def _add_env_cleanup(
         self,

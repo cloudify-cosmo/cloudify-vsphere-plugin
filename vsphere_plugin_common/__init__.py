@@ -460,8 +460,32 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise cfy_exc.NonRecoverableError(message)
 
-    def _validate_windows_properties(self, props):
+    def _validate_windows_properties(self, props, password):
         issues = []
+
+        props_password = props.get('windows_password')
+        if props_password == '':
+            # Avoid falsey comparison on blank password
+            props_password = True
+        if password == '':
+            # Avoid falsey comparison on blank password
+            password = True
+        custom_sysprep = props.get('custom_sysprep')
+        if custom_sysprep is not None:
+            if props_password:
+                issues.append(
+                    'custom_sysprep answers data has been provided, but a '
+                    'windows_password was supplied. If using custom sysprep, '
+                    'no other windows settings are usable.'
+                )
+        elif not props_password and custom_sysprep is None:
+            if not password:
+                issues.append(
+                    'Windows password must be set when a custom sysprep is '
+                    'not being performed. Please supply a windows_password '
+                    'using either properties.windows_password or '
+                    'properties.agent_config.password'
+                )
 
         if len(props['windows_organization']) == 0:
             issues.append('windows_organization property must not be blank')
@@ -470,7 +494,7 @@ class ServerClient(VsphereClient):
                 'windows_organization property must be 64 characters or less')
 
         if issues:
-            issues.insert(0, 'Issues found while validinting inputs:')
+            issues.insert(0, 'Issues found while validating inputs:')
             message = ' '.join(issues)
             raise cfy_exc.NonRecoverableError(message)
 
@@ -646,44 +670,42 @@ class ServerClient(VsphereClient):
                 ident.hostName.name = vm_name
             elif os_type == 'windows':
                 props = ctx.node.properties
-
-                self._validate_windows_properties(props)
-
                 password = props.get('windows_password')
                 if not password:
                     agent_config = props.get('agent_config', {})
                     password = agent_config.get('password')
 
-                if not password:
-                    raise cfy_exc.NonRecoverableError(
-                        'When using Windows, a password must be set. '
-                        'Please set either properties.windows_password '
-                        'or properties.agent_config.password'
-                    )
-                # We use GMT without daylight savings if no timezone is
-                # supplied, as this is as close to UTC as we can do
-                timezone = props.get('windows_timezone', 90)
+                self._validate_windows_properties(props, password)
 
-                ident = vim.vm.customization.Sysprep()
-                ident.userData = vim.vm.customization.UserData()
-                ident.guiUnattended = vim.vm.customization.GuiUnattended()
-                ident.identification = vim.vm.customization.Identification()
+                custom_sysprep = props.get('custom_sysprep')
+                if custom_sysprep is not None:
+                    ident = vim.vm.customization.SysprepText()
+                    ident.value = custom_sysprep
+                else:
+                    # We use GMT without daylight savings if no timezone is
+                    # supplied, as this is as close to UTC as we can do
+                    timezone = props.get('windows_timezone', 90)
 
-                # Configure userData
-                ident.userData.computerName = vim.vm.customization.FixedName()
-                ident.userData.computerName.name = vm_name
-                # Without these vars, customization is silently skipped
-                # but deployment 'succeeds'
-                ident.userData.fullName = vm_name
-                ident.userData.orgName = props.get('windows_organization')
-                ident.userData.productId = ""
+                    ident = vim.vm.customization.Sysprep()
+                    ident.userData = vim.vm.customization.UserData()
+                    ident.guiUnattended = vim.vm.customization.GuiUnattended()
+                    ident.identification = vim.vm.customization.Identification()
 
-                # Configure guiUnattended
-                ident.guiUnattended.autoLogon = False
-                ident.guiUnattended.password = vim.vm.customization.Password()
-                ident.guiUnattended.password.plainText = True
-                ident.guiUnattended.password.value = password
-                ident.guiUnattended.timeZone = timezone
+                    # Configure userData
+                    ident.userData.computerName = vim.vm.customization.FixedName()
+                    ident.userData.computerName.name = vm_name
+                    # Without these vars, customization is silently skipped
+                    # but deployment 'succeeds'
+                    ident.userData.fullName = vm_name
+                    ident.userData.orgName = props.get('windows_organization')
+                    ident.userData.productId = ""
+
+                    # Configure guiUnattended
+                    ident.guiUnattended.autoLogon = False
+                    ident.guiUnattended.password = vim.vm.customization.Password()
+                    ident.guiUnattended.password.plainText = True
+                    ident.guiUnattended.password.value = password
+                    ident.guiUnattended.timeZone = timezone
 
                 # Adding windows options
                 options = vim.vm.customization.WinOptions()
