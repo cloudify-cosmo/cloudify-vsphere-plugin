@@ -460,6 +460,20 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise cfy_exc.NonRecoverableError(message)
 
+    def _validate_windows_properties(self, props):
+        issues = []
+
+        if len(props['windows_organization']) == 0:
+            issues.append('windows_organization property must not be blank')
+        if len(props['windows_organization']) > 64:
+            issues.append(
+                'windows_organization property must be 64 characters or less')
+
+        if issues:
+            issues.insert(0, 'Issues found while validinting inputs:')
+            message = ' '.join(issues)
+            raise cfy_exc.NonRecoverableError(message)
+
     def create_server(self,
                       auto_placement,
                       cpus,
@@ -633,6 +647,8 @@ class ServerClient(VsphereClient):
             elif os_type == 'windows':
                 props = ctx.node.properties
 
+                self._validate_windows_properties(props)
+
                 password = props.get('windows_password')
                 if not password:
                     agent_config = props.get('agent_config', {})
@@ -659,7 +675,7 @@ class ServerClient(VsphereClient):
                 # Without these vars, customization is silently skipped
                 # but deployment 'succeeds'
                 ident.userData.fullName = vm_name
-                ident.userData.orgName = "Organisation"
+                ident.userData.orgName = props.get('windows_organization')
                 ident.userData.productId = ""
 
                 # Configure guiUnattended
