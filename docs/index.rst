@@ -13,6 +13,7 @@ Contents:
     :maxdepth: 3
 
     types
+    examples
 
 
 Plugin Requirements
