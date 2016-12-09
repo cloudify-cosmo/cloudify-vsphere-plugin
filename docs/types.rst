@@ -15,6 +15,7 @@ Node Types
 * ``public_ip`` External IP address of server (as determined by finding the IP of whichever network is set as external), or nothing if there is no network set as external.
 * ``vsphere_server_id`` Internal ID of server on vsphere (e.g. vm-1234)
 * ``networks`` list of key-value details of attached networks
+
   * ``distributed`` Whether or not this is a distributed network
   * ``name`` The name of this network
   * ``mac`` The MAC address of the NIC on this network
@@ -29,10 +30,11 @@ Node Types
 * ``public_ip`` External IP address of server (as determined by finding the IP of whichever network is set as external)
 * ``vsphere_server_id`` Internal ID of server on vsphere (e.g. vm-1234)
 * ``networks`` list of key-value details of attached networks
-    * ``distributed`` Whether or not this is a distributed network
-    * ``name`` The name of this network
-    * ``mac`` The MAC address of the NIC on this network
-    * ``ip`` The IP address assigned to the NIC on this network, or None if there is no IP
+
+  * ``distributed`` Whether or not this is a distributed network
+  * ``name`` The name of this network
+  * ``mac`` The MAC address of the NIC on this network
+  * ``ip`` The IP address assigned to the NIC on this network, or None if there is no IP
 
 
 .. cfy:node:: cloudify.vsphere.nodes.Storage
