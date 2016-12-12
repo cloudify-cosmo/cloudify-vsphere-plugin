@@ -160,6 +160,11 @@ node_types:
                     Defaults to GMT without daylight savings.
                 type: integer
                 default: 90
+            windows_organization:
+                description: >
+                    Organization name to use for sysprep customization.
+                type: string
+                default: Organization
             os_family:
                 default: windows
             agent_config:
