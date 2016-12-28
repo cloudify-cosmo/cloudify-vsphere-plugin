@@ -66,6 +66,8 @@ inputs:
       signifies if server is to be automatically placed on a host
     default: false
     type: boolean
+  windows_organization:
+    default: Cloudify Test
 
 node_types:
   connection_configuration:
@@ -97,6 +99,7 @@ node_templates:
         memory: 2048
       windows_password: { get_input: vm_password }
       windows_timezone: 10
+      windows_organization: { get_input: windows_organization }
       networking:
         connect_networks:
           - name: { get_input: external_network }
@@ -107,3 +110,5 @@ node_templates:
 outputs:
   vm_ip:
     value: { get_attribute: [ testserver, public_ip ] }
+  vm_name:
+    value: { get_attribute: [ testserver, name ] }

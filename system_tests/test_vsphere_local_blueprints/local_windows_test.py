@@ -14,19 +14,18 @@
 #    * limitations under the License.
 
 import os
-import socket
-import time
+from copy import copy
 
 from cosmo_tester.framework.testenv import TestCase
 from cloudify.workflows import local
 from cloudify_cli import constants as cli_constants
-import winrm
 from . import (
     get_vsphere_vms_list,
     check_correct_vm_name,
     get_runtime_props,
     check_vm_name_in_runtime_properties,
 )
+from .windows_command_helper import WindowsCommandHelper
 
 
 class VsphereLocalWindowsTest(TestCase):
@@ -60,7 +59,7 @@ class VsphereLocalWindowsTest(TestCase):
                     self.env.cloudify_config[optional_key]
 
         # Expecting the blueprint in ../resources/windows, e.g.
-        # ../resources/windows/password_and_timezone.yaml
+        # ../resources/windows/windows_basic_config.yaml
         blueprints_path = os.path.split(os.path.abspath(__file__))[0]
         blueprints_path = os.path.split(blueprints_path)[0]
         self.blueprints_path = os.path.join(
@@ -102,10 +101,10 @@ class VsphereLocalWindowsTest(TestCase):
             assert 'properties.agent_config.password' in err.message
             self.logger.info('Windows passwordless deploy has correct error.')
 
-    def test_password_and_timezone(self):
+    def test_windows_basic_config(self):
         blueprint = os.path.join(
             self.blueprints_path,
-            'password_and_timezone-blueprint.yaml'
+            'windows_basic_config-blueprint.yaml'
         )
 
         if self.env.install_plugins:
@@ -118,27 +117,49 @@ class VsphereLocalWindowsTest(TestCase):
             'password and timezone set'
         )
 
-        self.password_and_timezone_env = local.init_env(
+        self.windows_basic_config_env = local.init_env(
             blueprint,
             inputs=self.ext_inputs,
             name=self._testMethodName,
             ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
-        self.password_and_timezone_env.execute(
+
+        self._add_env_cleanup(self.windows_basic_config_env)
+        self.windows_basic_config_env.execute(
             'install',
             task_retries=50,
             task_retry_interval=3,
         )
 
-        self.addCleanup(self.cleanup_password_and_timezone)
-
-        vm_ip = self.password_and_timezone_env.outputs()['vm_ip']
-        vm_password = self.ext_inputs['vm_password']
-
-        self.check_vm_timezone_offset_is(
-            offset=-7,
-            vm_ip=vm_ip,
-            vm_password=vm_password,
+        vt = WindowsCommandHelper(
+            self.logger,
+            self.ext_inputs['vsphere_host'],
+            self.ext_inputs['vsphere_username'],
+            self.ext_inputs['vsphere_password'],
         )
+
+        value = vt.run_windows_command(
+            self.windows_basic_config_env.outputs()['vm_name'],
+            'administrator',
+            self.ext_inputs['vm_password'],
+            'reg query "HKLM\\Software\\Microsoft\\Windows NT\\'
+            'CurrentVersion" /v RegisteredOrganization',
+        )['output']
+
+        self.assertEqual(
+            'Cloudify Test',
+            value.split('REG_SZ')[1].strip())
+
+        tz_value = vt.run_windows_command(
+            self.windows_basic_config_env.outputs()['vm_name'],
+            'administrator',
+            self.ext_inputs['vm_password'],
+            'reg query "HKLM\\SYSTEM\\CurrentControlSet\\Control\\'
+            'TimeZoneInformation" /v TimeZoneKeyName',
+        )['output']
+
+        self.assertEqual(
+            'Mountain Standard Time',
+            tz_value.split('REG_SZ')[1].strip())
 
     def test_agent_config_password_and_default_timezone(self):
         blueprint = os.path.join(
@@ -161,13 +182,13 @@ class VsphereLocalWindowsTest(TestCase):
             inputs=self.ext_inputs,
             name=self._testMethodName,
             ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        self._add_env_cleanup(self.agent_config_password_and_no_timezone_env)
         self.agent_config_password_and_no_timezone_env.execute(
             'install',
             task_retries=50,
             task_retry_interval=3,
         )
-
-        self.addCleanup(self.cleanup_agent_config_password_and_no_timezone)
 
     def test_naming(self):
         blueprint = os.path.join(
@@ -187,13 +208,13 @@ class VsphereLocalWindowsTest(TestCase):
             inputs=self.ext_inputs,
             name=self._testMethodName,
             ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        self._add_env_cleanup(self.naming_env)
         self.naming_env.execute(
             'install',
             task_retries=50,
             task_retry_interval=3,
         )
-
-        self.addCleanup(self.cleanup_naming)
 
         self.logger.info('Searching for appropriately named VM')
         vms = get_vsphere_vms_list(
@@ -209,7 +230,7 @@ class VsphereLocalWindowsTest(TestCase):
             logger=self.logger,
         )
 
-        name_prefix = 'aaaaaaaa'
+        name_prefix = 'aaaaaaa'
         check_correct_vm_name(
             vms=vms,
             name_prefix=name_prefix,
@@ -221,78 +242,89 @@ class VsphereLocalWindowsTest(TestCase):
             logger=self.logger,
         )
 
-    def check_vm_timezone_offset_is(self, offset, vm_ip, vm_password):
-        timezone_info = None
-        retries = 0
+    def test_validation_empty_org_name(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'windows_basic_config-blueprint.yaml',
+        )
 
-        self.logger.info('Trying to retrieve timezone info')
-        # Huge retry to allow Windows to finish sysprep+reboot
-        while timezone_info is None and retries <= 100:
+        self.logger.info(
+            'attempting to deploy with blank windows_organization')
+
+        inputs = copy(self.ext_inputs)
+
+        inputs['windows_organization'] = ''
+
+        self.validation_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        with self.assertRaises(RuntimeError) as e:
             try:
-                winrmsession = winrm.Session(
-                    vm_ip,
-                    auth=(
-                        'Administrator',
-                        vm_password
-                    )
+                self.validation_env.execute(
+                    'install',
+                    task_retries=50,
+                    task_retry_interval=3,
                 )
-                winrm_result = winrmsession.run_ps(
-                    "[TimeZoneInfo]::Local | "
-                    "select-object -expandproperty BaseUtcOffset"
-                )
-                self.logger.info(winrm_result)
-                timezone_info = winrm_result.std_out.splitlines()
-                self.logger.info(timezone_info)
-            except winrm.exceptions.WinRMTransportError:
-                self.logger.info('Waiting for server response...')
-                time.sleep(10)
-                retries += 1
-            except socket.error:
-                # These can also occur at some points in the Windows startup
-                self.logger.info('Waiting for server response...')
-                time.sleep(10)
-                retries += 1
-
-        assert timezone_info is not None
-
-        self.logger.info('Looking for hours offset')
-        hours = None
-        for line in timezone_info:
-            split_line = line.split(':')
-            if len(split_line) == 2:
-                key, value = split_line
+            except:
+                raise
             else:
-                continue
-            self.logger.debug('Saw {line}'.format(line=line))
-            if key.strip() == 'Hours':
-                hours = int(value.strip())
-                self.logger.info(
-                    'Hours offset found: {hours}'.format(
-                        hours=hours
-                    )
+                self.validation_env.execute(
+                    'uninstall',
+                    task_retries=50,
+                    task_retry_interval=3,
                 )
-                break
 
-        assert hours == offset
-        self.logger.info('Offset was correct!')
+        self.assertIn('must not be blank', str(e.exception))
 
-    def cleanup_naming(self):
-        self.naming_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
+    def test_validation_org_name_too_long(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'windows_basic_config-blueprint.yaml',
         )
 
-    def cleanup_password_and_timezone(self):
-        self.password_and_timezone_env.execute(
-            'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
-        )
+        self.logger.info(
+            'attempting to deploy with blank windows_organization')
 
-    def cleanup_agent_config_password_and_no_timezone(self):
-        self.agent_config_password_and_no_timezone_env.execute(
+        inputs = copy(self.ext_inputs)
+
+        inputs['windows_organization'] = 'a' * 65
+
+        self.validation_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        with self.assertRaises(RuntimeError) as e:
+            try:
+                self.validation_env.execute(
+                    'install',
+                    task_retries=50,
+                    task_retry_interval=3,
+                )
+            except:
+                raise
+            else:
+                self.validation_env.execute(
+                    'uninstall',
+                    task_retries=50,
+                    task_retry_interval=3,
+                )
+
+        self.assertIn('64', str(e.exception))
+
+    def _add_env_cleanup(
+        self,
+        env,
+        task_retries=50,
+        task_retry_interval=3,
+    ):
+        self.addCleanup(
+            env.execute,
             'uninstall',
-            task_retries=50,
-            task_retry_interval=3,
+            task_retries=task_retries,
+            task_retry_interval=task_retry_interval,
         )
