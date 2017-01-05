@@ -55,11 +55,6 @@ class VsphereLocalNetworkTest(TestCase):
             'network-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Deploying network for network test')
 
         inputs = copy(self.ext_inputs)
@@ -109,11 +104,6 @@ class VsphereLocalNetworkTest(TestCase):
             self.blueprints_path,
             'network-blueprint.yaml'
         )
-
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
 
         self.logger.info('Deploying distributed network for network test')
 
@@ -165,11 +155,6 @@ class VsphereLocalNetworkTest(TestCase):
             'network-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Trying to deploy network on bad vswitch')
 
         inputs = copy(self.ext_inputs)
@@ -209,11 +194,6 @@ class VsphereLocalNetworkTest(TestCase):
             self.blueprints_path,
             'network-blueprint.yaml'
         )
-
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
 
         self.logger.info('Trying to deploy network on bad dvswitch')
 

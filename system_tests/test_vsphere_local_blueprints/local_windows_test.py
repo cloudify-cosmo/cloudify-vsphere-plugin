@@ -24,8 +24,11 @@ from . import (
     check_vm_name_in_runtime_properties,
     get_runtime_props,
     get_vsphere_vms_list,
+    PlatformCaller,
 )
 from .windows_command_helper import WindowsCommandHelper
+import time
+from pyVmomi import vim
 
 
 class VsphereLocalWindowsTest(TestCase):
@@ -96,6 +99,61 @@ class VsphereLocalWindowsTest(TestCase):
             assert 'properties.agent_config.password' in err.message
             self.logger.info('Windows passwordless deploy has correct error.')
 
+    def _wait_for_customization_to_complete(self, vm_name):
+        with PlatformCaller(
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+        ) as client:
+            vm = client._get_obj_by_name(
+                vim.VirtualMachine,
+                vm_name,
+            )
+            vm_ready = False
+            attempts = 0
+            # Some environments are very slow, we're allowing about 20 minutes
+            # to finish customization
+            max_attempts = 40
+            retry_interval = 30
+            # This logic should really be in the plugin so that we don't claim
+            # a VM is ready before it is ready
+            while not vm_ready:
+                self.logger.info(
+                    'Checking network interfaces to see if VM customization '
+                    'is complete:'
+                )
+                devices = vm.obj.config.hardware.device
+                interfaces = [
+                    device for device in devices
+                    if isinstance(device, vim.vm.device.VirtualVmxnet3)
+                ]
+
+                connected_interfaces = [
+                    interface.connectable.connected
+                    for interface in interfaces
+                ]
+
+                if all(connected_interfaces):
+                    vm_ready = True
+                    self.logger.info(
+                        'All interfaces connected, VM customization complete.'
+                    )
+                else:
+                    self.logger.info(
+                        'Customization incomplete, waiting {delay}'.format(
+                            delay=retry_interval
+                        )
+                    )
+                    time.sleep(retry_interval)
+                    attempts += 1
+                    assert attempts != max_attempts, (
+                        'vSphere did not finish customizing VM within '
+                        '{duration} seconds.'.format(
+                            duration=max_attempts * retry_interval,
+                        )
+                    )
+
     def test_windows_basic_config(self):
         blueprint = os.path.join(
             self.blueprints_path,
@@ -120,6 +178,10 @@ class VsphereLocalWindowsTest(TestCase):
             task_retry_interval=3,
         )
 
+        self._wait_for_customization_to_complete(
+            self.windows_basic_config_env.outputs()['vm_name'],
+        )
+
         vt = WindowsCommandHelper(
             self.logger,
             self.ext_inputs['vsphere_host'],
@@ -133,6 +195,7 @@ class VsphereLocalWindowsTest(TestCase):
             self.ext_inputs['vm_password'],
             'reg query "HKLM\\Software\\Microsoft\\Windows NT\\'
             'CurrentVersion" /v RegisteredOrganization',
+            timeout=1500,
         )['output']
 
         self.assertEqual(
@@ -211,7 +274,7 @@ class VsphereLocalWindowsTest(TestCase):
             logger=self.logger,
         )
 
-        name_prefix = node_id
+        name_prefix = 'aaaaaaaa'
         check_correct_vm_name(
             vms=vms,
             name_prefix=name_prefix,
@@ -367,6 +430,14 @@ class VsphereLocalWindowsTest(TestCase):
             task_retry_interval=3,
         )
 
+        # This doesn't actually help much here since a custom sysprep differs
+        # from normal customization. However, one of the approaches used
+        # before the current one broke on custom sysprep so it's worth
+        # keeping here.
+        self._wait_for_customization_to_complete(
+            self.windows_custom_sysprep_env.outputs()['vm_name'],
+        )
+
         vt = WindowsCommandHelper(
             self.logger,
             self.ext_inputs['vsphere_host'],
@@ -383,6 +454,8 @@ class VsphereLocalWindowsTest(TestCase):
             custom_pass,
             'reg query "HKLM\\Software\\Microsoft\\Windows NT\\'
             'CurrentVersion" /v RegisteredOrganization',
+            # Test environment is being a little (very) slow
+            timeout=4000,
         )['output']
 
         self.assertEqual(
