@@ -17,8 +17,7 @@
 import string
 
 # Third party imports
-from pyVmomi import vim
-from pyVim.connect import SmartConnect, Disconnect
+from pyVim.connect import Disconnect
 
 # Cloudify imports
 from cosmo_tester.framework.testenv import (
@@ -27,6 +26,7 @@ from cosmo_tester.framework.testenv import (
 )
 
 # This package imports
+from vsphere_plugin_common import ServerClient
 
 
 def setUp():
@@ -37,49 +37,42 @@ def tearDown():
     clear_environment()
 
 
+class PlatformCaller(object):
+    def __init__(self, host, port, username, password):
+        self.cfg = {
+            'host': host,
+            'username': username,
+            'password': password,
+            'port': port,
+        }
+        self.client = None
+
+    def __enter__(self):
+        self.client = ServerClient()
+        self.client.connect(cfg=self.cfg)
+        return self.client
+
+    def __exit__(self, *args):
+        Disconnect(self.client.si)
+
+
 def get_vsphere_vms_list(host, port, username, password):
-    vsphere_conn = SmartConnect(
-        user=username,
-        pwd=password,
-        host=host,
-        port=port,
-    )
-    vsphere_content = vsphere_conn.RetrieveContent()
-    vsphere_container = vsphere_content.viewManager.CreateContainerView(
-        vsphere_content.rootFolder,
-        [vim.VirtualMachine],
-        True,
-    )
-    vms = vsphere_container.view
-    vsphere_container.Destroy()
+    with PlatformCaller(host, port, username, password) as client:
+        vms = client._get_vms()
     vms = [vm.name.lower() for vm in vms]
-    Disconnect(vsphere_conn)
     return vms
 
 
 def get_vsphere_networks(host, port, username, password):
-    vsphere_conn = SmartConnect(
-        user=username,
-        pwd=password,
-        host=host,
-        port=port,
-    )
-    vsphere_content = vsphere_conn.RetrieveContent()
-    vsphere_container = vsphere_content.viewManager.CreateContainerView(
-        vsphere_content.rootFolder,
-        [vim.Network],
-        True,
-    )
-    nets = vsphere_container.view
-    vsphere_container.Destroy()
-    nets = [
-        {
-            'name': net.name,
-            'distributed': is_distributed(net),
-        }
-        for net in nets
-    ]
-    Disconnect(vsphere_conn)
+    with PlatformCaller(host, port, username, password) as client:
+        nets = client._get_networks()
+        nets = [
+            {
+                'name': net.name,
+                'distributed': client._port_group_is_distributed(net),
+            }
+            for net in nets
+        ]
     return nets
 
 
@@ -135,10 +128,10 @@ def get_windows_prefix(name_prefix, vm_name, max_windows_name_length=14):
 def check_name_is_correct(name, name_prefix, logger, windows=False):
     # Name should be systemte-<id suffix (e.g. abc12)
     if windows:
-       name_prefix = get_windows_prefix(
-          vm_name=name,
-          name_prefix=name_prefix,
-       )
+        name_prefix = get_windows_prefix(
+            vm_name=name,
+            name_prefix=name_prefix,
+        )
 
     name = name.split('-')
     assert len(name) > 1, (
@@ -177,13 +170,6 @@ def get_runtime_props(target_node_id, node_instances, logger):
             nodes=node_instances,
         )
     )
-
-
-def is_distributed(network):
-    if isinstance(network, vim.dvs.DistributedVirtualPortgroup):
-        return True
-    else:
-        return False
 
 
 def network_exists(name, distributed, networks):

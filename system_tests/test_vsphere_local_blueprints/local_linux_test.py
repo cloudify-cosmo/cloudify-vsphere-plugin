@@ -78,11 +78,6 @@ class VsphereLocalLinuxTest(TestCase):
             'naming-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Deploying linux host with name assigned')
 
         self.naming_env = local.init_env(
@@ -132,11 +127,6 @@ class VsphereLocalLinuxTest(TestCase):
             self.blueprints_path,
             'naming_underscore-blueprint.yaml'
         )
-
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
 
         self.logger.info('Deploying linux host with name assigned')
 
@@ -190,11 +180,6 @@ class VsphereLocalLinuxTest(TestCase):
             'naming_no_name-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Deploying linux host without name assigned')
 
         self.naming_no_name_env = local.init_env(
@@ -246,11 +231,6 @@ class VsphereLocalLinuxTest(TestCase):
             'no-external-net-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info(
             'Deploying linux host with no external network assigned'
         )
@@ -287,11 +267,6 @@ class VsphereLocalLinuxTest(TestCase):
             self.blueprints_path,
             'no-management-net-blueprint.yaml'
         )
-
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
 
         self.logger.info(
             'Deploying linux host with no management network assigned'
@@ -330,11 +305,6 @@ class VsphereLocalLinuxTest(TestCase):
             'no-interfaces-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info(
             'Deploying linux host with no interfaces attached'
         )
@@ -371,11 +341,6 @@ class VsphereLocalLinuxTest(TestCase):
             self.blueprints_path,
             'storage-blueprint.yaml'
         )
-
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
 
         self.logger.info('Deploying linux host for storage test')
 
@@ -421,11 +386,6 @@ class VsphereLocalLinuxTest(TestCase):
             'double_storage-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Deploying linux host for double storage test')
 
         inputs = copy(self.ext_inputs)
@@ -469,11 +429,6 @@ class VsphereLocalLinuxTest(TestCase):
             'network-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Deploying network and linux hosts for network test')
 
         inputs = copy(self.ext_inputs)
@@ -516,11 +471,6 @@ class VsphereLocalLinuxTest(TestCase):
             self.blueprints_path,
             'network-blueprint.yaml'
         )
-
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
 
         self.logger.info('Deploying network and linux hosts for distributed '
                          'network test')
@@ -566,16 +516,12 @@ class VsphereLocalLinuxTest(TestCase):
             'network-fail-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info('Attempting to deploy with invalid network name')
 
         inputs = copy(self.ext_inputs)
         inputs['test_network_distributed'] = False
         inputs['test_network_name'] = 'notarealnetworkdonotuse'
+        inputs.pop('external_network_distributed')
 
         self.invalid_network_env = local.init_env(
             blueprint,
@@ -612,11 +558,6 @@ class VsphereLocalLinuxTest(TestCase):
             'network-fail-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info(
             'Attempting to deploy on standard network with '
             'switch_distributed set to true'
@@ -627,6 +568,7 @@ class VsphereLocalLinuxTest(TestCase):
         inputs['test_network_name'] = (
             self.env.cloudify_config['existing_standard_network']
         )
+        inputs.pop('external_network_distributed')
 
         self.incorrect_distributed_true_env = local.init_env(
             blueprint,
@@ -666,11 +608,6 @@ class VsphereLocalLinuxTest(TestCase):
             'network-fail-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info(
             'Attempting to deploy with invalid distributed network name'
         )
@@ -678,6 +615,7 @@ class VsphereLocalLinuxTest(TestCase):
         inputs = copy(self.ext_inputs)
         inputs['test_network_distributed'] = True
         inputs['test_network_name'] = 'notarealdistributednetworkdonotuse'
+        inputs.pop('external_network_distributed')
 
         self.invalid_distributed_network_env = local.init_env(
             blueprint,
@@ -714,11 +652,6 @@ class VsphereLocalLinuxTest(TestCase):
             'network-fail-blueprint.yaml'
         )
 
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
-
         self.logger.info(
             'Attempting to deploy on distributed network with '
             'switch_distributed set to false'
@@ -729,6 +662,7 @@ class VsphereLocalLinuxTest(TestCase):
         inputs['test_network_name'] = (
             self.env.cloudify_config['existing_distributed_network']
         )
+        inputs.pop('external_network_distributed')
 
         self.incorrect_distributed_false_env = local.init_env(
             blueprint,
@@ -767,11 +701,6 @@ class VsphereLocalLinuxTest(TestCase):
             self.blueprints_path,
             'fail-blueprint.yaml'
         )
-
-        if self.env.install_plugins:
-            self.logger.info('installing required plugins')
-            self.cfy.install_plugins_locally(
-                blueprint_path=blueprint)
 
         self.logger.info('Attempting to deploy with bad inputs.')
 
