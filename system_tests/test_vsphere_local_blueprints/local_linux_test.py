@@ -20,6 +20,7 @@ from functools import partial
 
 # Third party imports
 from pyVmomi import vim
+from pyVim.connect import SmartConnect, Disconnect
 
 # Cloudify imports
 from cloudify.workflows import local
@@ -512,6 +513,127 @@ class VsphereLocalLinuxTest(TestCase):
 
         test_results = self.distributed_network_env.outputs()['test_results']
         assert True in test_results
+
+    def test_resize(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.resize_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.resize_env,
+        )
+
+        self.resize_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.logger.info('Searching for appropriately named VM')
+        vms = get_vsphere_vms_list(
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+
+        self.resize_env.execute(
+            'execute_operation',
+            parameters={
+                'node_ids': 'testserver',
+                'operation': 'cloudify.interfaces.modify.resize',
+                'operation_kwargs': {
+                    'cpus': 2,
+                    'memory': 3072,
+                },
+            },
+            task_retries=10,
+            task_retry_interval=3,
+        )
+
+        runtime_properties = get_runtime_props(
+            target_node_id='testserver',
+            node_instances=self.resize_env.storage.get_node_instances(),
+            logger=self.logger,
+        )
+
+        vsphere_conn = SmartConnect(
+            user=self.ext_inputs['vsphere_username'],
+            pwd=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+        vsphere_content = vsphere_conn.RetrieveContent()
+        vsphere_container = vsphere_content.viewManager.CreateContainerView(
+            vsphere_content.rootFolder,
+            [vim.VirtualMachine],
+            True,
+        )
+        vms = vsphere_container.view
+        vsphere_container.Destroy()
+        config = None
+        for vm in vms:
+            if vm.name == runtime_properties['name']:
+                config = vm.summary.config
+
+        for vim_key, attrs_key, value in (
+            ('numCpu', 'cpus', 2),
+            ('memorySizeMB', 'memory', 3072),
+        ):
+            self.assertEqual(value, getattr(config, vim_key))
+            self.assertEqual(value, runtime_properties[attrs_key])
+
+        Disconnect(vsphere_conn)
+
+    def test_resize_too_big(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.resize_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.resize_env,
+        )
+
+        self.resize_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        with self.assertRaises(RuntimeError) as e:
+            self.resize_env.execute(
+                'execute_operation',
+                parameters={
+                    'node_ids': 'testserver',
+                    'operation': 'cloudify.interfaces.modify.resize',
+                    'operation_kwargs': {
+                        'cpus': 2,
+                        'memory': 4096,
+                    },
+                },
+                task_retries=10,
+                task_retry_interval=3,
+            )
+
+        self.assertIn('https://kb.vmware.com/kb/2008405', str(e.exception))
 
     def test_invalid_network_name(self):
         blueprint = os.path.join(

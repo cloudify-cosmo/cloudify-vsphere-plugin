@@ -1902,14 +1902,47 @@ class ServerClient(VsphereClient):
     def resize_server(self, server, cpus=None, memory=None):
         ctx.logger.debug("Entering resize reconfiguration.")
         config = vim.vm.ConfigSpec()
-        if cpus:
+        if cpus is not None:
+            try:
+                cpus = int(cpus)
+            except (ValueError, TypeError) as e:
+                raise cfy_exc.NonRecoverableError(
+                    "Invalid cpus value: {}".format(e))
+            if cpus < 1:
+                raise cfy_exc.NonRecoverableError(
+                    "cpus must be at least 1. Is {}".format(cpus))
             config.numCPUs = cpus
-        if memory:
+        if memory is not None:
+            try:
+                memory = int(memory)
+            except (ValueError, TypeError) as e:
+                raise cfy_exc.NonRecoverableError(
+                    "Invalid memory value: {}".format(e))
+            if memory < 512:
+                raise cfy_exc.NonRecoverableError(
+                    "Memory must be at least 512MB. Is {}".format(memory))
+            if memory % 128:
+                raise cfy_exc.NonRecoverableError(
+                    "Memory must be an integer multiple of 128. Is {}".format(
+                        memory))
             config.memoryMB = memory
-        task = server.Reconfigure(spec=config)
-        self._wait_for_task(task)
-        ctx.logger.debug("Server resized with new number of "
-                         "CPUs: %s and RAM: %s." % (cpus, memory))
+
+        task = server.obj.Reconfigure(spec=config)
+
+        try:
+            self._wait_for_task(task)
+        except cfy_exc.NonRecoverableError as e:
+            if 'configSpec.memoryMB' in e.args[0]:
+                raise cfy_exc.NonRecoverableError(
+                    "Memory error resizing Server. May be caused by "
+                    "https://kb.vmware.com/kb/2008405 . If so the Server may "
+                    "be resized while it is switched off.",
+                    e,
+                )
+            raise
+
+        ctx.logger.debug("Server '%s' resized with new number of "
+                         "CPUs: %s and RAM: %s." % (server.name, cpus, memory))
 
     def get_server_ip(self, vm, network_name):
         ctx.logger.debug(

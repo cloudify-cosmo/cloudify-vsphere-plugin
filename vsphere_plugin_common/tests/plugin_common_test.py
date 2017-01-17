@@ -1778,3 +1778,61 @@ class VspherePluginsCommonTests(unittest.TestCase):
         result = client._port_group_is_distributed(port_group)
 
         self.assertFalse(result)
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_resize_server_fails_128(self, ctx):
+        client = vsphere_plugin_common.ServerClient()
+
+        with self.assertRaises(NonRecoverableError) as e:
+            client.resize_server(None, memory=572)
+
+        self.assertIn('must be an integer multiple of 128', str(e.exception))
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_resize_server_fails_512(self, ctx):
+        client = vsphere_plugin_common.ServerClient()
+
+        with self.assertRaises(NonRecoverableError) as e:
+            client.resize_server(None, memory=128)
+
+        self.assertIn('at least 512MB', str(e.exception))
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_resize_server_fails_memory_NaN(self, ctx):
+        client = vsphere_plugin_common.ServerClient()
+
+        with self.assertRaises(NonRecoverableError) as e:
+            client.resize_server(None, memory='banana')
+
+        self.assertIn('Invalid memory value', str(e.exception))
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_resize_server_fails_0_cpus(self, ctx):
+        client = vsphere_plugin_common.ServerClient()
+
+        with self.assertRaises(NonRecoverableError) as e:
+            client.resize_server(None, cpus=0)
+
+        self.assertIn('must be at least 1', str(e.exception))
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_resize_server_fails_cpu_NaN(self, ctx):
+        client = vsphere_plugin_common.ServerClient()
+
+        with self.assertRaises(NonRecoverableError) as e:
+            client.resize_server(None, cpus='apple')
+
+        self.assertIn('Invalid cpus value', str(e.exception))
+
+    @patch('pyVmomi.vim.vm.ConfigSpec')
+    @patch('vsphere_plugin_common.ctx')
+    def test_resize_server(self, ctx, configSpec):
+        client = vsphere_plugin_common.ServerClient()
+        server = Mock()
+        server.obj.Reconfigure.return_value.info.state = 'success'
+
+        client.resize_server(server, cpus=3, memory=1024)
+
+        server.obj.Reconfigure.assert_called_once_with(
+            spec=configSpec.return_value,
+        )

@@ -15,6 +15,7 @@
 
 # Stdlib imports
 import string
+from warnings import warn
 
 # Third party imports
 
@@ -397,7 +398,42 @@ def get_state(server_client, **kwargs):
 
 @operation
 @with_server_client
+def resize_server(server_client, cpus=None, memory=None, **kwargs):
+    if not any((
+        cpus,
+        memory,
+    )):
+        ctx.logger.info(
+            "Attempt to resize Server with no sizes specified")
+        return
+
+    server = get_server_by_context(server_client)
+    if server is None:
+        raise cfy_exc.NonRecoverableError(
+            "Cannot resize server - server doesn't exist for node: {0}"
+            .format(ctx.node.id))
+
+    server_client.resize_server(
+        server,
+        cpus=cpus,
+        memory=memory,
+    )
+
+    for property in 'cpus', 'memory':
+        value = locals()[property]
+        if value:
+            ctx.instance.runtime_properties[property] = value
+
+
+@operation
+@with_server_client
 def resize(server_client, **kwargs):
+    warn(
+        "This operation may be removed at any point from "
+        "cloudify-vsphere-plugin==3. "
+        "Please use resize_server (cloudify.interfaces.modify.resize) "
+        "instead.",
+        DeprecationWarning)
     server = get_server_by_context(server_client)
     if server is None:
         raise cfy_exc.NonRecoverableError(

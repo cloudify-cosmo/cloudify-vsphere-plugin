@@ -142,6 +142,9 @@ node_types:
                 get_state:
                     implementation: vsphere.vsphere_server_plugin.server.get_state
                     inputs: {}
+            cloudify.interfaces.modify:
+                resize:
+                    implementation: vsphere.vsphere_server_plugin.server.resize_server
             cloudify.interfaces.power:
                 'on':
                     implementation: vsphere.vsphere_server_plugin.power.power_on
@@ -165,7 +168,6 @@ node_types:
                         default: 300
                         description: >
                           How long to wait for the operation to complete.
-
 
     cloudify.vsphere.nodes.WindowsServer:
         derived_from: cloudify.vsphere.nodes.Server
