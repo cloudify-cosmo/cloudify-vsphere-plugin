@@ -1,11 +1,3 @@
-checkout:
-  post:
-    - >
-      if [ -n "$CI_PULL_REQUEST" ]; then
-        PR_ID=${CI_PULL_REQUEST##*/}
-        git fetch origin +refs/pull/$PR_ID/merge:
-        git checkout -qf FETCH_HEAD
-      fi
 
 dependencies:
   pre:
@@ -15,8 +7,9 @@ dependencies:
 
 test:
   override:
+    - mkdir -p "$CIRCLE_TEST_REPORTS/nose"
     - tox -e pep8
-    - tox -e py27
+    - tox -e py27 -- --with-xunit --xunit-file="$CIRCLE_TEST_REPORTS/nose/nose.xml"
 
 deployment:
   release:
