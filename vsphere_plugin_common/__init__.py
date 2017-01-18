@@ -718,7 +718,10 @@ class VsphereClient(object):
         return obj
 
     def _wait_for_task(self, task):
-        while task.info.state == vim.TaskInfo.State.running:
+        while task.info.state in (
+            vim.TaskInfo.State.queued,
+            vim.TaskInfo.State.running,
+        ):
             time.sleep(TASK_CHECK_SLEEP)
         if task.info.state != vim.TaskInfo.State.success:
             raise cfy_exc.NonRecoverableError(
@@ -1293,30 +1296,85 @@ class ServerClient(VsphereClient):
         return task.info.result
 
     def start_server(self, server):
+        if self.is_server_poweredon(server):
+            ctx.logger.info("Server '{}' already running".format(server.name))
+            return
         ctx.logger.debug("Entering server start procedure.")
         task = server.obj.PowerOn()
         self._wait_for_task(task)
         ctx.logger.debug("Server is now running.")
 
-    def shutdown_server_guest(self, server):
+    def shutdown_server_guest(
+        self, server,
+        timeout=TASK_CHECK_SLEEP,
+        max_wait_time=300,
+    ):
+        if self.is_server_poweredoff(server):
+            ctx.logger.info("Server '{}' already stopped".format(server.name))
+            return
         ctx.logger.debug("Entering server shutdown procedure.")
         server.obj.ShutdownGuest()
+        for _ in range(max_wait_time // timeout):
+            time.sleep(timeout)
+            if self.is_server_poweredoff(server):
+                break
+        else:
+            raise cfy_exc.NonRecoverableError(
+                "Server still running after {time}s timeout.".format(
+                    time=max_wait_time,
+                ))
         ctx.logger.debug("Server is now shut down.")
 
     def stop_server(self, server):
+        if self.is_server_poweredoff(server):
+            ctx.logger.info("Server '{}' already stopped".format(server.name))
+            return
         ctx.logger.debug("Entering stop server procedure.")
         task = server.obj.PowerOff()
         self._wait_for_task(task)
         ctx.logger.debug("Server is now stopped.")
 
+    def reset_server(self, server):
+        if self.is_server_poweredoff(server):
+            ctx.logger.info(
+                "Server '{}' currently stopped, starting.".format(server.name))
+            return self.start_server(server)
+        ctx.logger.debug("Entering stop server procedure.")
+        task = server.obj.Reset()
+        self._wait_for_task(task)
+        ctx.logger.debug("Server has been reset")
+
+    def reboot_server(
+        self, server,
+        timeout=TASK_CHECK_SLEEP,
+        max_wait_time=300,
+    ):
+        if self.is_server_poweredoff(server):
+            ctx.logger.info(
+                "Server '{}' currently stopped, starting.".format(server.name))
+            return self.start_server(server)
+        ctx.logger.debug("Entering reboot server procedure.")
+        start_bootTime = server.obj.runtime.bootTime
+        server.obj.RebootGuest()
+        for _ in range(max_wait_time // timeout):
+            time.sleep(timeout)
+            if server.obj.runtime.bootTime > start_bootTime:
+                break
+        else:
+            raise cfy_exc.NonRecoverableError(
+                "Server still running after {time}s timeout.".format(
+                    time=max_wait_time,
+                ))
+        ctx.logger.debug("Server has been rebooted")
+
     def is_server_poweredoff(self, server):
-        return server.summary.runtime.powerState.lower() == "poweredoff"
+        return server.obj.summary.runtime.powerState.lower() == "poweredoff"
 
     def is_server_poweredon(self, server):
-        return server.summary.runtime.powerState.lower() == "poweredon"
+        return server.obj.summary.runtime.powerState.lower() == "poweredon"
 
     def is_server_guest_running(self, server):
-        return server.guest.guestState == "running"
+        return server.obj.guest.guestState == "running"
 
     def delete_server(self, server):
         ctx.logger.debug("Entering server delete procedure.")
