@@ -16,8 +16,10 @@
 # Stdlib imports
 import os
 from copy import copy
+from functools import partial
 
 # Third party imports
+from pyVmomi import vim
 
 # Cloudify imports
 from cloudify.workflows import local
@@ -26,6 +28,7 @@ from cosmo_tester.framework.testenv import TestCase
 
 # This package imports
 from . import (
+    PlatformCaller,
     get_runtime_props,
     get_vsphere_vms_list,
     check_correct_vm_name,
@@ -777,9 +780,204 @@ class VsphereLocalLinuxTest(TestCase):
             ]:
                 assert information in err.message
 
+    def test_power_on_off(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.power_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.power_env,
+        )
+
+        self.power_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        def exec_op(operation):
+            return self.power_env.execute(
+                'execute_operation',
+                parameters={
+                    'node_ids': 'testserver',
+                    'operation': operation,
+                },
+                task_retries=10,
+                task_retry_interval=3,
+            )
+
+        vm = partial(
+            self.get_vim_object,
+            vim.VirtualMachine,
+            self.power_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+
+        exec_op('cloudify.interfaces.power.off')
+
+        self.assertEqual('poweredOff', vm().summary.runtime.powerState)
+
+        # powering on off twice in a row should not change state.
+        exec_op('cloudify.interfaces.power.off')
+
+        self.assertEqual('poweredOff', vm().summary.runtime.powerState)
+
+        exec_op('cloudify.interfaces.power.on')
+
+        self.assertEqual('poweredOn', vm().summary.runtime.powerState)
+
+        # powering on off twice in a row should not change state.
+        exec_op('cloudify.interfaces.power.on')
+
+        self.assertEqual('poweredOn', vm().summary.runtime.powerState)
+
+    def test_power_reset(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.power_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.power_env,
+        )
+
+        self.power_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.power_env.execute(
+            'execute_operation',
+            parameters={
+                'node_ids': 'testserver',
+                'operation': 'reset',
+            },
+            task_retries=10,
+            task_retry_interval=3,
+        )
+
+        vm = self.get_vim_object(
+            vim.VirtualMachine,
+            self.power_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+
+        self.assertEqual('poweredOn', vm.summary.runtime.powerState)
+
+    def test_power_reboot(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.power_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.power_env,
+        )
+
+        self.power_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.power_env.execute(
+            'execute_operation',
+            parameters={
+                'node_ids': 'testserver',
+                'operation': 'cloudify.interfaces.power.reboot',
+            },
+            task_retries=10,
+            task_retry_interval=3,
+        )
+
+        vm = self.get_vim_object(
+            vim.VirtualMachine,
+            self.power_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+
+        self.assertEqual('poweredOn', vm.summary.runtime.powerState)
+
+    def test_power_shutdown(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.power_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.power_env,
+        )
+
+        self.power_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.power_env.execute(
+            'execute_operation',
+            parameters={
+                'node_ids': 'testserver',
+                'operation': 'shut_down',
+            },
+            task_retries=10,
+            task_retry_interval=3,
+        )
+
+        vm = self.get_vim_object(
+            vim.VirtualMachine,
+            self.power_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+
+        self.assertEqual('poweredOff', vm.summary.runtime.powerState)
+
     def generic_cleanup(self, component):
         component.execute(
             'uninstall',
             task_retries=50,
             task_retry_interval=3,
         )
+
+    def get_vim_object(self, type, name):
+        with PlatformCaller(
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+        ) as client:
+            return client._get_obj_by_name(type, name)

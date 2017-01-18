@@ -1,0 +1,93 @@
+tosca_definitions_version: cloudify_dsl_1_2
+
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/3.3.1/types.yaml
+  - ../../../plugin.yaml
+
+
+inputs:
+  template_name:
+    description: >
+      Template to clone VMs from
+  external_network:
+    description: >
+      Which external network to deploy the VM on
+    default: VM Network
+  external_network_distributed:
+    description: >
+      Whether the external network is on a distributed switch
+    default: true
+  management_network:
+    description: >
+      Which management network to deploy the VM on
+    default: VM Network
+  management_network_distributed:
+    description: >
+      Whether the management network is on a distributed switch
+    default: true
+  vsphere_username:
+    type: string
+    description: >
+      User login for vsphere
+  vsphere_password:
+    type: string
+    default: ''
+    description: >
+      User password for vsphere
+  vsphere_host:
+    description: >
+      vSphere host
+    type: string
+  vsphere_port:
+    description: >
+      port which vCenter Server system uses to monitor data transfer
+      from SDK clients
+    default: 443
+    type: string
+  vsphere_datacenter_name:
+    description: >
+      datacenter name
+    default: Datacenter
+    type: string
+  vsphere_resource_pool_name:
+    description: >
+      Resource pool name. Represents a set of physical resources:
+      a single host, a subset of a host's resources, or resources
+      spanning multiple hosts
+    default: Resources
+    type: string
+  vsphere_auto_placement:
+    description: >
+      signifies if server is to be automatically placed on a host
+    default: false
+    type: boolean
+
+
+dsl_definitions:
+  - &connection_configuration
+    username: { get_input: vsphere_username }
+    password: { get_input: vsphere_password }
+    host: { get_input: vsphere_host }
+    port: { get_input: vsphere_port }
+    datacenter_name: { get_input: vsphere_datacenter_name }
+    resource_pool_name: { get_input: vsphere_resource_pool_name }
+    auto_placement: { get_input: vsphere_auto_placement }
+
+
+node_templates:
+  testserver:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      install_agent: false
+      server:
+        name: systemtestlinuxsimple
+        template: { get_input: template_name }
+        cpus: 1
+        memory: 2048
+      networking:
+        connect_networks:
+          - name: { get_input: external_network }
+            switch_distributed: { get_input: external_network_distributed }
+            external: True
+      connection_config: *connection_configuration
