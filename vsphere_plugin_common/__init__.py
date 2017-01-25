@@ -240,8 +240,8 @@ class VsphereClient(object):
                         ]
 
                         if (
-                            map_type == 'static'
-                            and len(mapped) != len(args[mapping])
+                            map_type == 'static' and
+                            len(mapped) != len(args[mapping])
                         ):
                             mapped = None
 
