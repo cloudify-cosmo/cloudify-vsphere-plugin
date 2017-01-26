@@ -34,6 +34,7 @@ from cloudify import exceptions as cfy_exc
 # This package imports
 from vsphere_plugin_common.constants import (
     NETWORKS,
+    NETWORK_ID,
     TASK_CHECK_SLEEP,
 )
 from vsphere_plugin_common.vendored_collections import namedtuple
@@ -409,6 +410,59 @@ class VsphereClient(object):
             use_cache=use_cache,
         )
 
+    def _get_connected_network_name(self, network):
+        name = None
+        if network.get('from_relationship'):
+            net_id = None
+            found = False
+            for relationship in ctx.instance.relationships:
+                if relationship.target.node.name == network['name']:
+                    props = relationship.target.instance.runtime_properties
+                    net_id = props.get(NETWORK_ID)
+                    found = True
+                    break
+            if not found:
+                raise cfy_exc.NonRecoverableError(
+                    'Could not find any relationships to a node called '
+                    '"{name}", so {prop} could not be retrieved.'.format(
+                        name=network['name'],
+                        prop=NETWORK_ID,
+                    )
+                )
+            elif net_id is None:
+                raise cfy_exc.NonRecoverableError(
+                    'Could not get a {prop} runtime property from '
+                    'relationship to a node called "{name}".'.format(
+                        name=network['name'],
+                        prop=NETWORK_ID,
+                    )
+                )
+
+            if isinstance(net_id, list):
+                # We won't alert on switch_distributed mismatch here, as the
+                # validation logic handles that
+
+                # Standard port groups will have multiple IDs, but since we
+                # use the name, just using the first one will give the right
+                # name
+                net_id = net_id[0]
+
+            net = self._get_obj_by_id(
+                vimtype=vim.Network,
+                id=net_id,
+            )
+
+            if net is None:
+                raise cfy_exc.NonRecoverableError(
+                    'Could not get network given network ID: {id}'.format(
+                        id=net_id,
+                    )
+                )
+            name = net.name
+        else:
+            name = network['name']
+        return name
+
     def _get_networks(self, use_cache=True):
         if 'network' in self._cache and use_cache:
             return self._cache['network']
@@ -470,6 +524,12 @@ class VsphereClient(object):
         return [
             network for network in self._get_networks(use_cache)
             if self._port_group_is_distributed(network)
+        ]
+
+    def _get_standard_networks(self, use_cache=True):
+        return [
+            network for network in self._get_networks(use_cache)
+            if not self._port_group_is_distributed(network)
         ]
 
     def _get_extra_dv_port_group_details(self, use_cache=True):
@@ -922,7 +982,11 @@ class ServerClient(VsphereClient):
         )
         port_groups, distributed_port_groups = self._get_port_group_names()
         for network in networks:
-            network_name = network['name']
+            try:
+                network_name = self._get_connected_network_name(network)
+            except cfy_exc.NonRecoverableError as err:
+                issues.append(str(err))
+                continue
             network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
 
@@ -1057,6 +1121,10 @@ class ServerClient(VsphereClient):
             vm_cpus=cpus,
             vm_memory=memory,
         )
+
+        # Correct the network name for all networks from relationships
+        for network in networks:
+            network['name'] = self._get_connected_network_name(network)
 
         candidate_hosts = self.find_candidate_hosts(
             resource_pool=resource_pool_name,
@@ -1988,13 +2056,6 @@ class NetworkClient(VsphereClient):
                         )
                     )
 
-            if self.port_group_is_on_any_hosts(port_group_name):
-                raise cfy_exc.NonRecoverableError(
-                    'Port group {name} already exists on vSphere.'.format(
-                        name=port_group_name,
-                    )
-                )
-
         if runtime_properties['status'] in ('preparing', 'creating'):
             runtime_properties['status'] = 'creating'
             if 'created_on' not in runtime_properties.keys():
@@ -2049,13 +2110,6 @@ class NetworkClient(VsphereClient):
             distributed,
         )
         return hosts == port_groups
-
-    def port_group_is_on_any_hosts(self, port_group_name, distributed=False):
-        port_groups, _ = self._get_port_group_host_count(
-            port_group_name,
-            distributed,
-        )
-        return port_groups > 0
 
     def _get_port_group_host_count(self, port_group_name, distributed=False):
         hosts = self.get_host_list()

@@ -92,7 +92,8 @@ data_types:
                 description: |
                     List of network interfaces to connect.
                     These should be in the form of dicts with:
-                    name: Network name
+                    name: The name of the network on vsphere, or of the related node if from_relationship is true.
+                    from_relationship: true/false- determines whether to use a relationship from a connected node (default false)
                     management: true/false- determines if this is a management network interface (default false)
                     external: true/false- determines if this is a external network interface (default false)
                     switch_distributed: determines if this is connected to a distributed port group (default false)
@@ -182,6 +183,10 @@ node_types:
     cloudify.vsphere.nodes.Network:
         derived_from: cloudify.nodes.Network
         properties:
+            use_existing_resource:
+                description: >
+                    Whether to use a network that already exists on vSphere.
+                default: False
             network: {}
             connection_config:
                 default: {}
@@ -209,6 +214,78 @@ node_types:
                     inputs: {}
                 delete:
                     implementation: vsphere.vsphere_storage_plugin.storage.delete
+                    inputs: {}
+
+    cloudify.vsphere.nodes.Datacenter:
+        derived_from: cloudify.nodes.Root
+        properties:
+            name:
+                description: >
+                    The name of the datacenter.
+            use_existing_resource:
+                description: >
+                    Whether to use a datacenter that already exists on vSphere.
+                    Currently, datacenters cannot be created or deleted,
+                    and this node type exists only for compatibility with the NSX plugin.
+                default: True
+            connection_config:
+                default: {}
+                type: cloudify.datatypes.vsphere.Config
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create:
+                    implementation: vsphere.cloudify_vsphere.datacenter.create
+                    inputs: {}
+                delete:
+                    implementation: vsphere.cloudify_vsphere.datacenter.delete
+                    inputs: {}
+
+    cloudify.vsphere.nodes.Datastore:
+        derived_from: cloudify.nodes.Root
+        properties:
+            name:
+                description: >
+                    The name of the datastore.
+            use_existing_resource:
+                description: >
+                    Whether to use a datastore that already exists on vSphere.
+                    Currently, datastores cannot be created or deleted,
+                    and this node type exists only for compatibility with the NSX plugin.
+                default: True
+            connection_config:
+                default: {}
+                type: cloudify.datatypes.vsphere.Config
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create:
+                    implementation: vsphere.cloudify_vsphere.datastore.create
+                    inputs: {}
+                delete:
+                    implementation: vsphere.cloudify_vsphere.datastore.delete
+                    inputs: {}
+
+    cloudify.vsphere.nodes.Cluster:
+        derived_from: cloudify.nodes.Root
+        properties:
+            name:
+                description: >
+                    The name of the cluster.
+            use_existing_resource:
+                description: >
+                    Whether to use a cluster that already exists on vSphere.
+                    Currently, clusters cannot be created or deleted,
+                    and this node type exists only for compatibility with the NSX plugin.
+                default: True
+            connection_config:
+                default: {}
+                type: cloudify.datatypes.vsphere.Config
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create:
+                    implementation: vsphere.cloudify_vsphere.cluster.create
+                    inputs: {}
+                delete:
+                    implementation: vsphere.cloudify_vsphere.cluster.delete
                     inputs: {}
 
 relationships:
