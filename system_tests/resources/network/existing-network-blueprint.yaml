@@ -81,14 +81,12 @@ node_templates:
   network:
     type: cloudify.vsphere.nodes.Network
     properties:
+      use_existing_resource: true
       network:
         name: { get_input: test_network_name }
         switch_distributed: { get_input: test_network_distributed }
-        vlan_id: { get_input: test_network_vlan }
-        vswitch_name: { get_input: test_network_vswitch }
       connection_config: { get_property: [connection_configuration, connection_config] }
 
 outputs:
   vsphere_network_id:
     value: { get_attribute: [ network, vsphere_network_id ] }
-

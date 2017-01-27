@@ -821,6 +821,98 @@ class VsphereLocalLinuxTest(TestCase):
                 'network to true'
             ) in err.message
 
+    def test_network_from_relationship_missing_target(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-relationship-fail-no-target-blueprint.yaml',
+        )
+
+        self.logger.info(
+            'Attempting to deploy VM with network from missing relationship.'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['external_network'] = 'not_a_real_node'
+        inputs.pop('external_network_distributed')
+
+        self.network_from_missing_relationship_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES,
+        )
+
+        try:
+            self.network_from_missing_relationship_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.network_from_missing_relationship_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with a network from a missing relationship was '
+                'expected to fail, but succeeded. Network name was {}'.format(
+                    inputs['external_network'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert 'Could not find' in err.message
+            assert 'relationship' in err.message
+            assert 'called' in err.message
+            assert inputs['external_network'] in err.message
+
+    def test_network_from_relationship_bad_target(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-relationship-fail-bad-target-blueprint.yaml',
+        )
+
+        self.logger.info(
+            'Attempting to deploy VM with network from relationship to '
+            'target without required attributes.'
+        )
+
+        inputs = copy(self.ext_inputs)
+        # The connection_configuration node will exist but not have the
+        # runtime properties
+        inputs['external_network'] = 'connection_configuration'
+
+        self.network_from_bad_relationship_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES,
+        )
+
+        try:
+            self.network_from_bad_relationship_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.network_from_bad_relationship_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with a network from a bad relationship was '
+                'expected to fail, but succeeded. Network name was {}'.format(
+                    inputs['external_network'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert 'Could not get' in err.message
+            assert 'vsphere_network_id' in err.message
+            assert 'from relationship' in err.message
+            assert inputs['external_network'] in err.message
+
     def test_incorrect_inputs(self):
         blueprint = os.path.join(
             self.blueprints_path,

@@ -165,7 +165,8 @@ node_templates:
           - name: { get_input: external_network }
             switch_distributed: { get_input: external_network_distributed }
             external: True
-          - name: { get_input: test_network_name }
+          - name: network
+            from_relationship: true
             switch_distributed: { get_input: test_network_distributed }
     relationships:
       - target: network

@@ -37,27 +37,11 @@ inputs:
       spanning multiple hosts
     default: Resources
     type: string
-  test_network_name:
+  test_datastore_name:
     description: >
-      The name to give to the new test network
+      The name of the datastore
     type: string
-    default: systestnetwork
-  test_network_distributed:
-    description: >
-      Whether the test network is distributed
-    type: boolean
-    default: false
-  test_network_vlan:
-    description: >
-      Which VLAN to use for the test network.
-      It is not recommended that this is set to 1
-    type: integer
-    default: 404
-  test_network_vswitch:
-    description: >
-      The vswitch/dvswitch to attach this portgroup (network) to
-    type: string
-    default: vSwitch0
+    default: systestdatastore
 
 node_types:
   connection_configuration:
@@ -78,17 +62,13 @@ node_templates:
         resource_pool_name: Resources
         auto_placement: true
 
-  network:
-    type: cloudify.vsphere.nodes.Network
+  datastore:
+    type: cloudify.vsphere.nodes.Datastore
     properties:
-      network:
-        name: { get_input: test_network_name }
-        switch_distributed: { get_input: test_network_distributed }
-        vlan_id: { get_input: test_network_vlan }
-        vswitch_name: { get_input: test_network_vswitch }
+      use_existing_resource: false
+      name: { get_input: test_datastore_name }
       connection_config: { get_property: [connection_configuration, connection_config] }
 
 outputs:
-  vsphere_network_id:
-    value: { get_attribute: [ network, vsphere_network_id ] }
-
+  vsphere_datastore_id:
+    value: { get_attribute: [ datastore, vsphere_datastore_id ] }

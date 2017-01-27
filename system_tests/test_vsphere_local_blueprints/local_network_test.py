@@ -22,6 +22,7 @@ from cloudify_cli import constants as cli_constants
 from . import (
     get_vsphere_networks,
     network_exists,
+    get_vsphere_network_ids_by_name,
 )
 
 
@@ -99,6 +100,107 @@ class VsphereLocalNetworkTest(TestCase):
         )
         self.logger.info('Found expected network!')
 
+        self.logger.info('Checking network IDs are present.')
+        outputs = self.network_env.outputs()
+        network_ids = outputs['vsphere_network_id']
+        expected_ids = get_vsphere_network_ids_by_name(
+            name=inputs['test_network_name'],
+            distributed=False,
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+        self.assertEqual(network_ids, expected_ids)
+        self.logger.info('Network IDs are present.')
+
+    def test_existing_network(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'existing-network-blueprint.yaml'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = False
+        inputs['test_network_name'] = self.env.cloudify_config[
+            'existing_standard_network']
+
+        # Do this before running the install workflow to be sure they do
+        # already exist
+        expected_ids = get_vsphere_network_ids_by_name(
+            name=inputs['test_network_name'],
+            distributed=False,
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+
+        self.existing_network_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.existing_network_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.logger.info('Checking network IDs are correct.')
+        outputs = self.existing_network_env.outputs()
+        network_ids = outputs['vsphere_network_id']
+        self.assertEqual(network_ids, expected_ids)
+        self.logger.info('Network IDs are correct.')
+
+        self.existing_network_env.execute('uninstall', task_retries=50)
+
+        after_uninstall_ids = get_vsphere_network_ids_by_name(
+            name=inputs['test_network_name'],
+            distributed=False,
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+
+        self.logger.info('Confirming network was not deleted on uninstall.')
+        self.assertEqual(expected_ids, after_uninstall_ids)
+        self.logger.info('Network was not deleted.')
+
+    def test_not_existing_network(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'existing-network-blueprint.yaml'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = False
+        inputs['test_network_name'] = 'systestTHISSHOULDNOTBEEXISTING'
+
+        self.network_not_existing_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.network_not_existing_env.execute('install')
+            self.network_not_existing_env.execute('uninstall', task_retries=50)
+            raise AssertionError(
+                'Attempting to use existing network: {name} '
+                'should fail, but succeeded!'.format(
+                    target=inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert 'not use existing' in err.message
+            assert inputs['test_network_name'] in err.message
+            assert 'no network by that name exists' in err.message
+            self.logger.info('Use non-existing network with '
+                             'use_existing_resource has correct error.')
+
     def test_distributed_network(self):
         blueprint = os.path.join(
             self.blueprints_path,
@@ -149,13 +251,112 @@ class VsphereLocalNetworkTest(TestCase):
         )
         self.logger.info('Found expected network!')
 
+        self.logger.info('Checking network ID is present.')
+        outputs = self.distributed_network_env.outputs()
+        network_id = outputs['vsphere_network_id']
+        expected_id = get_vsphere_network_ids_by_name(
+            name=inputs['test_network_name'],
+            distributed=True,
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )[0]
+        self.assertEqual(network_id, expected_id)
+        self.logger.info('Network ID is present.')
+
+    def test_existing_distributed_network(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'existing-network-blueprint.yaml'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = True
+        inputs['test_network_name'] = self.env.cloudify_config[
+            'existing_distributed_network']
+
+        expected_id = get_vsphere_network_ids_by_name(
+            name=inputs['test_network_name'],
+            distributed=True,
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )[0]
+
+        self.existing_distributed_network_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.existing_distributed_network_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.logger.info('Checking network ID is correct.')
+        outputs = self.existing_distributed_network_env.outputs()
+        network_id = outputs['vsphere_network_id']
+        self.assertEqual(expected_id, network_id)
+        self.logger.info('Network ID is correct.')
+
+        self.existing_distributed_network_env.execute('uninstall',
+                                                      task_retries=50)
+
+        after_uninstall_id = get_vsphere_network_ids_by_name(
+            name=inputs['test_network_name'],
+            distributed=True,
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )[0]
+
+        self.logger.info('Confirming network was not deleted on uninstall.')
+        self.assertEqual(expected_id, after_uninstall_id)
+        self.logger.info('Network was not deleted.')
+
+    def test_not_existing_distributed_network(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'existing-network-blueprint.yaml'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['test_network_distributed'] = True
+        inputs['test_network_name'] = 'systestTHISSHOULDNOTBEEXISTING'
+
+        self.network_not_existing_distributed_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+
+        try:
+            self.network_not_existing_distributed_env.execute('install')
+            self.network_not_existing_distributed_env.execute('uninstall',
+                                                              task_retries=50)
+            raise AssertionError(
+                'Attempting to use existing distributed network: {name} '
+                'should fail, but succeeded!'.format(
+                    target=inputs['test_network_name'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert 'not use existing' in err.message
+            assert inputs['test_network_name'] in err.message
+            assert 'no distributed network by that name exists' in err.message
+            self.logger.info('Use non-existing distributed network with '
+                             'use_existing_resource has correct error.')
+
     def test_network_bad_vswitch(self):
         blueprint = os.path.join(
             self.blueprints_path,
             'network-blueprint.yaml'
         )
-
-        self.logger.info('Trying to deploy network on bad vswitch')
 
         inputs = copy(self.ext_inputs)
         inputs['test_network_distributed'] = False
