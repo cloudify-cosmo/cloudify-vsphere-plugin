@@ -174,6 +174,7 @@ node_types:
                 required: false
             os_family:
                 default: windows
+                description: Overridden default from ``Server`` node_type.
             agent_config:
                 type: cloudify.datatypes.AgentConfig
                 default:
@@ -182,7 +183,13 @@ node_types:
     cloudify.vsphere.nodes.Network:
         derived_from: cloudify.nodes.Network
         properties:
-            network: {}
+            network:
+                description: |
+                    key-value network configuration. ::
+
+                        name: network name
+                        vlan_id: vLAN identifier which will be assigned to the network
+                        vswitch_name: name of the vSwitch the network will be connected to.
             connection_config:
                 default: {}
                 type: cloudify.datatypes.vsphere.Config
@@ -198,7 +205,11 @@ node_types:
     cloudify.vsphere.nodes.Storage:
         derived_from: cloudify.nodes.Volume
         properties:
-            storage: {}
+            storage:
+                description: |
+                  key-value storage disk configuration. ::
+
+                    storage_size: disk size in GB.
             connection_config:
                 default: {}
                 type: cloudify.datatypes.vsphere.Config
