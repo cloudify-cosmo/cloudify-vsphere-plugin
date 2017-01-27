@@ -13,13 +13,18 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
+import copy
+import time
+
 import mock
-from vsphere_plugin_common import ServerClient
-from cosmo_tester.framework.testenv import TestCase
 from pyVim.connect import Disconnect
 from pyVmomi import vim
+
+from cloudify.exceptions import NonRecoverableError
+from cosmo_tester.framework.testenv import TestCase
+
 from . import categorise_calls
-import copy
+from vsphere_plugin_common import ServerClient
 
 
 class VsphereIntegrationTest(TestCase):
@@ -913,3 +918,86 @@ class VsphereIntegrationTest(TestCase):
         }
         calls = categorise_calls(self.platform_caller.call_args_list)
         self.assertEqual(expected_calls, calls)
+
+    def start_vm_deploy(self, vm_name):
+        template = self.client._get_obj_by_name(
+            vimtype=vim.VirtualMachine,
+            # Use windows template because their minimum size is huge
+            name=self.env.cloudify_config['windows_template'],
+        ).obj
+        datastore = self.client._get_obj_by_name(
+            vimtype=vim.Datastore,
+            name=self.env.cloudify_config['vsphere_datastore_name'],
+        ).obj
+        datacenter = self.client._get_obj_by_name(
+            vimtype=vim.Datacenter,
+            name=self.env.cloudify_config['vsphere_datacenter_name'],
+        ).obj
+        resource_pool = self.client._get_obj_by_name(
+            vimtype=vim.ResourcePool,
+            name='Resources',
+        ).obj
+        destfolder = datacenter.vmFolder
+
+        relospec = vim.vm.RelocateSpec()
+        relospec.datastore = datastore
+        relospec.pool = resource_pool
+
+        conf = vim.vm.ConfigSpec()
+        conf.numCPUs = 1
+        conf.memoryMB = 512
+
+        clonespec = vim.vm.CloneSpec()
+        clonespec.location = relospec
+        clonespec.config = conf
+        clonespec.powerOn = False
+        clonespec.template = False
+
+        task = template.Clone(
+            folder=destfolder,
+            name=vm_name,
+            spec=clonespec,
+        )
+
+        while (
+            task.info.state == vim.TaskInfo.State.queued or
+            task.info.progress < 30  # it seems to actually clone around 30+
+        ):
+            time.sleep(0.5)
+
+        return task
+
+    def test_get_vms_concurrency_fail(self):
+        task = self.start_vm_deploy(vm_name='systestconcurrencyfail')
+
+        try:
+            self.client._get_vms(use_cache=False, skip_broken_vms=False)
+            # Trying to cancel in a cleanup resulted in errors
+            task.Cancel()
+            raise AssertionError(
+                'Successfully retrieved VM information when we should have '
+                'failed.'
+            )
+        except NonRecoverableError as err:
+            assert task.info.state == vim.TaskInfo.State.running, (
+                'VM was not cloning while concurrency test ran. '
+                'Please check for errors on the platform.'
+            )
+            task.Cancel()
+            assert 'Could not retrieve' in err.message
+            assert 'vm object' in err.message
+            assert 'was missing' in err.message
+            self.logger.info(
+                'get_vms concurrency failure has correct message.'
+            )
+
+    def test_get_vms_concurrency(self):
+        task = self.start_vm_deploy(vm_name='systestconcurrency')
+
+        try:
+            self.client._get_vms(use_cache=False)
+
+            task.Cancel()
+            self.logger.info('get_vms concurrency is healthy')
+        except NonRecoverableError as err:
+            raise AssertionError(err.message)
