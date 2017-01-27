@@ -274,7 +274,7 @@ class VsphereLocalWindowsTest(TestCase):
             logger=self.logger,
         )
 
-        name_prefix = 'aaaaaaa'
+        name_prefix = 'aaaaaaaa'
         check_correct_vm_name(
             vms=vms,
             name_prefix=name_prefix,
@@ -397,46 +397,8 @@ class VsphereLocalWindowsTest(TestCase):
                     task_retry_interval=3,
                 )
 
-        self.assertIn('must not be blank', str(e.exception))
         for word in ('custom_sysprep', 'but', 'windows_password'):
             self.assertIn(word, str(e.exception))
-
-    def test_validation_org_name_too_long(self):
-        blueprint = os.path.join(
-            self.blueprints_path,
-            'windows_basic_config-blueprint.yaml',
-        )
-
-        self.logger.info(
-            'attempting to deploy with blank windows_organization')
-
-        inputs = copy(self.ext_inputs)
-
-        inputs['windows_organization'] = 'a' * 65
-
-        self.validation_env = local.init_env(
-            blueprint,
-            inputs=inputs,
-            name=self._testMethodName,
-            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
-
-        with self.assertRaises(RuntimeError) as e:
-            try:
-                self.validation_env.execute(
-                    'install',
-                    task_retries=50,
-                    task_retry_interval=3,
-                )
-            except:
-                raise
-            else:
-                self.validation_env.execute(
-                    'uninstall',
-                    task_retries=50,
-                    task_retry_interval=3,
-                )
-
-        self.assertIn('64', str(e.exception))
 
     def test_windows_custom_sysprep(self):
         blueprint = os.path.join(
