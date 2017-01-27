@@ -16,8 +16,11 @@
 # Stdlib imports
 import os
 from copy import copy
+from functools import partial
 
 # Third party imports
+from pyVmomi import vim
+from pyVim.connect import SmartConnect, Disconnect
 
 # Cloudify imports
 from cloudify.workflows import local
@@ -26,6 +29,7 @@ from cosmo_tester.framework.testenv import TestCase
 
 # This package imports
 from . import (
+    PlatformCaller,
     get_runtime_props,
     get_vsphere_vms_list,
     check_correct_vm_name,
@@ -510,6 +514,127 @@ class VsphereLocalLinuxTest(TestCase):
         test_results = self.distributed_network_env.outputs()['test_results']
         assert True in test_results
 
+    def test_resize(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.resize_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.resize_env,
+        )
+
+        self.resize_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.logger.info('Searching for appropriately named VM')
+        vms = get_vsphere_vms_list(
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+
+        self.resize_env.execute(
+            'execute_operation',
+            parameters={
+                'node_ids': 'testserver',
+                'operation': 'cloudify.interfaces.modify.resize',
+                'operation_kwargs': {
+                    'cpus': 2,
+                    'memory': 3072,
+                },
+            },
+            task_retries=10,
+            task_retry_interval=3,
+        )
+
+        runtime_properties = get_runtime_props(
+            target_node_id='testserver',
+            node_instances=self.resize_env.storage.get_node_instances(),
+            logger=self.logger,
+        )
+
+        vsphere_conn = SmartConnect(
+            user=self.ext_inputs['vsphere_username'],
+            pwd=self.ext_inputs['vsphere_password'],
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+        )
+        vsphere_content = vsphere_conn.RetrieveContent()
+        vsphere_container = vsphere_content.viewManager.CreateContainerView(
+            vsphere_content.rootFolder,
+            [vim.VirtualMachine],
+            True,
+        )
+        vms = vsphere_container.view
+        vsphere_container.Destroy()
+        config = None
+        for vm in vms:
+            if vm.name == runtime_properties['name']:
+                config = vm.summary.config
+
+        for vim_key, attrs_key, value in (
+            ('numCpu', 'cpus', 2),
+            ('memorySizeMB', 'memory', 3072),
+        ):
+            self.assertEqual(value, getattr(config, vim_key))
+            self.assertEqual(value, runtime_properties[attrs_key])
+
+        Disconnect(vsphere_conn)
+
+    def test_resize_too_big(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.resize_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.resize_env,
+        )
+
+        self.resize_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        with self.assertRaises(RuntimeError) as e:
+            self.resize_env.execute(
+                'execute_operation',
+                parameters={
+                    'node_ids': 'testserver',
+                    'operation': 'cloudify.interfaces.modify.resize',
+                    'operation_kwargs': {
+                        'cpus': 2,
+                        'memory': 4096,
+                    },
+                },
+                task_retries=10,
+                task_retry_interval=3,
+            )
+
+        self.assertIn('https://kb.vmware.com/kb/2008405', str(e.exception))
+
     def test_invalid_network_name(self):
         blueprint = os.path.join(
             self.blueprints_path,
@@ -696,6 +821,98 @@ class VsphereLocalLinuxTest(TestCase):
                 'network to true'
             ) in err.message
 
+    def test_network_from_relationship_missing_target(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-relationship-fail-no-target-blueprint.yaml',
+        )
+
+        self.logger.info(
+            'Attempting to deploy VM with network from missing relationship.'
+        )
+
+        inputs = copy(self.ext_inputs)
+        inputs['external_network'] = 'not_a_real_node'
+        inputs.pop('external_network_distributed')
+
+        self.network_from_missing_relationship_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES,
+        )
+
+        try:
+            self.network_from_missing_relationship_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.network_from_missing_relationship_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with a network from a missing relationship was '
+                'expected to fail, but succeeded. Network name was {}'.format(
+                    inputs['external_network'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert 'Could not find' in err.message
+            assert 'relationship' in err.message
+            assert 'called' in err.message
+            assert inputs['external_network'] in err.message
+
+    def test_network_from_relationship_bad_target(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-relationship-fail-bad-target-blueprint.yaml',
+        )
+
+        self.logger.info(
+            'Attempting to deploy VM with network from relationship to '
+            'target without required attributes.'
+        )
+
+        inputs = copy(self.ext_inputs)
+        # The connection_configuration node will exist but not have the
+        # runtime properties
+        inputs['external_network'] = 'connection_configuration'
+
+        self.network_from_bad_relationship_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES,
+        )
+
+        try:
+            self.network_from_bad_relationship_env.execute(
+                'install',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            self.network_from_bad_relationship_env.execute(
+                'uninstall',
+                task_retries=50,
+                task_retry_interval=3,
+            )
+            raise AssertionError(
+                'Deploying with a network from a bad relationship was '
+                'expected to fail, but succeeded. Network name was {}'.format(
+                    inputs['external_network'],
+                )
+            )
+        except RuntimeError as err:
+            # Ensure the error message has pertinent information
+            assert 'Could not get' in err.message
+            assert 'vsphere_network_id' in err.message
+            assert 'from relationship' in err.message
+            assert inputs['external_network'] in err.message
+
     def test_incorrect_inputs(self):
         blueprint = os.path.join(
             self.blueprints_path,
@@ -777,9 +994,204 @@ class VsphereLocalLinuxTest(TestCase):
             ]:
                 assert information in err.message
 
+    def test_power_on_off(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.power_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.power_env,
+        )
+
+        self.power_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        def exec_op(operation):
+            return self.power_env.execute(
+                'execute_operation',
+                parameters={
+                    'node_ids': 'testserver',
+                    'operation': operation,
+                },
+                task_retries=10,
+                task_retry_interval=3,
+            )
+
+        vm = partial(
+            self.get_vim_object,
+            vim.VirtualMachine,
+            self.power_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+
+        exec_op('cloudify.interfaces.power.off')
+
+        self.assertEqual('poweredOff', vm().summary.runtime.powerState)
+
+        # powering on off twice in a row should not change state.
+        exec_op('cloudify.interfaces.power.off')
+
+        self.assertEqual('poweredOff', vm().summary.runtime.powerState)
+
+        exec_op('cloudify.interfaces.power.on')
+
+        self.assertEqual('poweredOn', vm().summary.runtime.powerState)
+
+        # powering on off twice in a row should not change state.
+        exec_op('cloudify.interfaces.power.on')
+
+        self.assertEqual('poweredOn', vm().summary.runtime.powerState)
+
+    def test_power_reset(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.power_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.power_env,
+        )
+
+        self.power_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.power_env.execute(
+            'execute_operation',
+            parameters={
+                'node_ids': 'testserver',
+                'operation': 'reset',
+            },
+            task_retries=10,
+            task_retry_interval=3,
+        )
+
+        vm = self.get_vim_object(
+            vim.VirtualMachine,
+            self.power_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+
+        self.assertEqual('poweredOn', vm.summary.runtime.powerState)
+
+    def test_power_reboot(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.power_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.power_env,
+        )
+
+        self.power_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.power_env.execute(
+            'execute_operation',
+            parameters={
+                'node_ids': 'testserver',
+                'operation': 'cloudify.interfaces.power.reboot',
+            },
+            task_retries=10,
+            task_retry_interval=3,
+        )
+
+        vm = self.get_vim_object(
+            vim.VirtualMachine,
+            self.power_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+
+        self.assertEqual('poweredOn', vm.summary.runtime.powerState)
+
+    def test_power_shutdown(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host with name assigned')
+
+        self.power_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.power_env,
+        )
+
+        self.power_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.power_env.execute(
+            'execute_operation',
+            parameters={
+                'node_ids': 'testserver',
+                'operation': 'shut_down',
+            },
+            task_retries=10,
+            task_retry_interval=3,
+        )
+
+        vm = self.get_vim_object(
+            vim.VirtualMachine,
+            self.power_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+
+        self.assertEqual('poweredOff', vm.summary.runtime.powerState)
+
     def generic_cleanup(self, component):
         component.execute(
             'uninstall',
             task_retries=50,
             task_retry_interval=3,
         )
+
+    def get_vim_object(self, type, name):
+        with PlatformCaller(
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+        ) as client:
+            return client._get_obj_by_name(type, name)

@@ -25,9 +25,9 @@ inputs:
       from SDK clients
     default: 443
     type: string
-  vsphere_datacenter_name:
+  vsphere_resource_pool_name:
     description: >
-      datacenter name
+      resource_pool name
     default: Datacenter
     type: string
   vsphere_resource_pool_name:
@@ -37,27 +37,11 @@ inputs:
       spanning multiple hosts
     default: Resources
     type: string
-  test_network_name:
+  test_cluster_name:
     description: >
-      The name to give to the new test network
+      The name of the cluster
     type: string
-    default: systestnetwork
-  test_network_distributed:
-    description: >
-      Whether the test network is distributed
-    type: boolean
-    default: false
-  test_network_vlan:
-    description: >
-      Which VLAN to use for the test network.
-      It is not recommended that this is set to 1
-    type: integer
-    default: 404
-  test_network_vswitch:
-    description: >
-      The vswitch/dvswitch to attach this portgroup (network) to
-    type: string
-    default: vSwitch0
+    default: systestcluster
 
 node_types:
   connection_configuration:
@@ -74,21 +58,17 @@ node_templates:
         password: { get_input: vsphere_password }
         host: { get_input: vsphere_host }
         port: { get_input: vsphere_port }
-        datacenter_name: { get_input: vsphere_datacenter_name }
+        resource_pool_name: { get_input: vsphere_resource_pool_name }
         resource_pool_name: Resources
         auto_placement: true
 
-  network:
-    type: cloudify.vsphere.nodes.Network
+  cluster:
+    type: cloudify.vsphere.nodes.Cluster
     properties:
-      network:
-        name: { get_input: test_network_name }
-        switch_distributed: { get_input: test_network_distributed }
-        vlan_id: { get_input: test_network_vlan }
-        vswitch_name: { get_input: test_network_vswitch }
+      use_existing_resource: true
+      name: { get_input: test_cluster_name }
       connection_config: { get_property: [connection_configuration, connection_config] }
 
 outputs:
-  vsphere_network_id:
-    value: { get_attribute: [ network, vsphere_network_id ] }
-
+  vsphere_cluster_id:
+    value: { get_attribute: [ cluster, vsphere_cluster_id ] }

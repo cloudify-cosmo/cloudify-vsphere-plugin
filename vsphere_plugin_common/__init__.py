@@ -34,6 +34,7 @@ from cloudify import exceptions as cfy_exc
 # This package imports
 from vsphere_plugin_common.constants import (
     NETWORKS,
+    NETWORK_ID,
     TASK_CHECK_SLEEP,
 )
 from vsphere_plugin_common.vendored_collections import namedtuple
@@ -409,6 +410,59 @@ class VsphereClient(object):
             use_cache=use_cache,
         )
 
+    def _get_connected_network_name(self, network):
+        name = None
+        if network.get('from_relationship'):
+            net_id = None
+            found = False
+            for relationship in ctx.instance.relationships:
+                if relationship.target.node.name == network['name']:
+                    props = relationship.target.instance.runtime_properties
+                    net_id = props.get(NETWORK_ID)
+                    found = True
+                    break
+            if not found:
+                raise cfy_exc.NonRecoverableError(
+                    'Could not find any relationships to a node called '
+                    '"{name}", so {prop} could not be retrieved.'.format(
+                        name=network['name'],
+                        prop=NETWORK_ID,
+                    )
+                )
+            elif net_id is None:
+                raise cfy_exc.NonRecoverableError(
+                    'Could not get a {prop} runtime property from '
+                    'relationship to a node called "{name}".'.format(
+                        name=network['name'],
+                        prop=NETWORK_ID,
+                    )
+                )
+
+            if isinstance(net_id, list):
+                # We won't alert on switch_distributed mismatch here, as the
+                # validation logic handles that
+
+                # Standard port groups will have multiple IDs, but since we
+                # use the name, just using the first one will give the right
+                # name
+                net_id = net_id[0]
+
+            net = self._get_obj_by_id(
+                vimtype=vim.Network,
+                id=net_id,
+            )
+
+            if net is None:
+                raise cfy_exc.NonRecoverableError(
+                    'Could not get network given network ID: {id}'.format(
+                        id=net_id,
+                    )
+                )
+            name = net.name
+        else:
+            name = network['name']
+        return name
+
     def _get_networks(self, use_cache=True):
         if 'network' in self._cache and use_cache:
             return self._cache['network']
@@ -470,6 +524,12 @@ class VsphereClient(object):
         return [
             network for network in self._get_networks(use_cache)
             if self._port_group_is_distributed(network)
+        ]
+
+    def _get_standard_networks(self, use_cache=True):
+        return [
+            network for network in self._get_networks(use_cache)
+            if not self._port_group_is_distributed(network)
         ]
 
     def _get_extra_dv_port_group_details(self, use_cache=True):
@@ -718,7 +778,10 @@ class VsphereClient(object):
         return obj
 
     def _wait_for_task(self, task):
-        while task.info.state == vim.TaskInfo.State.running:
+        while task.info.state in (
+            vim.TaskInfo.State.queued,
+            vim.TaskInfo.State.running,
+        ):
             time.sleep(TASK_CHECK_SLEEP)
         if task.info.state != vim.TaskInfo.State.success:
             raise cfy_exc.NonRecoverableError(
@@ -922,7 +985,11 @@ class ServerClient(VsphereClient):
         )
         port_groups, distributed_port_groups = self._get_port_group_names()
         for network in networks:
-            network_name = network['name']
+            try:
+                network_name = self._get_connected_network_name(network)
+            except cfy_exc.NonRecoverableError as err:
+                issues.append(str(err))
+                continue
             network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
 
@@ -1057,6 +1124,10 @@ class ServerClient(VsphereClient):
             vm_cpus=cpus,
             vm_memory=memory,
         )
+
+        # Correct the network name for all networks from relationships
+        for network in networks:
+            network['name'] = self._get_connected_network_name(network)
 
         candidate_hosts = self.find_candidate_hosts(
             resource_pool=resource_pool_name,
@@ -1293,30 +1364,85 @@ class ServerClient(VsphereClient):
         return task.info.result
 
     def start_server(self, server):
+        if self.is_server_poweredon(server):
+            ctx.logger.info("Server '{}' already running".format(server.name))
+            return
         ctx.logger.debug("Entering server start procedure.")
         task = server.obj.PowerOn()
         self._wait_for_task(task)
         ctx.logger.debug("Server is now running.")
 
-    def shutdown_server_guest(self, server):
+    def shutdown_server_guest(
+        self, server,
+        timeout=TASK_CHECK_SLEEP,
+        max_wait_time=300,
+    ):
+        if self.is_server_poweredoff(server):
+            ctx.logger.info("Server '{}' already stopped".format(server.name))
+            return
         ctx.logger.debug("Entering server shutdown procedure.")
         server.obj.ShutdownGuest()
+        for _ in range(max_wait_time // timeout):
+            time.sleep(timeout)
+            if self.is_server_poweredoff(server):
+                break
+        else:
+            raise cfy_exc.NonRecoverableError(
+                "Server still running after {time}s timeout.".format(
+                    time=max_wait_time,
+                ))
         ctx.logger.debug("Server is now shut down.")
 
     def stop_server(self, server):
+        if self.is_server_poweredoff(server):
+            ctx.logger.info("Server '{}' already stopped".format(server.name))
+            return
         ctx.logger.debug("Entering stop server procedure.")
         task = server.obj.PowerOff()
         self._wait_for_task(task)
         ctx.logger.debug("Server is now stopped.")
 
+    def reset_server(self, server):
+        if self.is_server_poweredoff(server):
+            ctx.logger.info(
+                "Server '{}' currently stopped, starting.".format(server.name))
+            return self.start_server(server)
+        ctx.logger.debug("Entering stop server procedure.")
+        task = server.obj.Reset()
+        self._wait_for_task(task)
+        ctx.logger.debug("Server has been reset")
+
+    def reboot_server(
+        self, server,
+        timeout=TASK_CHECK_SLEEP,
+        max_wait_time=300,
+    ):
+        if self.is_server_poweredoff(server):
+            ctx.logger.info(
+                "Server '{}' currently stopped, starting.".format(server.name))
+            return self.start_server(server)
+        ctx.logger.debug("Entering reboot server procedure.")
+        start_bootTime = server.obj.runtime.bootTime
+        server.obj.RebootGuest()
+        for _ in range(max_wait_time // timeout):
+            time.sleep(timeout)
+            if server.obj.runtime.bootTime > start_bootTime:
+                break
+        else:
+            raise cfy_exc.NonRecoverableError(
+                "Server still running after {time}s timeout.".format(
+                    time=max_wait_time,
+                ))
+        ctx.logger.debug("Server has been rebooted")
+
     def is_server_poweredoff(self, server):
-        return server.summary.runtime.powerState.lower() == "poweredoff"
+        return server.obj.summary.runtime.powerState.lower() == "poweredoff"
 
     def is_server_poweredon(self, server):
-        return server.summary.runtime.powerState.lower() == "poweredon"
+        return server.obj.summary.runtime.powerState.lower() == "poweredon"
 
     def is_server_guest_running(self, server):
-        return server.guest.guestState == "running"
+        return server.obj.guest.guestState == "running"
 
     def delete_server(self, server):
         ctx.logger.debug("Entering server delete procedure.")
@@ -1844,14 +1970,47 @@ class ServerClient(VsphereClient):
     def resize_server(self, server, cpus=None, memory=None):
         ctx.logger.debug("Entering resize reconfiguration.")
         config = vim.vm.ConfigSpec()
-        if cpus:
+        if cpus is not None:
+            try:
+                cpus = int(cpus)
+            except (ValueError, TypeError) as e:
+                raise cfy_exc.NonRecoverableError(
+                    "Invalid cpus value: {}".format(e))
+            if cpus < 1:
+                raise cfy_exc.NonRecoverableError(
+                    "cpus must be at least 1. Is {}".format(cpus))
             config.numCPUs = cpus
-        if memory:
+        if memory is not None:
+            try:
+                memory = int(memory)
+            except (ValueError, TypeError) as e:
+                raise cfy_exc.NonRecoverableError(
+                    "Invalid memory value: {}".format(e))
+            if memory < 512:
+                raise cfy_exc.NonRecoverableError(
+                    "Memory must be at least 512MB. Is {}".format(memory))
+            if memory % 128:
+                raise cfy_exc.NonRecoverableError(
+                    "Memory must be an integer multiple of 128. Is {}".format(
+                        memory))
             config.memoryMB = memory
-        task = server.Reconfigure(spec=config)
-        self._wait_for_task(task)
-        ctx.logger.debug("Server resized with new number of "
-                         "CPUs: %s and RAM: %s." % (cpus, memory))
+
+        task = server.obj.Reconfigure(spec=config)
+
+        try:
+            self._wait_for_task(task)
+        except cfy_exc.NonRecoverableError as e:
+            if 'configSpec.memoryMB' in e.args[0]:
+                raise cfy_exc.NonRecoverableError(
+                    "Memory error resizing Server. May be caused by "
+                    "https://kb.vmware.com/kb/2008405 . If so the Server may "
+                    "be resized while it is switched off.",
+                    e,
+                )
+            raise
+
+        ctx.logger.debug("Server '%s' resized with new number of "
+                         "CPUs: %s and RAM: %s." % (server.name, cpus, memory))
 
     def get_server_ip(self, vm, network_name):
         ctx.logger.debug(
@@ -1988,13 +2147,6 @@ class NetworkClient(VsphereClient):
                         )
                     )
 
-            if self.port_group_is_on_any_hosts(port_group_name):
-                raise cfy_exc.NonRecoverableError(
-                    'Port group {name} already exists on vSphere.'.format(
-                        name=port_group_name,
-                    )
-                )
-
         if runtime_properties['status'] in ('preparing', 'creating'):
             runtime_properties['status'] = 'creating'
             if 'created_on' not in runtime_properties.keys():
@@ -2049,13 +2201,6 @@ class NetworkClient(VsphereClient):
             distributed,
         )
         return hosts == port_groups
-
-    def port_group_is_on_any_hosts(self, port_group_name, distributed=False):
-        port_groups, _ = self._get_port_group_host_count(
-            port_group_name,
-            distributed,
-        )
-        return port_groups > 0
 
     def _get_port_group_host_count(self, port_group_name, distributed=False):
         hosts = self.get_host_list()

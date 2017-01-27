@@ -24,7 +24,11 @@ setuptools.setup(
         'vsphere_plugin_common.vendored_collections',
         'vsphere_server_plugin',
         'vsphere_network_plugin',
-        'vsphere_storage_plugin'
+        'vsphere_storage_plugin',
+        'cloudify_vsphere',
+        'cloudify_vsphere.datacenter',
+        'cloudify_vsphere.datastore',
+        'cloudify_vsphere.cluster',
     ],
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',

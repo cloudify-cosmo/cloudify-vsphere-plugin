@@ -15,6 +15,7 @@
 
 # Stdlib imports
 import string
+from warnings import warn
 
 # Third party imports
 
@@ -49,6 +50,7 @@ def validate_connect_network(network):
 
     allowed = {
         'name': basestring,
+        'from_relationship': bool,
         'management': bool,
         'external': bool,
         'switch_distributed': bool,
@@ -137,29 +139,26 @@ def create_new_server(server_client):
 
         for network in connect_networks:
             validate_connect_network(network)
-            if network.get('external', False):
+            net = {
+                'name': network['name'],
+                'from_relationship': network.get('from_relationship', False),
+                'external': network.get('external', False),
+                'switch_distributed': network.get('switch_distributed',
+                                                  False),
+                'use_dhcp': network.get('use_dhcp', True),
+                'network': network.get('network'),
+                'gateway': network.get('gateway'),
+                'ip': network.get('ip'),
+            }
+            if net['external']:
                 networks.insert(
                     0,
-                    {'name': network['name'],
-                     'external': True,
-                     'switch_distributed': network.get('switch_distributed',
-                                                       False),
-                     'use_dhcp': network.get('use_dhcp', True),
-                     'network': network.get('network'),
-                     'gateway': network.get('gateway'),
-                     'ip': network.get('ip'),
-                     })
+                    net,
+                )
             else:
                 networks.append(
-                    {'name': network['name'],
-                     'external': False,
-                     'switch_distributed': network.get('switch_distributed',
-                                                       False),
-                     'use_dhcp': network.get('use_dhcp', True),
-                     'network': network.get('network'),
-                     'gateway': network.get('gateway'),
-                     'ip': network.get('ip'),
-                     })
+                    net,
+                )
 
     connection_config = ConnectionConfig().get()
     connection_config.update(ctx.node.properties.get('connection_config'))
@@ -397,7 +396,42 @@ def get_state(server_client, **kwargs):
 
 @operation
 @with_server_client
+def resize_server(server_client, cpus=None, memory=None, **kwargs):
+    if not any((
+        cpus,
+        memory,
+    )):
+        ctx.logger.info(
+            "Attempt to resize Server with no sizes specified")
+        return
+
+    server = get_server_by_context(server_client)
+    if server is None:
+        raise cfy_exc.NonRecoverableError(
+            "Cannot resize server - server doesn't exist for node: {0}"
+            .format(ctx.node.id))
+
+    server_client.resize_server(
+        server,
+        cpus=cpus,
+        memory=memory,
+    )
+
+    for property in 'cpus', 'memory':
+        value = locals()[property]
+        if value:
+            ctx.instance.runtime_properties[property] = value
+
+
+@operation
+@with_server_client
 def resize(server_client, **kwargs):
+    warn(
+        "This operation may be removed at any point from "
+        "cloudify-vsphere-plugin==3. "
+        "Please use resize_server (cloudify.interfaces.modify.resize) "
+        "instead.",
+        DeprecationWarning)
     server = get_server_by_context(server_client)
     if server is None:
         raise cfy_exc.NonRecoverableError(

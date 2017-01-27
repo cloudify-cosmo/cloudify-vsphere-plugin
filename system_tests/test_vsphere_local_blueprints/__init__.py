@@ -70,9 +70,21 @@ def get_vsphere_networks(host, port, username, password):
             {
                 'name': net.name,
                 'distributed': client._port_group_is_distributed(net),
+                'id': net.id,
             }
             for net in nets
         ]
+    return nets
+
+
+def get_vsphere_network_ids_by_name(name, distributed,
+                                    host, port, username, password):
+    nets = get_vsphere_networks(host, port, username, password)
+    nets = [
+        net['id'] for net in nets
+        if net['name'] == name and
+        net['distributed'] == distributed
+    ]
     return nets
 
 
@@ -185,3 +197,16 @@ def network_exists(name, distributed, networks):
             distributed=distributed,
         )
     )
+
+
+def get_vsphere_entity_id_by_name(name, entity_type,
+                                  host, port, username, password):
+    with PlatformCaller(host, port, username, password) as client:
+        entity = client._get_obj_by_name(
+            vimtype=entity_type,
+            name=name,
+        )
+    if entity is not None:
+        return entity.id
+    else:
+        return None
