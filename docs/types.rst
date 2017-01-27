@@ -54,6 +54,19 @@ Node Types
 * ``network_name`` Name of the network on vsphere
 * ``switch_distributed`` True if this is a distributed port group, False otherwise.
 
+
+.. cfy:node:: cloudify.vsphere.nodes.Datastore
+
+
+
+.. cfy:node:: cloudify.vsphere.nodes.Datacenter
+
+
+
+.. cfy:node:: cloudify.vsphere.nodes.Cluster
+
+
+
 Relationships
 -------------
 

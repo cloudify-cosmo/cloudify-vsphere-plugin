@@ -10,9 +10,14 @@ test:
     - mkdir -p "$CIRCLE_TEST_REPORTS/nose"
     - tox -e pep8
     - tox -e py27 -- --with-xunit --xunit-file="$CIRCLE_TEST_REPORTS/nose/nose.xml"
+    - tox -e docs
 
 deployment:
   release:
     tag: /.*/
     commands:
       - (true)
+
+general:
+  artifacts:
+    - .tox/docs/tmp/html
