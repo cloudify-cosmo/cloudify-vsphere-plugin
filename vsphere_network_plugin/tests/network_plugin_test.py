@@ -67,19 +67,3 @@ class VsphereNetworkTest(tests_common.TestCase):
 
         network.delete()
         self.assertThereIsNoNetwork(self.network_name)
-
-    @unittest.skipIf(network_config['switch_distributed'] is False,
-                     "Network 'switch_distributed' property is set to false")
-    @unittest.skipIf(tests_common.able_to_connect() is False,
-                     "vSphere is not reachable.")
-    def test_network_switch_distributed(self):
-        network.create()
-        dv_port_group = self.network_client.get_dv_port_group(
-            self.network_name)
-        self.assertEqual(dv_port_group.config.name, self.network_name)
-
-        network.delete()
-
-        dv_port_group = self.network_client.get_dv_port_group(
-            self.network_name)
-        self.assertTrue(dv_port_group is None)

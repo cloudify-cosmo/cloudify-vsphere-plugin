@@ -60,7 +60,7 @@ class TestCase(unittest.TestCase):
         # Compute
         self.logger.debug("Check are there any server to delete")
         server_client = self.get_server_client()
-        for server in server_client.get_server_list():
+        for server in server_client._get_vms():
             server_name = server.name
             if server_name.startswith(self.name_prefix):
                 self.logger.debug("Deleting server \"{0}\""
