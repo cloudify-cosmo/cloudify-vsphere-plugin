@@ -279,7 +279,7 @@ class VsphereClient(object):
         return result
 
     def _get_entity(self, entity_name, props, vimtype, use_cache=True,
-                    other_entity_mappings=None):
+                    other_entity_mappings=None, skip_broken_objects=False):
         if entity_name in self._cache and use_cache:
             return self._cache[entity_name]
 
@@ -292,15 +292,25 @@ class VsphereClient(object):
 
         results = []
         for result in platform_results:
-            results.append(
-                self._make_cached_object(
-                    obj_name=entity_name,
-                    props_dict=props_dict,
-                    platform_results=result,
-                    other_entity_mappings=other_entity_mappings,
-                    use_cache=use_cache,
+            try:
+                results.append(
+                    self._make_cached_object(
+                        obj_name=entity_name,
+                        props_dict=props_dict,
+                        platform_results=result,
+                        other_entity_mappings=other_entity_mappings,
+                        use_cache=use_cache,
+                    )
                 )
-            )
+            except KeyError as err:
+                if not skip_broken_objects:
+                    raise cfy_exc.NonRecoverableError(
+                        'Could not retrieve all details for {type} object. '
+                        '{err} was missing.'.format(
+                            type=entity_name,
+                            err=str(err)
+                        )
+                    )
 
         self._cache[entity_name] = results
 
@@ -589,7 +599,7 @@ class VsphereClient(object):
             use_cache=use_cache,
         )
 
-    def _get_vms(self, use_cache=True):
+    def _get_vms(self, use_cache=True, skip_broken_vms=True):
         properties = [
             'name',
             'summary',
@@ -611,6 +621,8 @@ class VsphereClient(object):
                     'datastore': self._get_datastores(use_cache=use_cache),
                 },
             },
+            # VMs still being cloned won't return everything we need
+            skip_broken_objects=skip_broken_vms,
         )
 
     def _get_computes(self, use_cache=True):
