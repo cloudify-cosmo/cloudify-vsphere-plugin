@@ -14,6 +14,7 @@
 #  * limitations under the License.
 
 # Stdlib imports
+import urllib
 
 # Third party imports
 
@@ -33,6 +34,7 @@ from vsphere_plugin_common.constants import (
     SWITCH_DISTRIBUTED,
     NETWORK_RUNTIME_PROPERTIES,
 )
+from cloudify_vsphere.utils.feedback import check_name_for_special_characters
 
 
 @operation
@@ -41,6 +43,7 @@ def create(network_client, **kwargs):
     network = {}
     network.update(ctx.node.properties['network'])
     network['name'] = get_network_name(network)
+    check_name_for_special_characters(network['name'])
     port_group_name = network['name']
     switch_distributed = network['switch_distributed']
 
@@ -149,6 +152,7 @@ def get_network_name(network):
 
 
 def _get_network_ids(name, distributed, client, use_cached=True):
+    name = urllib.unquote(name)
     if distributed:
         networks = client._get_dv_networks(use_cached)
         networks = [

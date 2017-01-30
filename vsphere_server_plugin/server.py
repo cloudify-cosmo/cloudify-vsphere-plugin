@@ -21,24 +21,24 @@ from warnings import warn
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
+from cloudify.decorators import operation
 
 # This package imports
 from vsphere_plugin_common import (
-    prepare_for_log,
     ConnectionConfig,
-    with_server_client,
-    remove_runtime_properties,
     get_ip_from_vsphere_nic_ips,
+    remove_runtime_properties,
+    with_server_client,
 )
 from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,
     PUBLIC_IP,
-    VSPHERE_SERVER_ID,
     SERVER_RUNTIME_PROPERTIES,
+    VSPHERE_SERVER_ID,
 )
+from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
 def validate_connect_network(network):

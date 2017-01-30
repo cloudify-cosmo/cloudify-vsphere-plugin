@@ -18,6 +18,7 @@ import os
 import re
 import time
 import atexit
+import urllib
 from copy import copy
 from functools import wraps
 
@@ -38,19 +39,7 @@ from vsphere_plugin_common.constants import (
     TASK_CHECK_SLEEP,
 )
 from vsphere_plugin_common.vendored_collections import namedtuple
-
-
-def prepare_for_log(inputs):
-    result = {}
-    for key, value in inputs.items():
-        if isinstance(value, dict):
-            value = prepare_for_log(value)
-
-        if 'password' in key:
-            value = '**********'
-
-        result[key] = value
-    return result
+from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
 def get_ip_from_vsphere_nic_ips(nic):
@@ -195,6 +184,12 @@ class VsphereClient(object):
                 sub_results[key_components[1]] = value
         return sub_results
 
+    def _get_normalised_name(self, name):
+        """
+            Get the normalised form of a platform entity's name.
+        """
+        return urllib.unquote(name)
+
     def _make_cached_object(self, obj_name, props_dict, platform_results,
                             root_object=True, other_entity_mappings=None,
                             use_cache=True):
@@ -272,6 +267,9 @@ class VsphereClient(object):
                 root_object=False,
             )
 
+        if 'name' in args.keys():
+            args['name'] = self._get_normalised_name(args['name'])
+
         result = obj(
             **args
         )
@@ -331,6 +329,9 @@ class VsphereClient(object):
             return ctx.operation.retry(
                 'Resource pools changed while getting resource pool details.'
             )
+
+        if 'name' in this_pool.keys():
+            this_pool['name'] = self._get_normalised_name(this_pool['name'])
 
         base_object = rp_object(
             name=this_pool['name'],
@@ -505,6 +506,9 @@ class VsphereClient(object):
 
         networks = []
         for item in results:
+            if 'name' in item.keys():
+                item['name'] = self._get_normalised_name(item['name'])
+
             network = net_object(
                 name=item['name'],
                 id=item['obj']._moId,
@@ -772,6 +776,8 @@ class VsphereClient(object):
 
         entities = self._get_getter_method(vimtype)(use_cache)
 
+        name = self._get_normalised_name(name)
+
         for entity in entities:
             if name.lower() == entity.name.lower():
                 obj = entity
@@ -931,7 +937,7 @@ class ServerClient(VsphereClient):
                          vm_memory):
         """
             Make sure we can actually continue with the inputs given.
-            If we can't, we want to report all of the issues t once.
+            If we can't, we want to report all of the issues at once.
         """
         ctx.logger.debug('Validating inputs for this platform.')
         issues = []
@@ -1002,6 +1008,7 @@ class ServerClient(VsphereClient):
             except cfy_exc.NonRecoverableError as err:
                 issues.append(str(err))
                 continue
+            network_name = self._get_normalised_name(network_name)
             network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
 
@@ -1566,7 +1573,7 @@ class ServerClient(VsphereClient):
             ])
             vm_nets = set([
                 (
-                    network['name'],
+                    self._get_normalised_name(network['name']),
                     network['switch_distributed'],
                 )
                 for network in vm_networks
