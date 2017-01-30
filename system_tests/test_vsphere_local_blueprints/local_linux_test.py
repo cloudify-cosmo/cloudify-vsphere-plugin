@@ -17,6 +17,7 @@
 import os
 from copy import copy
 from functools import partial
+import urllib
 
 # Third party imports
 from pyVmomi import vim
@@ -1180,6 +1181,78 @@ class VsphereLocalLinuxTest(TestCase):
 
         self.assertEqual('poweredOff', vm.summary.runtime.powerState)
 
+    def test_network_name_just_slashes(self):
+        self._name_test_template(
+            net_name='systest/network',
+            connect_name='systest/network',
+        )
+
+    def test_network_name_slash_connect_encoded(self):
+        self._name_test_template(
+            net_name='systest/network',
+            connect_name='systest%2fnetwork',
+        )
+
+    def test_network_name_encoded_connect_slash(self):
+        self._name_test_template(
+            net_name='systest%2fnetwork',
+            connect_name='systest/network',
+        )
+
+    def test_network_name_just_encoded(self):
+        self._name_test_template(
+            net_name='systest%2fnetwork',
+            connect_name='systest%2fnetwork',
+        )
+
+    def _name_test_template(self, net_name, connect_name):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'network-name-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying network and linux host for network name '
+                         'test')
+
+        inputs = copy(self.ext_inputs)
+        if 'test_network_name' in self.env.cloudify_config.keys():
+            inputs['test_network_name'] = self.env.cloudify_config[
+                'test_network_name']
+        if 'test_network_vlan' in self.env.cloudify_config.keys():
+            inputs['test_network_vlan'] = self.env.cloudify_config[
+                'test_network_vlan']
+        if 'test_network_dvswitch' in self.env.cloudify_config.keys():
+            inputs['test_network_vswitch'] = self.env.cloudify_config[
+                'test_network_dvswitch']
+        inputs['test_network_name'] = net_name
+        inputs['test_network_connect_name'] = connect_name
+
+        self.network_naming_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.network_naming_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.addCleanup(
+            self.generic_cleanup,
+            self.network_naming_env,
+        )
+
+        network_id = self.network_naming_env.outputs()['network_id']
+        vm_id = self.network_naming_env.outputs()['vm_id']
+        name = self.get_object_name(
+            type=vim.Network,
+            id=network_id,
+        )
+
+        self.assertEqual(urllib.unquote(net_name), name)
+        assert self.vm_has_net(vm_id, network_id)
+
     def generic_cleanup(self, component):
         component.execute(
             'uninstall',
@@ -1195,3 +1268,35 @@ class VsphereLocalLinuxTest(TestCase):
             password=self.ext_inputs['vsphere_password'],
         ) as client:
             return client._get_obj_by_name(type, name)
+
+    def get_object_name(self, type, id):
+        with PlatformCaller(
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+        ) as client:
+            result = client._get_obj_by_id(type, id)
+            objs = client._get_getter_method(type)()
+            assert hasattr(result, 'name'), (
+                'Could not find object of type {type} with ID {id}. '
+                'Available were: {objs}'.format(
+                    type=type,
+                    id=id,
+                    objs=objs,
+                )
+            )
+            return result.name
+
+    def vm_has_net(self, vm_id, net_id):
+        with PlatformCaller(
+            host=self.ext_inputs['vsphere_host'],
+            port=self.ext_inputs['vsphere_port'],
+            username=self.ext_inputs['vsphere_username'],
+            password=self.ext_inputs['vsphere_password'],
+        ) as client:
+            vm = client._get_obj_by_id(vim.VirtualMachine, vm_id)
+        for net in vm.network:
+            if net.id == net_id:
+                return True
+        return False

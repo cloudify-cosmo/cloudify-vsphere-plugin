@@ -29,6 +29,7 @@ setuptools.setup(
         'cloudify_vsphere.datacenter',
         'cloudify_vsphere.datastore',
         'cloudify_vsphere.cluster',
+        'cloudify_vsphere.utils',
     ],
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
