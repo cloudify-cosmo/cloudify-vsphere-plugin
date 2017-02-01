@@ -13,6 +13,8 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+from __future__ import division
+
 # Stdlib imports
 import os
 import re
@@ -1536,15 +1538,15 @@ class ServerClient(VsphereClient):
                         )
                     continue
 
-            free_memory = self.get_host_free_memory(host)
+            memory_weight = self.host_memory_usage_ratio(host, vm_memory)
 
-            if free_memory - vm_memory < 0:
+            if memory_weight < 0:
                 ctx.logger.warn(
-                    'Host {host} does not have enough free memory.'.format(
+                    'Host {host} will not have enough free memory if all VMs '
+                    'are powered on.'.format(
                         host=host.name,
                     )
                 )
-                continue
 
             resource_pools = self.get_host_resource_pools(host)
             resource_pools = [pool.name for pool in resource_pools]
@@ -1606,40 +1608,39 @@ class ServerClient(VsphereClient):
                     host=host.name,
                 )
             )
-            candidate_hosts.append(host)
+            candidate_hosts.append((
+                host,
+                self.host_cpu_thread_usage_ratio(host, vm_cpus),
+                self.host_memory_usage_ratio(host, vm_memory),
+            ))
 
         # Sort hosts based on the best processor ratio after deployment
-        candidate_hosts = [
-            (
-                host,
-                self.host_cpu_thread_usage_ratio(host, vm_cpus)
-            ) for host in candidate_hosts
-        ]
         if candidate_hosts:
             ctx.logger.debug(
                 'Host CPU ratios: {ratios}'.format(
                     ratios=', '.join([
-                        '{hostname}: {ratio}'.format(
+                        '{hostname}: {ratio} {mem_ratio}'.format(
                             hostname=c[0].name,
-                            ratio=c[1]
+                            ratio=c[1],
+                            mem_ratio=c[2],
                         ) for c in candidate_hosts
                     ])
                 )
             )
         candidate_hosts.sort(
             reverse=True,
-            key=lambda host_rating: host_rating[1]
+            key=lambda host_rating: host_rating[1] * host_rating[2]
+            # If more ratios are added, take care that they are proper ratios
+            # (i.e. > 0), because memory ([2]) isn't, and 2 negatives would
+            # cause badly ordered candidates.
         )
-        candidate_hosts = [
-            host[0] for host in candidate_hosts
-        ]
 
         if candidate_hosts:
             return candidate_hosts
         else:
             message = (
                 "No healthy hosts could be found with resource pool {pool}, "
-                "all required networks, and at least {memory} free memory."
+                "and all required networks."
             ).format(pool=resource_pool, memory=vm_memory)
 
             if allowed_hosts:
@@ -1705,6 +1706,7 @@ class ServerClient(VsphereClient):
             )
 
         for host in candidate_hosts:
+            host = host[0]
             ctx.logger.debug('Considering host {host}'.format(host=host.name))
 
             datastores = host.datastore
@@ -1846,7 +1848,7 @@ class ServerClient(VsphereClient):
         """
             Get the amount of unallocated memory on a host.
         """
-        total_memory = host.hardware.memorySize
+        total_memory = host.hardware.memorySize // 1024 // 1024
         used_memory = 0
         for vm in host.vm:
             if not vm.summary.config.template:
@@ -1868,14 +1870,22 @@ class ServerClient(VsphereClient):
         """
         total_threads = host.hardware.cpuInfo.numCpuThreads
 
-        # Convert total_threads to float to allow a non-integer return
-        total_threads = float(total_threads)
-
         total_assigned = vm_cpus
         for vm in host.vm:
             total_assigned += vm.summary.config.numCpu
 
         return total_threads / total_assigned
+
+    def host_memory_usage_ratio(self, host, new_mem):
+        """
+        Return the proporiton of resulting memory overcommit if a VM with
+        new_mem is added to this host.
+        """
+        free_memory = self.get_host_free_memory(host)
+        free_memory_after = free_memory - new_mem
+        weight = free_memory_after / (host.hardware.memorySize // 1024 // 1024)
+
+        return weight
 
     def datastore_is_usable(self, datastore):
         """
