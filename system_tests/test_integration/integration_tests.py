@@ -13,15 +13,19 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
+import copy
+import time
+
 import mock
-from vsphere_plugin_common import ServerClient
-from cosmo_tester.framework.testenv import TestCase
 from pyVim.connect import Disconnect
 from pyVmomi import vim
-from . import categorise_calls
-import copy
+
 from cloudify.exceptions import NonRecoverableError
-import time
+from cloudify.state import current_ctx
+from cosmo_tester.framework.testenv import TestCase
+
+from . import categorise_calls
+from vsphere_plugin_common import ServerClient
 
 
 class VsphereIntegrationTest(TestCase):
@@ -215,13 +219,16 @@ class VsphereIntegrationTest(TestCase):
 
         self.client = ServerClient()
         self.client.connect(cfg=self.cfg)
+        self.addCleanup(
+            Disconnect,
+            self.client.si,
+        )
         self.platform_caller = mock.patch.object(
             self.client.si._stub, 'InvokeMethod',
             wraps=self.client.si._stub.InvokeMethod,
         ).start()
 
     def tearDown(self):
-        Disconnect(self.client.si)
         self.platform_caller = None
 
     def _get_nocache_expectation(self, original_calls):
@@ -916,11 +923,15 @@ class VsphereIntegrationTest(TestCase):
         calls = categorise_calls(self.platform_caller.call_args_list)
         self.assertEqual(expected_calls, calls)
 
-    def start_vm_deploy(self, vm_name):
+    def start_vm_deploy(
+        self, vm_name,
+        vm_template_key='windows_template',
+        vm_memory=512,
+    ):
         template = self.client._get_obj_by_name(
             vimtype=vim.VirtualMachine,
             # Use windows template because their minimum size is huge
-            name=self.env.cloudify_config['windows_template'],
+            name=self.env.cloudify_config[vm_template_key],
         ).obj
         datastore = self.client._get_obj_by_name(
             vimtype=vim.Datastore,
@@ -942,7 +953,7 @@ class VsphereIntegrationTest(TestCase):
 
         conf = vim.vm.ConfigSpec()
         conf.numCPUs = 1
-        conf.memoryMB = 512
+        conf.memoryMB = vm_memory
 
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
@@ -998,3 +1009,47 @@ class VsphereIntegrationTest(TestCase):
             self.logger.info('get_vms concurrency is healthy')
         except NonRecoverableError as err:
             raise AssertionError(err.message)
+
+    def test_vm_memory_overcommit(self):
+        ctx = mock.Mock()
+        current_ctx.set(ctx)
+        vm_name = 'vm_overcommit_test'
+        task = self.start_vm_deploy(
+            vm_name,
+            vm_memory=4177920,  # vSphere max memory size
+            vm_template_key='linux_template',
+        )
+
+        while task.info.state in (
+            vim.TaskInfo.State.queued,
+            vim.TaskInfo.State.running,
+        ):
+            time.sleep(0.5)
+
+        vm = self.client._get_obj_by_name(
+            vim.VirtualMachine,
+            vm_name,
+            use_cache=False,
+        )
+
+        self.addCleanup(
+            self.client.delete_server,
+            vm,
+        )
+
+        candidates = self.client.find_candidate_hosts(
+            resource_pool='Resources',
+            vm_cpus=1,
+            vm_memory=2048,
+            vm_networks={},
+        )
+
+        for candidate in candidates:
+            if candidate[0].name == vm.summary.runtime.host.name:
+                # Should be less than 0 memory because we created a huge VM
+                self.assertLess(candidate[2], 0)
+                break
+        else:
+            raise ValueError(
+                "didn't find the host for the test VM. "
+                "Something bad is going on")

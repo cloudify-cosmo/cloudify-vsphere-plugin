@@ -1,5 +1,6 @@
 tbd:
   - Add Server power operations (on, off, reboot, reset)
+  - Allow host memory overcommit (best-effort placement of VMs)
 2.2.0:
   - Support setting organization on Windows VMs.
   - Support Windows custom sysprep.
