@@ -13,7 +13,7 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from mock import Mock, patch, call
+from mock import Mock, MagicMock, patch, call
 import unittest
 
 from cloudify.exceptions import NonRecoverableError
@@ -32,13 +32,13 @@ class VspherePluginsCommonTests(unittest.TestCase):
                         resource_pool=None,
                         connected=True,
                         status='green'):
-        host = Mock()
+        host = MagicMock()
         host.name = name
         # Yes, datastore = datastores. See pyvmomi. (and vm->vms)
         host.datastore = datastores or []
         host.vm = vms or []
         host.network = networks or []
-        host.hardware.memorySize = memory
+        host.hardware.memorySize = memory * 1024**2
         host.hardware.cpuInfo.numCpuThreads = cpus
         host.parent.resourcePool = resource_pool
         host.overallStatus = status
@@ -153,7 +153,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         client = vsphere_plugin_common.ServerClient()
 
-        expected_result = [hosts[1], hosts[2]]
+        expected_result = [
+            (hosts[1], 1, 0),
+            (hosts[2], 1, 0),
+        ]
 
         result = client.find_candidate_hosts(
             resource_pool=intended_resource_pool,
@@ -246,7 +249,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         client = vsphere_plugin_common.ServerClient()
 
-        expected_result = [hosts[2]]
+        expected_result = [(hosts[2], 1, 0)]
 
         result = client.find_candidate_hosts(
             resource_pool=intended_resource_pool,
@@ -295,7 +298,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_cpu_thread_usage_ratio')
     @patch('vsphere_plugin_common.ServerClient.get_host_networks')
     @patch('vsphere_plugin_common.ServerClient.get_host_resource_pools')
-    @patch('vsphere_plugin_common.ServerClient.get_host_free_memory')
+    @patch('vsphere_plugin_common.ServerClient.host_memory_usage_ratio')
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
@@ -307,7 +310,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                                                       mock_get_clusters,
                                                       mock_host_is_usable,
                                                       mock_cluster_membership,
-                                                      mock_get_free_memory,
+                                                      mock_host_memory_usage,
                                                       mock_get_resource_pools,
                                                       mock_get_networks,
                                                       mock_get_cpu_ratio):
@@ -319,10 +322,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
         ]
         mock_get_hosts.return_value = hosts
         intended_memory = 1024
-        mock_get_free_memory.side_effect = (
-            intended_memory - 1,
-            intended_memory,
-            intended_memory,
+        mock_host_memory_usage.side_effect = (
+            -1,
+            1,
+            1,
         )
         intended_resource_pool = 'rp'
         mock_get_resource_pools.return_value = [
@@ -339,7 +342,11 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         client = vsphere_plugin_common.ServerClient()
 
-        expected_result = [hosts[1], hosts[2]]
+        expected_result = [
+            (hosts[1], 1, 1),
+            (hosts[2], 1, 1),
+            (hosts[0], 1, -1),
+        ]
 
         result = client.find_candidate_hosts(
             resource_pool=intended_resource_pool,
@@ -351,7 +358,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
         )
 
         mock_ctx.logger.warn.assert_called_once_with(
-            'Host {host} does not have enough free memory.'.format(
+            'Host {host} will not have enough free memory '
+            'if all VMs are powered on.'.format(
                 host=host_names[0],
             ),
         )
@@ -360,21 +368,20 @@ class VspherePluginsCommonTests(unittest.TestCase):
             [call(host) for host in hosts],
         )
         self.assertEqual(
-            mock_get_free_memory.mock_calls,
-            [call(host) for host in hosts],
+            mock_host_memory_usage.mock_calls,
+            [call(host, 1024) for host in hosts],
         )
         self.assertEqual(
             mock_get_resource_pools.mock_calls,
-            [call(host) for host in (hosts[1], hosts[2])],
+            [call(host) for host in hosts],
         )
         self.assertEqual(
             mock_get_networks.mock_calls,
-            [call(host) for host in (hosts[1], hosts[2])],
+            [call(host) for host in hosts],
         )
         self.assertEqual(
             mock_get_cpu_ratio.mock_calls,
-            [call(host, intended_cpus)
-             for host in (hosts[1], hosts[2])],
+            [call(host, intended_cpus) for host in hosts],
         )
 
         # No clusters should mean no membership checks
@@ -431,7 +438,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         client = vsphere_plugin_common.ServerClient()
 
-        expected_result = [hosts[3]]
+        expected_result = [(hosts[3], 1, 0)]
 
         result = client.find_candidate_hosts(
             resource_pool=intended_resource_pool,
@@ -872,14 +879,17 @@ class VspherePluginsCommonTests(unittest.TestCase):
         mock_datastore_weighting,
     ):
         hosts = [
-            self._make_mock_host(
-                name='host1',
-                datastores=[
-                    self._make_mock_datastore(
-                        name='mydatastore',
-                    )
-                ],
-            ),
+            (host, 1, 2) for host in
+            (
+                self._make_mock_host(
+                    name='host1',
+                    datastores=[
+                        self._make_mock_datastore(
+                            name='mydatastore',
+                        )
+                    ],
+                ),
+            )
         ]
         template = self._make_mock_vm(name='mytemplate')
         allowed_datastores = ['none at all', 'except this one']
@@ -897,11 +907,11 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert 'No datastores found' in str(err)
             assert 'Only these datastores were allowed' in str(err)
             assert ', '.join(allowed_datastores) in str(err)
-            assert ', '.join(host.name for host in hosts)
+            assert ', '.join(host[0].name for host in hosts)
 
         mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} had no allowed datastores.'.format(
-                host=hosts[0].name,
+                host=hosts[0][0].name,
             )
         )
         self.assertEqual(mock_datastore_is_usable.call_count, 0)
@@ -920,31 +930,34 @@ class VspherePluginsCommonTests(unittest.TestCase):
         mock_datastore_weighting,
     ):
         hosts = [
-            self._make_mock_host(
-                name='host1',
-                datastores=[
-                    self._make_mock_datastore(
-                        name='mydatastore',
-                    )
-                ],
-            ),
+            (host, 1, 2) for host in
+            (
+                self._make_mock_host(
+                    name='host1',
+                    datastores=[
+                        self._make_mock_datastore(
+                            name='mydatastore',
+                        )
+                    ],
+                ),
+            )
         ]
         mock_datastore_is_usable.return_value = False
         template = self._make_mock_vm(name='mytemplate')
 
         client = vsphere_plugin_common.ServerClient()
 
-        try:
+        with self.assertRaises(NonRecoverableError) as err:
             client.select_host_and_datastore(
                 candidate_hosts=hosts,
                 vm_memory=1024,
                 template=template,
                 allowed_datastores=None,
             )
-        except NonRecoverableError as err:
-            assert 'No datastores found' in str(err)
-            assert ', '.join(host.name for host in hosts)
-            assert 'Only these datastores were allowed' not in str(err)
+
+        assert 'No datastores found' in str(err.exception)
+        assert ', '.join(host[0].name for host in hosts)
+        assert 'Only these datastores were allowed' not in str(err.exception)
 
         self.assertEqual(
             mock_ctx.logger.warn.mock_calls,
@@ -952,19 +965,19 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 call(
                     'Excluding datastore {ds} on host {host} as it is not '
                     'healthy.'.format(
-                        ds=hosts[0].datastore[0].name,
-                        host=hosts[0].name,
+                        ds=hosts[0][0].datastore[0].name,
+                        host=hosts[0][0].name,
                     ),
                 ),
                 call(
                     'Host {host} has no usable datastores.'.format(
-                        host=hosts[0].name,
+                        host=hosts[0][0].name,
                     ),
                 ),
             ],
         )
         mock_datastore_is_usable.assert_called_once_with(
-            hosts[0].datastore[0],
+            hosts[0][0].datastore[0],
         )
         self.assertEqual(mock_datastore_weighting.call_count, 0)
 
@@ -980,14 +993,17 @@ class VspherePluginsCommonTests(unittest.TestCase):
         mock_datastore_weighting,
     ):
         hosts = [
-            self._make_mock_host(
-                name='host1',
-                datastores=[
-                    self._make_mock_datastore(
-                        name='mydatastore',
-                    )
-                ],
-            ),
+            (host, 1, 2) for host in
+            (
+                self._make_mock_host(
+                    name='host1',
+                    datastores=[
+                        self._make_mock_datastore(
+                            name='mydatastore',
+                        )
+                    ],
+                ),
+            )
         ]
         mock_datastore_is_usable.return_value = True
         template = self._make_mock_vm(name='mytemplate')
@@ -1005,21 +1021,21 @@ class VspherePluginsCommonTests(unittest.TestCase):
             )
         except NonRecoverableError as err:
             assert 'No datastores found' in str(err)
-            assert ', '.join(host.name for host in hosts)
+            assert ', '.join(host[0].name for host in hosts)
             assert 'Only these datastores were allowed' not in str(err)
 
         mock_ctx.logger.warn.assert_called_once_with(
             'Datastore {ds} on host {host} does not have enough free '
             'space.'.format(
-                ds=hosts[0].datastore[0].name,
-                host=hosts[0].name,
+                ds=hosts[0][0].datastore[0].name,
+                host=hosts[0][0].name,
             ),
         )
         mock_datastore_is_usable.assert_called_once_with(
-            hosts[0].datastore[0],
+            hosts[0][0].datastore[0],
         )
         mock_datastore_weighting.assert_called_once_with(
-            datastore=hosts[0].datastore[0],
+            datastore=hosts[0][0].datastore[0],
             vm_memory=memory,
             template=template,
         )
@@ -1049,15 +1065,18 @@ class VspherePluginsCommonTests(unittest.TestCase):
             ],
         )
         hosts = [
-            self._make_mock_host(
-                name='host1',
-                datastores=[wrong_datastore],
-            ),
-            right_host,
-            self._make_mock_host(
-                name='host3',
-                datastores=[wrong_datastore],
-            ),
+            (host, 1, 2) for host in
+            (
+                self._make_mock_host(
+                    name='host1',
+                    datastores=[wrong_datastore],
+                ),
+                right_host,
+                self._make_mock_host(
+                    name='host3',
+                    datastores=[wrong_datastore],
+                ),
+            )
         ]
         mock_datastore_is_usable.return_value = True
         template = self._make_mock_vm(name='mytemplate')
@@ -1111,11 +1130,14 @@ class VspherePluginsCommonTests(unittest.TestCase):
             ],
         )
         hosts = [
-            right_host,
-            self._make_mock_host(
-                name='host1',
-                datastores=[wrong_datastore],
-            ),
+            (host, 1, 2) for host in
+            (
+                right_host,
+                self._make_mock_host(
+                    name='host1',
+                    datastores=[wrong_datastore],
+                ),
+            )
         ]
         mock_datastore_is_usable.return_value = True
         template = self._make_mock_vm(name='mytemplate')
@@ -1190,11 +1212,14 @@ class VspherePluginsCommonTests(unittest.TestCase):
             ],
         )
         hosts = [
-            right_host,
-            self._make_mock_host(
-                name='host1',
-                datastores=[wrong_datastore],
-            ),
+            (host, 1, 2) for host in
+            (
+                right_host,
+                self._make_mock_host(
+                    name='host1',
+                    datastores=[wrong_datastore],
+                ),
+            )
         ]
         mock_datastore_is_usable.return_value = True
         template = self._make_mock_vm(name='mytemplate')
@@ -1269,11 +1294,14 @@ class VspherePluginsCommonTests(unittest.TestCase):
             ],
         )
         hosts = [
-            self._make_mock_host(
-                name='host1',
-                datastores=[wrong_datastore],
-            ),
-            right_host,
+            (host, 1, 2) for host in
+            (
+                self._make_mock_host(
+                    name='host1',
+                    datastores=[wrong_datastore],
+                ),
+                right_host,
+            )
         ]
         mock_datastore_is_usable.return_value = True
         template = self._make_mock_vm(name='mytemplate')
