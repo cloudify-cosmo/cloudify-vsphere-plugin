@@ -1611,7 +1611,7 @@ class ServerClient(VsphereClient):
             candidate_hosts.append((
                 host,
                 self.host_cpu_thread_usage_ratio(host, vm_cpus),
-                self.host_memory_usage_ratio(host, vm_memory),
+                memory_weight,
             ))
 
         # Sort hosts based on the best processor ratio after deployment
@@ -1840,7 +1840,7 @@ class ServerClient(VsphereClient):
                 message = message.format(ds=', '.join(allowed_datastores))
             message += ' Only the suitable candidate hosts were checked: '
             message += '{hosts}'.format(hosts=', '.join(
-                [host.name for host in candidate_hosts]
+                [hostt[0].name for hostt in candidate_hosts]
             ))
             raise cfy_exc.NonRecoverableError(message)
 
