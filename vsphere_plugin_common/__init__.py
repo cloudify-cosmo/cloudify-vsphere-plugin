@@ -2621,31 +2621,17 @@ class StorageClient(VsphereClient):
         ctx.logger.debug("Storage resized to a new size %s." % storage_size)
 
 
-def with_server_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        server_client = ServerClient().get(config=config)
-        kw['server_client'] = server_client
-        return f(*args, **kw)
-    return wrapper
+def _with_client(client_name, client):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            config = ctx.node.properties.get('connection_config')
+            kwargs[client_name] = client().get(config=config)
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
-def with_network_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        network_client = NetworkClient().get(config=config)
-        kw['network_client'] = network_client
-        return f(*args, **kw)
-    return wrapper
-
-
-def with_storage_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        storage_client = StorageClient().get(config=config)
-        kw['storage_client'] = storage_client
-        return f(*args, **kw)
-    return wrapper
+with_server_client = _with_client('server_client', ServerClient)
+with_network_client = _with_client('network_client', NetworkClient)
+with_storage_client = _with_client('storage_client', StorageClient)
