@@ -13,6 +13,9 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+import os
+
+
 VSPHERE_SERVER_ID = 'vsphere_server_id'
 PUBLIC_IP = 'public_ip'
 NETWORKS = 'networks'
@@ -44,3 +47,8 @@ CLUSTER_RUNTIME_PROPERTIES = [CLUSTER_ID]
 
 TASK_CHECK_SLEEP = 15
 PREFIX_RANDOM_CHARS = 3
+
+MANAGER_PLUGIN_FILES = os.path.join('/etc', 'cloudify', 'vsphere_plugin')
+DEFAULT_CONFIG_PATH = os.path.join(
+    MANAGER_PLUGIN_FILES,
+    'connection_config.yaml')

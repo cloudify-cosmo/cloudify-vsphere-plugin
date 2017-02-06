@@ -16,13 +16,14 @@
 from __future__ import division
 
 # Stdlib imports
+import atexit
 import os
 import re
 import time
-import atexit
 import urllib
 from copy import copy
 from functools import wraps
+from warnings import warn
 
 # Third party imports
 import yaml
@@ -36,6 +37,7 @@ from cloudify import exceptions as cfy_exc
 
 # This package imports
 from vsphere_plugin_common.constants import (
+    DEFAULT_CONFIG_PATH,
     NETWORKS,
     NETWORK_ID,
     TASK_CHECK_SLEEP,
@@ -67,32 +69,49 @@ def remove_runtime_properties(properties, context):
 class Config(object):
 
     # Required during vsphere manager bootstrap
-    CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.yaml'
+    CONNECTION_CONFIG_PATH_DEFAULT = DEFAULT_CONFIG_PATH
+
+    _path_options = [
+        {'source': '/root/connection_config.yaml', 'warn': True},
+        {'source': '~/connection_config.yaml', 'warn': True},
+        {'source': DEFAULT_CONFIG_PATH, 'warn': False},
+        {'env': True, 'source': 'CONNECTION_CONFIG_PATH', 'warn': True},
+        {'env': True, 'source': 'CFY_VSPHERE_CONFIG_PATH', 'warn': False},
+    ]
+
+    def _find_config_file(self):
+        selected = DEFAULT_CONFIG_PATH
+        warnings = []
+
+        for path in self._path_options:
+            source = path['source']
+            if path.get('env'):
+                source = os.getenv(source)
+            if source and os.path.isfile(os.path.expanduser(source)):
+                selected = source
+                if path['warn']:
+                    warnings.append(path['source'])
+
+        if warnings:
+            warn(
+                "Deprecated configuration options were used: {}".format(
+                    "; ".join(warnings)),
+                DeprecationWarning)
+
+        return selected
 
     def get(self):
         cfg = {}
-        which = self.__class__.which
-        env_name = which.upper() + '_CONFIG_PATH'
-        default_location_tpl = '~/' + which + '_config.yaml'
-        default_location = os.path.expanduser(default_location_tpl)
-        config_path = os.getenv(env_name, default_location)
+        config_path = self._find_config_file()
         try:
             with open(config_path) as f:
                 cfg = yaml.load(f.read())
         except IOError:
-            ctx.logger.warn("Unable to read %s "
+            ctx.logger.warn("Unable to read "
                             "configuration file %s." %
-                            (which, config_path))
+                            (config_path))
 
         return cfg
-
-
-class ConnectionConfig(Config):
-    which = 'connection'
-
-
-class TestsConfig(Config):
-    which = 'unit_tests'
 
 
 class _ContainerView(object):
@@ -115,18 +134,16 @@ class _ContainerView(object):
 
 class VsphereClient(object):
 
-    config = ConnectionConfig
-
     def __init__(self):
         self._cache = {}
 
     def get(self, config=None, *args, **kw):
-        static_config = self.__class__.config().get()
-        cfg = {}
-        cfg.update(static_config)
+        static_config = Config().get()
+        self.cfg = {}
+        self.cfg.update(static_config)
         if config:
-            cfg.update(config)
-        ret = self.connect(cfg)
+            self.cfg.update(config)
+        ret = self.connect(self.cfg)
         ret.format = 'yaml'
         return ret
 

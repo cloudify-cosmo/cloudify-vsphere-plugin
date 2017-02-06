@@ -26,7 +26,6 @@ from cloudify.decorators import operation
 
 # This package imports
 from vsphere_plugin_common import (
-    ConnectionConfig,
     get_ip_from_vsphere_nic_ips,
     remove_runtime_properties,
     with_server_client,
@@ -160,8 +159,7 @@ def create_new_server(server_client):
                     net,
                 )
 
-    connection_config = ConnectionConfig().get()
-    connection_config.update(ctx.node.properties.get('connection_config'))
+    connection_config = server_client.cfg
     datacenter_name = connection_config['datacenter_name']
     resource_pool_name = connection_config['resource_pool_name']
     auto_placement = connection_config['auto_placement']
