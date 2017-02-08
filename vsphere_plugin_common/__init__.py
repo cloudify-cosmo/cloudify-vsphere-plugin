@@ -87,10 +87,12 @@ class Config(object):
             source = path['source']
             if path.get('env'):
                 source = os.getenv(source)
-            if source and os.path.isfile(os.path.expanduser(source)):
-                selected = source
-                if path['warn']:
-                    warnings.append(path['source'])
+            if source:
+                source = os.path.expanduser(source)
+                if os.path.isfile(source):
+                    selected = source
+                    if path['warn']:
+                        warnings.append(path['source'])
 
         if warnings:
             warn(
