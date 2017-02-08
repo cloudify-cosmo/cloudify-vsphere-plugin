@@ -1908,7 +1908,8 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
         self._simple_deprecated_test('/root/connection_config.yaml')
 
     def test_choose_home(self):
-        self._simple_deprecated_test('~/connection_config.yaml')
+        self._simple_deprecated_test(
+            os.path.expanduser('~/connection_config.yaml'))
 
     def test_choose_old_envvar(self):
         with patch.dict('os.environ', {'CONNECTION_CONFIG_PATH': '/a/path'}):
