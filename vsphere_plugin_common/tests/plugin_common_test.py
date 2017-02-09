@@ -22,16 +22,19 @@ import vsphere_plugin_common
 
 class VspherePluginsCommonTests(unittest.TestCase):
 
-    def _make_mock_host(self,
-                        name='host',
-                        datastores=None,
-                        vms=None,
-                        memory=4096,
-                        cpus=4,
-                        networks=None,
-                        resource_pool=None,
-                        connected=True,
-                        status='green'):
+    def _make_mock_host(
+        self,
+        name='host',
+        datastores=None,
+        vms=None,
+        memory=4096,
+        cpus=4,
+        networks=None,
+        resource_pool=None,
+        connected=True,
+        maintenance=False,
+        status='green',
+    ):
         host = MagicMock()
         host.name = name
         # Yes, datastore = datastores. See pyvmomi. (and vm->vms)
@@ -42,6 +45,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         host.hardware.cpuInfo.numCpuThreads = cpus
         host.parent.resourcePool = resource_pool
         host.overallStatus = status
+        host.summary.runtime.inMaintenanceMode = maintenance
 
         if connected:
             host.summary.runtime.connectionState = 'connected'
@@ -1743,6 +1747,19 @@ class VspherePluginsCommonTests(unittest.TestCase):
         client = vsphere_plugin_common.ServerClient()
 
         self.assertTrue(client.host_is_usable(host))
+
+    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    def test_host_is_usable_good_but_maintenance(self, mock_status):
+        mock_status.green = 'green'
+
+        host = self._make_mock_host(
+            status=mock_status.green,
+            maintenance=True,
+        )
+
+        client = vsphere_plugin_common.ServerClient()
+
+        self.assertFalse(client.host_is_usable(host))
 
     @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
     def test_host_is_usable_good_but_disconnected(self, mock_status):

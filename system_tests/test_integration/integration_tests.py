@@ -187,7 +187,8 @@ class VsphereIntegrationTest(TestCase):
         (
             'get_properties_name,parent,hardware.memorySize,'
             'hardware.cpuInfo.numCpuThreads,overallStatus,network,'
-            'summary.runtime.connectionState,vm,datastore,'
+            'summary.runtime.connectionState,'
+            'summary.runtime.inMaintenanceMode,vm,datastore,'
             'config.network.vswitch,configManager_from_HostSystem'
         ): 1,
         'get_properties_name,resourcePool_from_ClusterComputeResource': 1,
@@ -584,6 +585,7 @@ class VsphereIntegrationTest(TestCase):
             host.summary.runtime,
             [
                 'connectionState',
+                'inMaintenanceMode',
             ],
             include_defaults=False,
         )
@@ -905,7 +907,8 @@ class VsphereIntegrationTest(TestCase):
             (
                 'get_properties_name,parent,hardware.memorySize,'
                 'hardware.cpuInfo.numCpuThreads,overallStatus,network,'
-                'summary.runtime.connectionState,vm,datastore,'
+                'summary.runtime.connectionState,'
+                'summary.runtime.inMaintenanceMode,vm,datastore,'
                 'config.network.vswitch,configManager_from_HostSystem'
             ): 2,
             'get_properties_name,resourcePool_from_ClusterComputeResource': 2,
@@ -1053,3 +1056,86 @@ class VsphereIntegrationTest(TestCase):
             raise ValueError(
                 "didn't find the host for the test VM. "
                 "Something bad is going on")
+
+    def test_maintenance_mode_unsuitable(self):
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+        print(host)
+
+        self.assertTrue(
+            self.client.host_is_usable(host),
+            msg=(
+                'temporary_maintenance_host should be healthy but is not. '
+                'Check that health is green or yellow and it is not '
+                'disconnected or in maintenance mode.'
+            ),
+        )
+
+        self._maint_mode('enter', host)
+
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+        usable_during = self.client.host_is_usable(host)
+
+        self._maint_mode('exit', host)
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+
+        self.assertFalse(
+            usable_during,
+            msg=(
+                'Host {host} should not be usable while in maintenance '
+                'mode.'.format(
+                    host=host.name,
+                )
+            ),
+        )
+
+        self.assertTrue(
+            self.client.host_is_usable(host),
+            msg=(
+                'Host {host} should be usable again after exiting '
+                'maintenance mode.'.format(
+                    host=host.name,
+                )
+            ),
+        )
+
+    def _get_host_uncached(self, host_name):
+        return self.client._get_obj_by_name(
+            vimtype=vim.HostSystem,
+            name=host_name,
+            use_cache=False,
+        )
+
+    def _maint_mode(self, enter_or_exit, host):
+        expected = {
+            'enter': True,
+            'exit': False,
+        }[enter_or_exit]
+
+        # This has been observed to fail without obvious cause on one attempt
+        # then succeed on the next so we will retry so that we can confirm the
+        # plugin behaves correctly even if the environment it deploys in may
+        # not always.
+        attempts = 3
+        for i in range(0, attempts):
+            if enter_or_exit == 'enter':
+                task = host.obj.EnterMaintenanceMode(timeout=60)
+            else:
+                task = host.obj.ExitMaintenanceMode(timeout=60)
+            while task.info.state in ('queued', 'running'):
+                time.sleep(0.5)
+
+            if host.obj.summary.runtime.inMaintenanceMode == expected:
+                return True
+        raise AssertionError(
+            'Failed to {eoe} maintenance mode on host '
+            '{host}.'.format(
+                eoe=enter_or_exit,
+                host=host.name,
+            )
+        )

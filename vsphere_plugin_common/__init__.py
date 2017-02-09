@@ -164,19 +164,34 @@ class VsphereClient(object):
             item for item in split_list
             if len(item) > 1
         ]
-        the_dict['_values'] = vals
+        the_dict['_values'] = set(vals)
         for item in keys:
             key_name = item[0]
             sub_keys = item[1:]
-            dict_entry = the_dict.get(key_name, {})
+            dict_entry = the_dict.get(key_name, {'_values': set()})
             update_dict = self._convert_props_list_to_dict(
                 sub_keys
             )
-            if '_values' in dict_entry.keys():
-                update_dict['_values'].extend(dict_entry['_values'])
-            dict_entry.update(update_dict)
-            the_dict[key_name] = dict_entry
+            the_dict[key_name] = self._merge_props_dicts(
+                dict_entry,
+                update_dict,
+            )
         return the_dict
+
+    def _merge_props_dicts(self, dict1, dict2):
+        new_dict = {}
+        keys = set(dict1.keys() + dict2.keys())
+        keys.remove('_values')
+
+        new_dict['_values'] = dict1['_values'] | dict2['_values']
+
+        for key in keys:
+            new_dict[key] = self._merge_props_dicts(
+                dict1.get(key, {'_values': set()}),
+                dict2.get(key, {'_values': set()})
+            )
+
+        return new_dict
 
     def _get_platform_sub_results(self, platform_results, target_key):
         sub_results = {}
@@ -660,6 +675,7 @@ class VsphereClient(object):
             'overallStatus',
             'network',
             'summary.runtime.connectionState',
+            'summary.runtime.inMaintenanceMode',
             'vm',
             'datastore',
             'config.network.vswitch',
@@ -1987,10 +2003,14 @@ class ServerClient(VsphereClient):
             based on its health.
             Return False otherwise.
         """
-        if host.overallStatus in (
+        healthy_state = host.overallStatus in (
             vim.ManagedEntity.Status.green,
             vim.ManagedEntity.Status.yellow,
-        ) and host.summary.runtime.connectionState == 'connected':
+        )
+        connected = host.summary.runtime.connectionState == 'connected'
+        maintenance = host.summary.runtime.inMaintenanceMode
+
+        if healthy_state and connected and not maintenance:
             # TODO: Check license state (will be yellow for bad license)
             return True
         else:
