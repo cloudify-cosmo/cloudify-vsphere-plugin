@@ -15,7 +15,6 @@
 
 # Stdlib imports
 import string
-from warnings import warn
 
 # Third party imports
 
@@ -424,12 +423,12 @@ def resize_server(server_client, cpus=None, memory=None, **kwargs):
 @operation
 @with_server_client
 def resize(server_client, **kwargs):
-    warn(
+    ctx.logger.warn(
         "This operation may be removed at any point from "
         "cloudify-vsphere-plugin==3. "
         "Please use resize_server (cloudify.interfaces.modify.resize) "
         "instead.",
-        DeprecationWarning)
+    )
     server = get_server_by_context(server_client)
     if server is None:
         raise cfy_exc.NonRecoverableError(
