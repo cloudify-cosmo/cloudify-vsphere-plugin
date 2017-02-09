@@ -95,9 +95,9 @@ class Config(object):
 
         if warnings:
             ctx.logger.warn(
-                "Deprecated configuration options were used: {}".format(
+                "Deprecated configuration options were found: {}".format(
                     "; ".join(warnings)),
-                DeprecationWarning)
+            )
 
         return selected
 

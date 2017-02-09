@@ -15,7 +15,6 @@
 
 import os
 import unittest
-import warnings
 
 from mock import Mock, MagicMock, patch, call
 from pyfakefs import fake_filesystem_unittest
@@ -1891,29 +1890,31 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
     def setUp(self):
         super(VspherePluginCommonFSTests, self).setUp()
         self.setUpPyfakefs()
-        warnings.simplefilter("always")
 
-    def _simple_deprecated_test(self, path):
-        self.fs.CreateFile(os.path.expanduser(path))
+    @patch('vsphere_plugin_common.ctx')
+    def _simple_deprecated_test(self, path, mock_ctx):
+        evaled_path = os.getenv(path, path)
+        expanded_path = os.path.expanduser(evaled_path)
+        self.fs.CreateFile(expanded_path)
 
         config = vsphere_plugin_common.Config()
-        with warnings.catch_warnings(record=True) as w:
-            ret = config._find_config_file()
+        ret = config._find_config_file()
 
-        self.assertIs(w[0].category, DeprecationWarning)
+        self.assertEqual(expanded_path, ret)
 
-        self.assertEqual(path, ret)
+        mock_ctx.logger.warn.assert_called_with(
+            'Deprecated configuration options were found: {}'.format(path)
+        )
 
     def test_choose_root(self):
         self._simple_deprecated_test('/root/connection_config.yaml')
 
     def test_choose_home(self):
-        self._simple_deprecated_test(
-            os.path.expanduser('~/connection_config.yaml'))
+        self._simple_deprecated_test('~/connection_config.yaml')
 
     def test_choose_old_envvar(self):
         with patch.dict('os.environ', {'CONNECTION_CONFIG_PATH': '/a/path'}):
-            self._simple_deprecated_test('/a/path')
+            self._simple_deprecated_test('CONNECTION_CONFIG_PATH')
 
     def test_choose_config_file(self):
         self.fs.CreateFile(
