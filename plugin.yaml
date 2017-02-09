@@ -34,7 +34,7 @@ data_types:
                 required: false
             auto_placement:
                 description: >
-                    Signifies whether to use vSphere's auto-placement instead of the plugin's.
+                    Signifies whether to use the plugin's auto-placement.
                     Must be true if you are using clusters.
                 type: string
                 required: false

@@ -82,6 +82,30 @@ Data Types
 
 .. cfy:datatype:: cloudify.datatypes.vsphere.Config
 
+    As well as looking for config values in the node's ``connnection_config``
+    property, the plugin will also look in locations on the local filesystem
+    for a JSON file containing config values.
+    The values from the node's ``connection_config`` will be merged in to the
+    values from the JSON file, with the node's options taking precedence.
+
+    The following table shows the locations that will be checked for a config
+    file. The first file (in the order shown below) will be used.
+    (paths starting with $ are environment variables which will be expanded).
+
+    +-----------------------------------------------------+------------+
+    | Path                                                | deprecated |
+    +=====================================================+============+
+    | $CFY_VSPHERE_CONFIG_PATH                            |            |
+    +-----------------------------------------------------+------------+
+    | $CONNECTION_CONFIG_PATH                             | yes        |
+    +-----------------------------------------------------+------------+
+    | /etc/cloudify/vsphere_plugin/connection_config.yaml |            |
+    +-----------------------------------------------------+------------+
+    | ~/connection_config.yaml                            | yes        |
+    +-----------------------------------------------------+------------+
+    | /root/connection_config.yaml                        | yes        |
+    +-----------------------------------------------------+------------+
+
 .. cfy:datatype:: cloudify.datatypes.vsphere.ServerProperties
 
 .. cfy:datatype:: cloudify.datatypes.vsphere.NetworkingProperties
