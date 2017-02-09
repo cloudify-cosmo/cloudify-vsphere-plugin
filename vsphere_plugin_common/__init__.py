@@ -23,7 +23,6 @@ import time
 import urllib
 from copy import copy
 from functools import wraps
-from warnings import warn
 
 # Third party imports
 import yaml
@@ -95,7 +94,7 @@ class Config(object):
                         warnings.append(path['source'])
 
         if warnings:
-            warn(
+            ctx.logger.warn(
                 "Deprecated configuration options were used: {}".format(
                     "; ".join(warnings)),
                 DeprecationWarning)
