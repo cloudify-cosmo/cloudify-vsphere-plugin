@@ -13,8 +13,11 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from mock import Mock, MagicMock, patch, call
+import os
 import unittest
+
+from mock import Mock, MagicMock, patch, call
+from pyfakefs import fake_filesystem_unittest
 
 from cloudify.exceptions import NonRecoverableError
 import vsphere_plugin_common
@@ -1881,3 +1884,73 @@ class VspherePluginsCommonTests(unittest.TestCase):
         server.obj.Reconfigure.assert_called_once_with(
             spec=configSpec.return_value,
         )
+
+
+class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
+    def setUp(self):
+        super(VspherePluginCommonFSTests, self).setUp()
+        self.setUpPyfakefs()
+
+    @patch('vsphere_plugin_common.ctx')
+    def _simple_deprecated_test(self, path, mock_ctx):
+        evaled_path = os.getenv(path, path)
+        expanded_path = os.path.expanduser(evaled_path)
+        self.fs.CreateFile(expanded_path)
+
+        config = vsphere_plugin_common.Config()
+        ret = config._find_config_file()
+
+        self.assertEqual(expanded_path, ret)
+
+        mock_ctx.logger.warn.assert_called_with(
+            'Deprecated configuration options were found: {}'.format(path)
+        )
+
+    def test_choose_root(self):
+        self._simple_deprecated_test('/root/connection_config.yaml')
+
+    def test_choose_home(self):
+        self._simple_deprecated_test('~/connection_config.yaml')
+
+    def test_choose_old_envvar(self):
+        with patch.dict('os.environ', {'CONNECTION_CONFIG_PATH': '/a/path'}):
+            self._simple_deprecated_test('CONNECTION_CONFIG_PATH')
+
+    def test_choose_config_file(self):
+        self.fs.CreateFile(
+            '/etc/cloudify/vsphere_plugin/connection_config.yaml')
+        self.addCleanup(
+            self.fs.RemoveFile,
+            '/etc/cloudify/vsphere_plugin/connection_config.yaml')
+
+        config = vsphere_plugin_common.Config()
+        ret = config._find_config_file()
+
+        self.assertEqual(
+            ret,
+            '/etc/cloudify/vsphere_plugin/connection_config.yaml')
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_no_file(self, mock_ctx):
+        config = vsphere_plugin_common.Config()
+
+        ret = config.get()
+
+        mock_ctx.logger.warn.assert_called_once_with(
+            'Unable to read configuration file '
+            '/etc/cloudify/vsphere_plugin/connection_config.yaml.'
+        )
+        self.assertEqual(ret, {})
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_new_envvar(self, mock_ctx):
+        self.fs.CreateFile(
+            '/a/pth',
+            contents="{'some': 'contents'}\n"
+        )
+        with patch.dict('os.environ', {'CFY_VSPHERE_CONFIG_PATH': '/a/pth'}):
+            config = vsphere_plugin_common.Config()
+
+            ret = config.get()
+
+        self.assertEqual({'some': 'contents'}, ret)
