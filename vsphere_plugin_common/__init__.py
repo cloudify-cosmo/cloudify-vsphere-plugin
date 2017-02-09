@@ -13,11 +13,14 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+from __future__ import division
+
 # Stdlib imports
+import atexit
 import os
 import re
 import time
-import atexit
+import urllib
 from copy import copy
 from functools import wraps
 
@@ -33,24 +36,13 @@ from cloudify import exceptions as cfy_exc
 
 # This package imports
 from vsphere_plugin_common.constants import (
+    DEFAULT_CONFIG_PATH,
     NETWORKS,
     NETWORK_ID,
     TASK_CHECK_SLEEP,
 )
 from vsphere_plugin_common.vendored_collections import namedtuple
-
-
-def prepare_for_log(inputs):
-    result = {}
-    for key, value in inputs.items():
-        if isinstance(value, dict):
-            value = prepare_for_log(value)
-
-        if 'password' in key:
-            value = '**********'
-
-        result[key] = value
-    return result
+from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
 def get_ip_from_vsphere_nic_ips(nic):
@@ -76,32 +68,51 @@ def remove_runtime_properties(properties, context):
 class Config(object):
 
     # Required during vsphere manager bootstrap
-    CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.yaml'
+    CONNECTION_CONFIG_PATH_DEFAULT = DEFAULT_CONFIG_PATH
+
+    _path_options = [
+        {'source': '/root/connection_config.yaml', 'warn': True},
+        {'source': '~/connection_config.yaml', 'warn': True},
+        {'source': DEFAULT_CONFIG_PATH, 'warn': False},
+        {'env': True, 'source': 'CONNECTION_CONFIG_PATH', 'warn': True},
+        {'env': True, 'source': 'CFY_VSPHERE_CONFIG_PATH', 'warn': False},
+    ]
+
+    def _find_config_file(self):
+        selected = DEFAULT_CONFIG_PATH
+        warnings = []
+
+        for path in self._path_options:
+            source = path['source']
+            if path.get('env'):
+                source = os.getenv(source)
+            if source:
+                source = os.path.expanduser(source)
+                if os.path.isfile(source):
+                    selected = source
+                    if path['warn']:
+                        warnings.append(path['source'])
+
+        if warnings:
+            ctx.logger.warn(
+                "Deprecated configuration options were found: {}".format(
+                    "; ".join(warnings)),
+            )
+
+        return selected
 
     def get(self):
         cfg = {}
-        which = self.__class__.which
-        env_name = which.upper() + '_CONFIG_PATH'
-        default_location_tpl = '~/' + which + '_config.yaml'
-        default_location = os.path.expanduser(default_location_tpl)
-        config_path = os.getenv(env_name, default_location)
+        config_path = self._find_config_file()
         try:
             with open(config_path) as f:
                 cfg = yaml.load(f.read())
         except IOError:
-            ctx.logger.warn("Unable to read %s "
+            ctx.logger.warn("Unable to read "
                             "configuration file %s." %
-                            (which, config_path))
+                            (config_path))
 
         return cfg
-
-
-class ConnectionConfig(Config):
-    which = 'connection'
-
-
-class TestsConfig(Config):
-    which = 'unit_tests'
 
 
 class _ContainerView(object):
@@ -124,18 +135,16 @@ class _ContainerView(object):
 
 class VsphereClient(object):
 
-    config = ConnectionConfig
-
     def __init__(self):
         self._cache = {}
 
     def get(self, config=None, *args, **kw):
-        static_config = self.__class__.config().get()
-        cfg = {}
-        cfg.update(static_config)
+        static_config = Config().get()
+        self.cfg = {}
+        self.cfg.update(static_config)
         if config:
-            cfg.update(config)
-        ret = self.connect(cfg)
+            self.cfg.update(config)
+        ret = self.connect(self.cfg)
         ret.format = 'yaml'
         return ret
 
@@ -173,19 +182,34 @@ class VsphereClient(object):
             item for item in split_list
             if len(item) > 1
         ]
-        the_dict['_values'] = vals
+        the_dict['_values'] = set(vals)
         for item in keys:
             key_name = item[0]
             sub_keys = item[1:]
-            dict_entry = the_dict.get(key_name, {})
+            dict_entry = the_dict.get(key_name, {'_values': set()})
             update_dict = self._convert_props_list_to_dict(
                 sub_keys
             )
-            if '_values' in dict_entry.keys():
-                update_dict['_values'].extend(dict_entry['_values'])
-            dict_entry.update(update_dict)
-            the_dict[key_name] = dict_entry
+            the_dict[key_name] = self._merge_props_dicts(
+                dict_entry,
+                update_dict,
+            )
         return the_dict
+
+    def _merge_props_dicts(self, dict1, dict2):
+        new_dict = {}
+        keys = set(dict1.keys() + dict2.keys())
+        keys.remove('_values')
+
+        new_dict['_values'] = dict1['_values'] | dict2['_values']
+
+        for key in keys:
+            new_dict[key] = self._merge_props_dicts(
+                dict1.get(key, {'_values': set()}),
+                dict2.get(key, {'_values': set()})
+            )
+
+        return new_dict
 
     def _get_platform_sub_results(self, platform_results, target_key):
         sub_results = {}
@@ -194,6 +218,12 @@ class VsphereClient(object):
             if key_components[0] == target_key:
                 sub_results[key_components[1]] = value
         return sub_results
+
+    def _get_normalised_name(self, name):
+        """
+            Get the normalised form of a platform entity's name.
+        """
+        return urllib.unquote(name)
 
     def _make_cached_object(self, obj_name, props_dict, platform_results,
                             root_object=True, other_entity_mappings=None,
@@ -272,6 +302,9 @@ class VsphereClient(object):
                 root_object=False,
             )
 
+        if 'name' in args.keys():
+            args['name'] = self._get_normalised_name(args['name'])
+
         result = obj(
             **args
         )
@@ -279,7 +312,7 @@ class VsphereClient(object):
         return result
 
     def _get_entity(self, entity_name, props, vimtype, use_cache=True,
-                    other_entity_mappings=None):
+                    other_entity_mappings=None, skip_broken_objects=False):
         if entity_name in self._cache and use_cache:
             return self._cache[entity_name]
 
@@ -292,15 +325,25 @@ class VsphereClient(object):
 
         results = []
         for result in platform_results:
-            results.append(
-                self._make_cached_object(
-                    obj_name=entity_name,
-                    props_dict=props_dict,
-                    platform_results=result,
-                    other_entity_mappings=other_entity_mappings,
-                    use_cache=use_cache,
+            try:
+                results.append(
+                    self._make_cached_object(
+                        obj_name=entity_name,
+                        props_dict=props_dict,
+                        platform_results=result,
+                        other_entity_mappings=other_entity_mappings,
+                        use_cache=use_cache,
+                    )
                 )
-            )
+            except KeyError as err:
+                if not skip_broken_objects:
+                    raise cfy_exc.NonRecoverableError(
+                        'Could not retrieve all details for {type} object. '
+                        '{err} was missing.'.format(
+                            type=entity_name,
+                            err=str(err)
+                        )
+                    )
 
         self._cache[entity_name] = results
 
@@ -321,6 +364,9 @@ class VsphereClient(object):
             return ctx.operation.retry(
                 'Resource pools changed while getting resource pool details.'
             )
+
+        if 'name' in this_pool.keys():
+            this_pool['name'] = self._get_normalised_name(this_pool['name'])
 
         base_object = rp_object(
             name=this_pool['name'],
@@ -495,6 +541,9 @@ class VsphereClient(object):
 
         networks = []
         for item in results:
+            if 'name' in item.keys():
+                item['name'] = self._get_normalised_name(item['name'])
+
             network = net_object(
                 name=item['name'],
                 id=item['obj']._moId,
@@ -589,7 +638,7 @@ class VsphereClient(object):
             use_cache=use_cache,
         )
 
-    def _get_vms(self, use_cache=True):
+    def _get_vms(self, use_cache=True, skip_broken_vms=True):
         properties = [
             'name',
             'summary',
@@ -611,6 +660,8 @@ class VsphereClient(object):
                     'datastore': self._get_datastores(use_cache=use_cache),
                 },
             },
+            # VMs still being cloned won't return everything we need
+            skip_broken_objects=skip_broken_vms,
         )
 
     def _get_computes(self, use_cache=True):
@@ -642,6 +693,7 @@ class VsphereClient(object):
             'overallStatus',
             'network',
             'summary.runtime.connectionState',
+            'summary.runtime.inMaintenanceMode',
             'vm',
             'datastore',
             'config.network.vswitch',
@@ -759,6 +811,8 @@ class VsphereClient(object):
         obj = None
 
         entities = self._get_getter_method(vimtype)(use_cache)
+
+        name = self._get_normalised_name(name)
 
         for entity in entities:
             if name.lower() == entity.name.lower():
@@ -919,7 +973,7 @@ class ServerClient(VsphereClient):
                          vm_memory):
         """
             Make sure we can actually continue with the inputs given.
-            If we can't, we want to report all of the issues t once.
+            If we can't, we want to report all of the issues at once.
         """
         ctx.logger.debug('Validating inputs for this platform.')
         issues = []
@@ -990,6 +1044,7 @@ class ServerClient(VsphereClient):
             except cfy_exc.NonRecoverableError as err:
                 issues.append(str(err))
                 continue
+            network_name = self._get_normalised_name(network_name)
             network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
 
@@ -1524,15 +1579,15 @@ class ServerClient(VsphereClient):
                         )
                     continue
 
-            free_memory = self.get_host_free_memory(host)
+            memory_weight = self.host_memory_usage_ratio(host, vm_memory)
 
-            if free_memory - vm_memory < 0:
+            if memory_weight < 0:
                 ctx.logger.warn(
-                    'Host {host} does not have enough free memory.'.format(
+                    'Host {host} will not have enough free memory if all VMs '
+                    'are powered on.'.format(
                         host=host.name,
                     )
                 )
-                continue
 
             resource_pools = self.get_host_resource_pools(host)
             resource_pools = [pool.name for pool in resource_pools]
@@ -1554,7 +1609,7 @@ class ServerClient(VsphereClient):
             ])
             vm_nets = set([
                 (
-                    network['name'],
+                    self._get_normalised_name(network['name']),
                     network['switch_distributed'],
                 )
                 for network in vm_networks
@@ -1594,40 +1649,39 @@ class ServerClient(VsphereClient):
                     host=host.name,
                 )
             )
-            candidate_hosts.append(host)
+            candidate_hosts.append((
+                host,
+                self.host_cpu_thread_usage_ratio(host, vm_cpus),
+                memory_weight,
+            ))
 
         # Sort hosts based on the best processor ratio after deployment
-        candidate_hosts = [
-            (
-                host,
-                self.host_cpu_thread_usage_ratio(host, vm_cpus)
-            ) for host in candidate_hosts
-        ]
         if candidate_hosts:
             ctx.logger.debug(
                 'Host CPU ratios: {ratios}'.format(
                     ratios=', '.join([
-                        '{hostname}: {ratio}'.format(
+                        '{hostname}: {ratio} {mem_ratio}'.format(
                             hostname=c[0].name,
-                            ratio=c[1]
+                            ratio=c[1],
+                            mem_ratio=c[2],
                         ) for c in candidate_hosts
                     ])
                 )
             )
         candidate_hosts.sort(
             reverse=True,
-            key=lambda host_rating: host_rating[1]
+            key=lambda host_rating: host_rating[1] * host_rating[2]
+            # If more ratios are added, take care that they are proper ratios
+            # (i.e. > 0), because memory ([2]) isn't, and 2 negatives would
+            # cause badly ordered candidates.
         )
-        candidate_hosts = [
-            host[0] for host in candidate_hosts
-        ]
 
         if candidate_hosts:
             return candidate_hosts
         else:
             message = (
                 "No healthy hosts could be found with resource pool {pool}, "
-                "all required networks, and at least {memory} free memory."
+                "and all required networks."
             ).format(pool=resource_pool, memory=vm_memory)
 
             if allowed_hosts:
@@ -1693,6 +1747,7 @@ class ServerClient(VsphereClient):
             )
 
         for host in candidate_hosts:
+            host = host[0]
             ctx.logger.debug('Considering host {host}'.format(host=host.name))
 
             datastores = host.datastore
@@ -1826,7 +1881,7 @@ class ServerClient(VsphereClient):
                 message = message.format(ds=', '.join(allowed_datastores))
             message += ' Only the suitable candidate hosts were checked: '
             message += '{hosts}'.format(hosts=', '.join(
-                [host.name for host in candidate_hosts]
+                [hostt[0].name for hostt in candidate_hosts]
             ))
             raise cfy_exc.NonRecoverableError(message)
 
@@ -1834,7 +1889,7 @@ class ServerClient(VsphereClient):
         """
             Get the amount of unallocated memory on a host.
         """
-        total_memory = host.hardware.memorySize
+        total_memory = host.hardware.memorySize // 1024 // 1024
         used_memory = 0
         for vm in host.vm:
             if not vm.summary.config.template:
@@ -1856,14 +1911,22 @@ class ServerClient(VsphereClient):
         """
         total_threads = host.hardware.cpuInfo.numCpuThreads
 
-        # Convert total_threads to float to allow a non-integer return
-        total_threads = float(total_threads)
-
         total_assigned = vm_cpus
         for vm in host.vm:
             total_assigned += vm.summary.config.numCpu
 
         return total_threads / total_assigned
+
+    def host_memory_usage_ratio(self, host, new_mem):
+        """
+        Return the proporiton of resulting memory overcommit if a VM with
+        new_mem is added to this host.
+        """
+        free_memory = self.get_host_free_memory(host)
+        free_memory_after = free_memory - new_mem
+        weight = free_memory_after / (host.hardware.memorySize // 1024 // 1024)
+
+        return weight
 
     def datastore_is_usable(self, datastore):
         """
@@ -1958,10 +2021,14 @@ class ServerClient(VsphereClient):
             based on its health.
             Return False otherwise.
         """
-        if host.overallStatus in (
+        healthy_state = host.overallStatus in (
             vim.ManagedEntity.Status.green,
             vim.ManagedEntity.Status.yellow,
-        ) and host.summary.runtime.connectionState == 'connected':
+        )
+        connected = host.summary.runtime.connectionState == 'connected'
+        maintenance = host.summary.runtime.inMaintenanceMode
+
+        if healthy_state and connected and not maintenance:
             # TODO: Check license state (will be yellow for bad license)
             return True
         else:
@@ -2555,31 +2622,17 @@ class StorageClient(VsphereClient):
         ctx.logger.debug("Storage resized to a new size %s." % storage_size)
 
 
-def with_server_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        server_client = ServerClient().get(config=config)
-        kw['server_client'] = server_client
-        return f(*args, **kw)
-    return wrapper
+def _with_client(client_name, client):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            config = ctx.node.properties.get('connection_config')
+            kwargs[client_name] = client().get(config=config)
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
-def with_network_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        network_client = NetworkClient().get(config=config)
-        kw['network_client'] = network_client
-        return f(*args, **kw)
-    return wrapper
-
-
-def with_storage_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        storage_client = StorageClient().get(config=config)
-        kw['storage_client'] = storage_client
-        return f(*args, **kw)
-    return wrapper
+with_server_client = _with_client('server_client', ServerClient)
+with_network_client = _with_client('network_client', NetworkClient)
+with_storage_client = _with_client('storage_client', StorageClient)

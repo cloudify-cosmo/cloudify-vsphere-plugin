@@ -24,7 +24,6 @@ from cloudify import exceptions as cfy_exc
 
 # This package imports
 from vsphere_plugin_common import (
-    prepare_for_log,
     with_storage_client,
     remove_runtime_properties,
 )
@@ -36,6 +35,7 @@ from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_RUNTIME_PROPERTIES,
 )
 from vsphere_server_plugin.server import VSPHERE_SERVER_ID
+from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
 @operation

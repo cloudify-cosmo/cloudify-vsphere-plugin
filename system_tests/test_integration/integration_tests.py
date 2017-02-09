@@ -13,13 +13,19 @@
 #    * See the License for the specific language governing permissions and
 #    * limitations under the License.
 
+import copy
+import time
+
 import mock
-from vsphere_plugin_common import ServerClient
-from cosmo_tester.framework.testenv import TestCase
 from pyVim.connect import Disconnect
 from pyVmomi import vim
+
+from cloudify.exceptions import NonRecoverableError
+from cloudify.state import current_ctx
+from cosmo_tester.framework.testenv import TestCase
+
 from . import categorise_calls
-import copy
+from vsphere_plugin_common import ServerClient
 
 
 class VsphereIntegrationTest(TestCase):
@@ -181,7 +187,8 @@ class VsphereIntegrationTest(TestCase):
         (
             'get_properties_name,parent,hardware.memorySize,'
             'hardware.cpuInfo.numCpuThreads,overallStatus,network,'
-            'summary.runtime.connectionState,vm,datastore,'
+            'summary.runtime.connectionState,'
+            'summary.runtime.inMaintenanceMode,vm,datastore,'
             'config.network.vswitch,configManager_from_HostSystem'
         ): 1,
         'get_properties_name,resourcePool_from_ClusterComputeResource': 1,
@@ -213,13 +220,16 @@ class VsphereIntegrationTest(TestCase):
 
         self.client = ServerClient()
         self.client.connect(cfg=self.cfg)
+        self.addCleanup(
+            Disconnect,
+            self.client.si,
+        )
         self.platform_caller = mock.patch.object(
             self.client.si._stub, 'InvokeMethod',
             wraps=self.client.si._stub.InvokeMethod,
         ).start()
 
     def tearDown(self):
-        Disconnect(self.client.si)
         self.platform_caller = None
 
     def _get_nocache_expectation(self, original_calls):
@@ -575,6 +585,7 @@ class VsphereIntegrationTest(TestCase):
             host.summary.runtime,
             [
                 'connectionState',
+                'inMaintenanceMode',
             ],
             include_defaults=False,
         )
@@ -896,7 +907,8 @@ class VsphereIntegrationTest(TestCase):
             (
                 'get_properties_name,parent,hardware.memorySize,'
                 'hardware.cpuInfo.numCpuThreads,overallStatus,network,'
-                'summary.runtime.connectionState,vm,datastore,'
+                'summary.runtime.connectionState,'
+                'summary.runtime.inMaintenanceMode,vm,datastore,'
                 'config.network.vswitch,configManager_from_HostSystem'
             ): 2,
             'get_properties_name,resourcePool_from_ClusterComputeResource': 2,
@@ -913,3 +925,217 @@ class VsphereIntegrationTest(TestCase):
         }
         calls = categorise_calls(self.platform_caller.call_args_list)
         self.assertEqual(expected_calls, calls)
+
+    def start_vm_deploy(
+        self, vm_name,
+        vm_template_key='windows_template',
+        vm_memory=512,
+    ):
+        template = self.client._get_obj_by_name(
+            vimtype=vim.VirtualMachine,
+            # Use windows template because their minimum size is huge
+            name=self.env.cloudify_config[vm_template_key],
+        ).obj
+        datastore = self.client._get_obj_by_name(
+            vimtype=vim.Datastore,
+            name=self.env.cloudify_config['vsphere_datastore_name'],
+        ).obj
+        datacenter = self.client._get_obj_by_name(
+            vimtype=vim.Datacenter,
+            name=self.env.cloudify_config['vsphere_datacenter_name'],
+        ).obj
+        resource_pool = self.client._get_obj_by_name(
+            vimtype=vim.ResourcePool,
+            name='Resources',
+        ).obj
+        destfolder = datacenter.vmFolder
+
+        relospec = vim.vm.RelocateSpec()
+        relospec.datastore = datastore
+        relospec.pool = resource_pool
+
+        conf = vim.vm.ConfigSpec()
+        conf.numCPUs = 1
+        conf.memoryMB = vm_memory
+
+        clonespec = vim.vm.CloneSpec()
+        clonespec.location = relospec
+        clonespec.config = conf
+        clonespec.powerOn = False
+        clonespec.template = False
+
+        task = template.Clone(
+            folder=destfolder,
+            name=vm_name,
+            spec=clonespec,
+        )
+
+        while (
+            task.info.state == vim.TaskInfo.State.queued or
+            task.info.progress < 30  # it seems to actually clone around 30+
+        ):
+            time.sleep(0.5)
+
+        return task
+
+    def test_get_vms_concurrency_fail(self):
+        task = self.start_vm_deploy(vm_name='systestconcurrencyfail')
+
+        try:
+            self.client._get_vms(use_cache=False, skip_broken_vms=False)
+            # Trying to cancel in a cleanup resulted in errors
+            task.Cancel()
+            raise AssertionError(
+                'Successfully retrieved VM information when we should have '
+                'failed.'
+            )
+        except NonRecoverableError as err:
+            assert task.info.state == vim.TaskInfo.State.running, (
+                'VM was not cloning while concurrency test ran. '
+                'Please check for errors on the platform.'
+            )
+            task.Cancel()
+            assert 'Could not retrieve' in err.message
+            assert 'vm object' in err.message
+            assert 'was missing' in err.message
+            self.logger.info(
+                'get_vms concurrency failure has correct message.'
+            )
+
+    def test_get_vms_concurrency(self):
+        task = self.start_vm_deploy(vm_name='systestconcurrency')
+
+        try:
+            self.client._get_vms(use_cache=False)
+
+            task.Cancel()
+            self.logger.info('get_vms concurrency is healthy')
+        except NonRecoverableError as err:
+            raise AssertionError(err.message)
+
+    def test_vm_memory_overcommit(self):
+        ctx = mock.Mock()
+        current_ctx.set(ctx)
+        vm_name = 'vm_overcommit_test'
+        task = self.start_vm_deploy(
+            vm_name,
+            vm_memory=4177920,  # vSphere max memory size
+            vm_template_key='linux_template',
+        )
+
+        while task.info.state in (
+            vim.TaskInfo.State.queued,
+            vim.TaskInfo.State.running,
+        ):
+            time.sleep(0.5)
+
+        vm = self.client._get_obj_by_name(
+            vim.VirtualMachine,
+            vm_name,
+            use_cache=False,
+        )
+
+        self.addCleanup(
+            self.client.delete_server,
+            vm,
+        )
+
+        candidates = self.client.find_candidate_hosts(
+            resource_pool='Resources',
+            vm_cpus=1,
+            vm_memory=2048,
+            vm_networks={},
+        )
+
+        for candidate in candidates:
+            if candidate[0].name == vm.summary.runtime.host.name:
+                # Should be less than 0 memory because we created a huge VM
+                self.assertLess(candidate[2], 0)
+                break
+        else:
+            raise ValueError(
+                "didn't find the host for the test VM. "
+                "Something bad is going on")
+
+    def test_maintenance_mode_unsuitable(self):
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+        print(host)
+
+        self.assertTrue(
+            self.client.host_is_usable(host),
+            msg=(
+                'temporary_maintenance_host should be healthy but is not. '
+                'Check that health is green or yellow and it is not '
+                'disconnected or in maintenance mode.'
+            ),
+        )
+
+        self._maint_mode('enter', host)
+
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+        usable_during = self.client.host_is_usable(host)
+
+        self._maint_mode('exit', host)
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+
+        self.assertFalse(
+            usable_during,
+            msg=(
+                'Host {host} should not be usable while in maintenance '
+                'mode.'.format(
+                    host=host.name,
+                )
+            ),
+        )
+
+        self.assertTrue(
+            self.client.host_is_usable(host),
+            msg=(
+                'Host {host} should be usable again after exiting '
+                'maintenance mode.'.format(
+                    host=host.name,
+                )
+            ),
+        )
+
+    def _get_host_uncached(self, host_name):
+        return self.client._get_obj_by_name(
+            vimtype=vim.HostSystem,
+            name=host_name,
+            use_cache=False,
+        )
+
+    def _maint_mode(self, enter_or_exit, host):
+        expected = {
+            'enter': True,
+            'exit': False,
+        }[enter_or_exit]
+
+        # This has been observed to fail without obvious cause on one attempt
+        # then succeed on the next so we will retry so that we can confirm the
+        # plugin behaves correctly even if the environment it deploys in may
+        # not always.
+        attempts = 3
+        for i in range(0, attempts):
+            if enter_or_exit == 'enter':
+                task = host.obj.EnterMaintenanceMode(timeout=60)
+            else:
+                task = host.obj.ExitMaintenanceMode(timeout=60)
+            while task.info.state in ('queued', 'running'):
+                time.sleep(0.5)
+
+            if host.obj.summary.runtime.inMaintenanceMode == expected:
+                return True
+        raise AssertionError(
+            'Failed to {eoe} maintenance mode on host '
+            '{host}.'.format(
+                eoe=enter_or_exit,
+                host=host.name,
+            )
+        )
