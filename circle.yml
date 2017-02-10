@@ -1,7 +1,8 @@
+machine:
+  python:
+    version: 2.7.9
 
 dependencies:
-  pre:
-    - pyenv local 2.7.9
   override:
     - pip install tox
 

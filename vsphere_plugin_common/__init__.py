@@ -19,6 +19,7 @@ from __future__ import division
 import atexit
 import os
 import re
+import ssl
 import time
 import urllib
 from collections import MutableMapping
@@ -28,8 +29,8 @@ from functools import wraps
 # Third party imports
 import yaml
 from netaddr import IPNetwork
-from pyVmomi import vim, vmodl
 from pyVim.connect import SmartConnect, Disconnect
+from pyVmomi import vim, vmodl
 
 # Cloudify imports
 from cloudify import ctx
@@ -42,7 +43,7 @@ from vsphere_plugin_common.constants import (
     NETWORK_ID,
     TASK_CHECK_SLEEP,
 )
-from vsphere_plugin_common.vendored_collections import namedtuple
+from cloudify_vsphere.vendored.collections import namedtuple
 from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
@@ -154,6 +155,90 @@ class VsphereClient(object):
         username = cfg['username']
         password = cfg['password']
         port = cfg['port']
+        certificate_path = cfg.get('certificate_path')
+        # Until the next major release this will have limited effect, but is
+        # in place to allow a clear path to the next release for users
+        allow_insecure = cfg.get('allow_insecure', False)
+
+        if certificate_path and allow_insecure:
+            raise NonRecoverableError(
+                'Cannot connect when certificate_path and allow_insecure '
+                'are both set. Unable to determine whether connection should '
+                'be secure or insecure.'
+            )
+        elif certificate_path:
+            if not hasattr(ssl, '_create_default_https_context'):
+                raise NonRecoverableError(
+                    'Cannot create secure connection with this version of '
+                    'python. This functionality requires at least python '
+                    '2.7.9 and has been confirmed to work on at least 2.7.12.'
+                )
+
+            if not os.path.exists(certificate_path):
+                raise NonRecoverableError(
+                    'Certificate was not found in {path}'.format(
+                        path=certificate_path,
+                    )
+                )
+            elif not os.path.isfile(certificate_path):
+                raise NonRecoverableError(
+                    'Found directory at {path}, but the certificate_path '
+                    'must be a file.'.format(
+                        path=certificate_path,
+                    )
+                )
+            try:
+                # We want to load the cert into the existing default context
+                # in case any other python modules have already defined their
+                # default https context.
+                ssl_context = ssl._create_default_https_context()
+                if ssl_context.verify_mode == 0:
+                    raise NonRecoverableError(
+                        'Default SSL context is not set to verify. '
+                        'Cannot use a certificate while other imported '
+                        'modules are disabling verification on the default '
+                        'SSL context.'
+                    )
+                ssl_context.load_verify_locations(certificate_path)
+            except ssl.SSLError as err:
+                if 'unknown error' in str(err).lower():
+                    raise NonRecoverableError(
+                        'Could not create SSL context with provided '
+                        'certificate {path}. This problem may be caused by '
+                        'the certificate not being in the correct format '
+                        '(PEM).'.format(
+                            host=host,
+                            path=certificate_path,
+                        )
+                    )
+                else:
+                    raise
+
+            def get_ssl_context(*args, **kwargs):
+                return ssl_context
+            ssl._create_default_https_context = get_ssl_context
+        elif allow_insecure and hasattr(ssl, '_create_default_https_context'):
+                # This will disable verification for any other python
+                # libraries imported in the same process that use the
+                # default ssl context.
+                # This cannot be fixed until pyvmomi is updated.
+                ctx.logger.warn(
+                    'SSL verification disabled for all legacy code. '
+                    'Please note that this may result in other code '
+                    'from the same blueprint running with reduced '
+                    'security.'
+                )
+                ssl._create_default_https_context = (
+                    ssl._create_unverified_context
+                )
+        else:
+            ctx.logger.warn(
+                'DEPRECATED: certificate_path was not supplied. '
+                'A certificate will be required in the next major '
+                'release of the plugin if allow_insecure is not set '
+                'to true.'
+            )
+
         try:
             self.si = SmartConnect(host=host,
                                    user=username,
@@ -166,6 +251,17 @@ class VsphereClient(object):
                 "Could not login to vSphere on {host} with provided "
                 "credentials".format(host=host)
             )
+        except vim.fault.HostConnectFault as err:
+            if 'certificate verify failed' in err.msg:
+                raise NonRecoverableError(
+                    'Could not connect to vSphere on {host} with provided '
+                    'certificate {path}. Certificate was not valid.'.format(
+                        host=host,
+                        path=certificate_path,
+                    )
+                )
+            else:
+                raise
 
     def is_server_suspended(self, server):
         return server.summary.runtime.powerState.lower() == "suspended"

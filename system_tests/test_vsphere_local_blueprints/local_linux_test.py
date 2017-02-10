@@ -61,6 +61,18 @@ class VsphereLocalLinuxTest(TestCase):
 
         if 'vsphere_port' not in self.env.cloudify_config.keys():
             self.ext_inputs['vsphere_port'] = 443
+        else:
+            self.ext_inputs['vsphere_port'] = (
+                self.env.cloudify_config['vsphere_port']
+            )
+
+        if 'certificate_path' in self.env.cloudify_config.keys():
+            self.ext_inputs['certificate_path'] = (
+                self.env.cloudify_config['certificate_path']
+            )
+            self.ext_inputs['allow_insecure'] = False
+        else:
+            self.ext_inputs['allow_insecure'] = True
 
         for optional_key in [
             'external_network_distributed',

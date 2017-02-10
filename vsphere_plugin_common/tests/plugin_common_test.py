@@ -13,7 +13,14 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+import BaseHTTPServer
+import multiprocessing
 import os
+import SimpleHTTPServer
+import socket
+import ssl
+import subprocess
+import time
 import unittest
 
 from mock import Mock, MagicMock, patch, call
@@ -23,7 +30,88 @@ from cloudify.exceptions import NonRecoverableError
 import vsphere_plugin_common
 
 
+class WebServer(object):
+    def __init__(self, port=4443,
+                 key='private.pem', cert='public.pem',
+                 badkey='badkey.pem', badcert='badcert.pem'):
+        self.key = key
+        self.cert = cert
+        self.badkey = badkey
+        self.badcert = badcert
+        for i in range(0, 6):
+            try:
+                self.httpd = BaseHTTPServer.HTTPServer(
+                    ('localhost', port),
+                    SimpleHTTPServer.SimpleHTTPRequestHandler,
+                )
+            except socket.error:
+                time.sleep(0.5)
+
+    def _runserver(self):
+        self.httpd.serve_forever()
+
+    def makecert(self, key, cert, ip='127.0.0.1'):
+        subprocess.check_call([
+            'openssl',
+            'req', '-x509',
+            '-newkey', 'rsa:2048', '-sha256',
+            '-keyout', key,
+            '-out', cert,
+            '-days', '1',
+            '-nodes', '-subj',
+            '/CN={ip}'.format(ip=ip),
+        ])
+
+    def __enter__(self):
+        self.makecert(self.key, self.cert)
+        self.makecert(self.badkey, self.badcert, ip='127.0.0.2')
+        os.mkdir('sdk')
+        # We have to create the vimService file because the current version of
+        # pyvmomi seems happy to make an insecure request for the wsdl before
+        # it actually complains about SSL issues
+        with open('sdk/vimService.wsdl', 'w') as wsdl_handle:
+            wsdl_handle.write(
+                '<definitions xmlns="http://schemas.xmlsoap.org/wsdl/" '
+                'xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" '
+                'xmlns:interface="urn:vim25" '
+                'targetNamespace="urn:vim25Service">\n'
+                '<import location="vim.wsdl" namespace="urn:vim25"/>\n'
+                '<service name="VimService">\n'
+                '<port binding="interface:VimBinding" name="VimPort">\n'
+                '<soap:address '
+                'location="https://localhost/sdk/vimService"/>\n'
+                '</port>\n'
+                '</service>\n'
+                '</definitions>\n'
+            )
+        self.process = multiprocessing.Process(
+            target=self._runserver,
+        )
+        self.httpd.socket = ssl.wrap_socket(
+            self.httpd.socket,
+            keyfile=self.key,
+            certfile=self.cert,
+            server_side=True,
+        )
+        self.process.start()
+
+    def __exit__(self, *args):
+        self.process.terminate()
+        self.httpd.socket.close()
+        os.unlink(self.key)
+        os.unlink(self.cert)
+        os.unlink(self.badkey)
+        os.unlink(self.badcert)
+        os.unlink('sdk/vimService.wsdl')
+        os.rmdir('sdk')
+
+
 class VspherePluginsCommonTests(unittest.TestCase):
+    if hasattr(ssl, '_create_default_https_context'):
+        _base_ssl_context = ssl.create_default_context()
+        _new_ssl = True
+    else:
+        _new_ssl = False
 
     def _make_mock_host(
         self,
@@ -1989,6 +2077,545 @@ class VspherePluginsCommonTests(unittest.TestCase):
             len(vals),
             server.obj.customValue.__len__.return_value
         )
+
+    def _find_deprecation_message(self, mock_ctx, expected_information=(),
+                                  expect_present=True):
+        for message in mock_ctx.logger.warn.call_args_list:
+            # call args [0] is
+            if 'message' in message[1]:
+                # message of **kwargs
+                message = message[1]['message'].lower()
+            else:
+                # First arg or *args
+                message = message[0][0].lower()
+
+            if 'deprecated' in message.lower():
+                for expected in expected_information:
+                    assert expected in message, (
+                        'Expected {mod}to find {exp} in "{msg}", but '
+                        'failed!'.format(
+                            mod='not ' if not expect_present else '',
+                            exp=expected,
+                            msg=message,
+                        )
+                    )
+                # We either just found the message or raised AssertionError
+                break
+
+    def _make_ssl_test_conn(self,
+                            ctx,
+                            cert_path='unset',
+                            allow_insecure=False,
+                            expect_501=True,
+                            expect_verify_fail=True,
+                            complain_on_success=False,
+                            expected_nre_message_contents=(),
+                            unexpected_nre_message_contents=(),
+                            expected_warn_message_contents=(),
+                            unexpected_warn_message_contents=()):
+        cfg = {
+            'host': '127.0.0.1',
+            'username': 'user',
+            'password': 'pass',
+            'port': 4443,
+            'allow_insecure': allow_insecure,
+        }
+
+        if cert_path is not 'unset':
+            cfg['certificate_path'] = cert_path
+
+        client = vsphere_plugin_common.VsphereClient()
+
+        try:
+            client.connect(cfg)
+            if complain_on_success:
+                raise AssertionError(
+                    'We somehow succeeded in connecting to a not vsphere '
+                    'server. This should not be able to happen.'
+                )
+        except NonRecoverableError as err:
+            for component in expected_nre_message_contents:
+                assert component in str(err).lower(), (
+                    '{comp} not found in "{err}", but should be!'.format(
+                        comp=component,
+                        err=str(err)
+                    )
+                )
+            for component in unexpected_nre_message_contents:
+                assert component not in str(err).lower(), (
+                    '{comp} found in "{err}", but should not be!'.format(
+                        comp=component,
+                        err=str(err)
+                    )
+                )
+        except Exception as err:
+            msg = str(err).lower()
+            if expect_verify_fail and "ssl: certificate_verify_fail" in msg:
+                pass
+            elif expect_501 and "501 unsupported method ('post')" in msg:
+                pass
+            else:
+                raise
+
+        if expected_warn_message_contents:
+            self._find_deprecation_message(
+                mock_ctx=ctx,
+                expected_information=expected_warn_message_contents,
+            )
+
+        if unexpected_warn_message_contents:
+            self._find_deprecation_message(
+                expect_present=False,
+                mock_ctx=ctx,
+                expected_information=unexpected_warn_message_contents,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_conect_allow_insecure_with_certificate_path(self, mock_ctx):
+        with WebServer():
+            self._make_ssl_test_conn(
+                cert_path='anything',
+                allow_insecure=True,
+                complain_on_success=True,
+                expect_501=False,
+                expect_verify_fail=False,
+                expected_nre_message_contents=(
+                    'certificate_path',
+                    'allow_insecure',
+                    'both set',
+                ),
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_without_certificate_path(self, mock_ctx):
+        with WebServer():
+            self._make_ssl_test_conn(
+                complain_on_success=True,
+                expected_warn_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                ),
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_without_certificate_path_allow_insecure(self, mock_ctx):
+        with WebServer():
+            self._make_ssl_test_conn(
+                allow_insecure=True,
+                complain_on_success=True,
+                unexpected_warn_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                ),
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_with_empty_certificate_path(self, mock_ctx):
+        with WebServer():
+            self._make_ssl_test_conn(
+                cert_path='',
+                complain_on_success=True,
+                expected_warn_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                ),
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_with_empty_certificate_path_allow_insecure(self,
+                                                                mock_ctx):
+        with WebServer():
+            self._make_ssl_test_conn(
+                allow_insecure=True,
+                cert_path='',
+                complain_on_success=True,
+                unexpected_warn_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                ),
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_with_bad_certificate_path(self, mock_ctx):
+        with WebServer():
+            if self._new_ssl:
+                expected_nre_message = (
+                    'certificate',
+                    'not found',
+                    'path/that/is/not/real',
+                )
+            else:
+                expected_nre_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='path/that/is/not/real',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_nre_message,
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_with_cert_path_not_file(self, mock_ctx):
+        with WebServer():
+            if self._new_ssl:
+                expected_nre_message = (
+                    'certificate_path',
+                    'must be a file',
+                    'sdk/',
+                )
+            else:
+                expected_nre_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='sdk/',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_nre_message,
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_with_bad_cert_file(self, mock_ctx):
+        with WebServer():
+            if self._new_ssl:
+                expected_nre_message = (
+                    'could not connect',
+                    'badcert.pem',
+                    'not valid',
+                )
+            else:
+                expected_nre_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='badcert.pem',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_nre_message,
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_with_bad_cert_file_not_a_cert(self, mock_ctx):
+        with WebServer():
+            if self._new_ssl:
+                expected_nre_message = (
+                    'could not create ssl context',
+                    'sdk/vimservice.wsdl',
+                    'correct format',
+                    'pem',
+                )
+            else:
+                expected_nre_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='sdk/vimService.wsdl',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_nre_message,
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ssl')
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_with_bad_ssl_version_with_cert(self, mock_ctx, mock_ssl):
+        delattr(mock_ssl, '_create_default_https_context')
+        with WebServer():
+            self._make_ssl_test_conn(
+                cert_path='anything',
+                complain_on_success=True,
+                expected_nre_message_contents=(
+                    'cannot create secure connection',
+                    'version of python',
+                    # Show minimum version and latest known-good version
+                    # because while _create_default_https_context is in
+                    # PEP493, it is also undocumented so could disappear
+                    # within python 2.7
+                    '2.7.9',
+                    '2.7.12',
+                ),
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_connect_with_good_cert(self, mock_ctx):
+        with WebServer():
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=True,
+                expect_verify_fail=False,
+                unexpected_nre_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                ),
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_two_connections_wrong_then_right(self, mock_ctx):
+        with WebServer():
+            if self._new_ssl:
+                expected_warn_message = ()
+                expected_bad_nre = (
+                    'could not connect',
+                    'badcert.pem',
+                    'not valid',
+                )
+            else:
+                expected_warn_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+                expected_bad_nre = ()
+
+            self._make_ssl_test_conn(
+                cert_path='badcert.pem',
+                complain_on_success=True,
+                expected_warn_message_contents=expected_warn_message,
+                expected_nre_message_contents=expected_bad_nre,
+                ctx=mock_ctx,
+            )
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                expected_warn_message_contents=expected_warn_message,
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_two_connections_right_then_wrong(self, mock_ctx):
+        with WebServer():
+            if self._new_ssl:
+                expected_warn_message = ()
+                expected_bad_nre = (
+                    'could not connect',
+                    'badcert.pem',
+                    'not valid',
+                )
+            else:
+                expected_warn_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+                expected_bad_nre = ()
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                expected_warn_message_contents=expected_warn_message,
+                ctx=mock_ctx,
+            )
+
+            self._make_ssl_test_conn(
+                cert_path='badcert.pem',
+                complain_on_success=True,
+                expected_warn_message_contents=expected_warn_message,
+                expected_nre_message_contents=expected_bad_nre,
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_two_connections_no_path_then_good_path(self, mock_ctx):
+        with WebServer():
+            expected_warn_message = (
+                'certificate_path',
+                'will be required',
+                'allow_insecure',
+                'not set to true',
+            )
+
+            self._make_ssl_test_conn(
+                complain_on_success=True,
+                expected_warn_message_contents=expected_warn_message,
+                ctx=mock_ctx,
+            )
+
+            if self._new_ssl:
+                expected_warn_message = ()
+            else:
+                expected_warn_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                ctx=mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ctx')
+    def test_two_connections_no_path_then_bad_cert(self, mock_ctx):
+        with WebServer():
+            if self._new_ssl:
+                expected_warn_message = (
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                )
+                expected_bad_nre = (
+                    'could not connect',
+                    'badcert.pem',
+                    'not valid',
+                )
+            else:
+                expected_warn_message = (
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                )
+                expected_bad_nre = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                complain_on_success=True,
+                expected_warn_message_contents=expected_warn_message,
+                ctx=mock_ctx,
+            )
+
+            self._make_ssl_test_conn(
+                cert_path='badcert.pem',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_bad_nre,
+                ctx=mock_ctx,
+            )
+
+    @unittest.skipIf(
+        not hasattr(ssl, '_create_default_https_context'),
+        "Can't test SSL context changes on this version of python."
+    )
+    @patch('vsphere_plugin_common.ctx')
+    def test_connection_does_not_lose_context(self, mock_ctx):
+        with WebServer():
+            self.addCleanup(self._revert_ssl_context)
+            cont = ssl.create_default_context(
+                capath=[],
+                cadata='',
+                cafile=None,
+            )
+            cont.load_verify_locations('badcert.pem')
+
+            def get_cont(*args, **kwargs):
+                return cont
+            ssl._create_default_https_context = get_cont
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                ctx=mock_ctx,
+            )
+
+            expected = ['127.0.0.1', '127.0.0.2']
+            expected.sort()
+            cns = []
+            for cert in ssl._create_default_https_context().get_ca_certs():
+                cns.append(cert['subject'][0][0][1])
+                cns.sort()
+
+            assert all(exp in cns for exp in expected), (
+                'Expected to find certs for {expected}, but only found for '
+                '{actual}.'.format(
+                    expected=','.join(expected),
+                    actual=','.join(cns),
+                )
+            )
+
+    @unittest.skipIf(
+        not hasattr(ssl, '_create_default_https_context'),
+        "Can't test SSL context changes on this version of python."
+    )
+    @patch('vsphere_plugin_common.ctx')
+    def test_connection_does_not_gain_context(self, mock_ctx):
+        # Making sure we don't load certs we didn't ask for
+        with WebServer():
+            self.addCleanup(self._revert_ssl_context)
+            cont = ssl.create_default_context(
+                capath=[],
+                cadata='',
+                cafile=None,
+            )
+
+            def get_cont(*args, **kwargs):
+                return cont
+            ssl._create_default_https_context = get_cont
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                ctx=mock_ctx,
+            )
+
+            unexpected = '127.0.0.2'
+            cns = []
+            for cert in ssl._create_default_https_context().get_ca_certs():
+                cns.append(cert['subject'][0][0][1])
+                cns.sort()
+
+            assert unexpected not in cns, (
+                'Expected not to find certs for {unexpected}, but only found '
+                'for {actual}.'.format(
+                    unexpected=unexpected,
+                    actual=','.join(cns),
+                )
+            )
+
+    @unittest.skipIf(
+        not hasattr(ssl, '_create_default_https_context'),
+        "Can't test SSL context changes on this version of python."
+    )
+    @patch('vsphere_plugin_common.ctx')
+    def test_connection_cert_path_default_cont_no_verify(self, mock_ctx):
+        with WebServer():
+            self.addCleanup(self._revert_ssl_context)
+            ssl._create_default_https_context = ssl._create_unverified_context
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=True,
+                expect_verify_fail=False,
+                expect_501=False,
+                expected_nre_message_contents=(
+                    'default ssl context',
+                    'not',
+                    'verify',
+                ),
+                ctx=mock_ctx,
+            )
+
+    def _revert_ssl_context(self):
+        def get_cont(*args, **kwargs):
+            return self._base_ssl_context
+        ssl._create_default_https_context = get_cont
 
 
 class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
