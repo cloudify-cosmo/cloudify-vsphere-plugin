@@ -1885,6 +1885,111 @@ class VspherePluginsCommonTests(unittest.TestCase):
             spec=configSpec.return_value,
         )
 
+    def test_add_new_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = MagicMock()
+        (client.si.content.customFieldsManager
+         .AddCustomFieldDef.return_value.key) = 3
+        server = Mock()
+        vals = client.custom_values(server)
+
+        vals['something'] = 'flob'
+
+        (client.si.content.customFieldsManager
+         .AddCustomFieldDef).assert_called_once_with(
+            name='something',
+        )
+        server.obj.setCustomValue.assert_called_once_with(
+            'something', 'flob',
+        )
+
+    def test_get_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        key = Mock()
+        client.si.content.customFieldsManager.field = [key]
+        key.name = 'test'
+        key.key = 133
+        server = Mock()
+        val = Mock()
+        server.obj.customValue = [val]
+        val.key = 133
+        val.value = 'something completely different'
+        vals = client.custom_values(server)
+
+        val = vals['test']
+
+        self.assertEqual('something completely different', val)
+
+    def test_get_custom_attr_keyerr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        key = Mock()
+        client.si.content.customFieldsManager.field = [key]
+        key.name = 'Yale'
+        key.key = 133
+        server = Mock()
+        server.obj.customValue = []
+        vals = client.custom_values(server)
+
+        with self.assertRaises(KeyError):
+            vals['Yale']
+
+    def test_get_custom_attr_global_keyerr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        client.si.content.customFieldsManager.field = []
+        server = Mock()
+        vals = client.custom_values(server)
+
+        with self.assertRaises(KeyError):
+            vals['Yale']
+
+    def test_delete_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        server = Mock()
+        vals = client.custom_values(server)
+
+        with self.assertRaises(NonRecoverableError):
+            del vals['something']
+
+    def test_iter_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        keys = client.si.content.customFieldsManager.field = [Mock(), Mock()]
+        keys[0].key = 3001
+        keys[0].name = 'Lever'
+        keys[1].key = 3002
+        keys[1].name = 'Yale'
+        server = Mock()
+        values = server.obj.customValue = [Mock(), Mock()]
+        values[0].key = 3001
+        values[0].value = 5
+        values[1].key = 3002
+        values[1].value = 8
+        vals = client.custom_values(server)
+
+        out = vals.items()
+
+        self.assertEqual(
+            {
+                'Lever': 5,
+                'Yale': 8,
+            },
+            dict(out))
+
+    def test_len_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        client.si.content.customFieldsManager.field = []
+        server = MagicMock()
+        vals = client.custom_values(server)
+
+        self.assertIs(
+            len(vals),
+            server.obj.customValue.__len__.return_value
+        )
+
 
 class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
     def setUp(self):

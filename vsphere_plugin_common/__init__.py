@@ -21,6 +21,7 @@ import os
 import re
 import time
 import urllib
+from collections import MutableMapping
 from copy import copy
 from functools import wraps
 
@@ -32,7 +33,7 @@ from pyVim.connect import SmartConnect, Disconnect
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify import exceptions as cfy_exc
+from cloudify.exceptions import NonRecoverableError
 
 # This package imports
 from vsphere_plugin_common.constants import (
@@ -161,7 +162,7 @@ class VsphereClient(object):
             atexit.register(Disconnect, self.si)
             return self
         except vim.fault.InvalidLogin:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Could not login to vSphere on {host} with provided "
                 "credentials".format(host=host)
             )
@@ -337,7 +338,7 @@ class VsphereClient(object):
                 )
             except KeyError as err:
                 if not skip_broken_objects:
-                    raise cfy_exc.NonRecoverableError(
+                    raise NonRecoverableError(
                         'Could not retrieve all details for {type} object. '
                         '{err} was missing.'.format(
                             type=entity_name,
@@ -468,7 +469,7 @@ class VsphereClient(object):
                     found = True
                     break
             if not found:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'Could not find any relationships to a node called '
                     '"{name}", so {prop} could not be retrieved.'.format(
                         name=network['name'],
@@ -476,7 +477,7 @@ class VsphereClient(object):
                     )
                 )
             elif net_id is None:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'Could not get a {prop} runtime property from '
                     'relationship to a node called "{name}".'.format(
                         name=network['name'],
@@ -499,7 +500,7 @@ class VsphereClient(object):
             )
 
             if net is None:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'Could not get network given network ID: {id}'.format(
                         id=net_id,
                     )
@@ -736,7 +737,7 @@ class VsphereClient(object):
             vim.dvs.DistributedVirtualPortgroup: self._get_dv_networks,
         }.get(vimtype)
         if getter_method is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Cannot retrieve objects for {vimtype}'.format(
                     vimtype=vimtype,
                 )
@@ -838,7 +839,7 @@ class VsphereClient(object):
         ):
             time.sleep(TASK_CHECK_SLEEP)
         if task.info.state != vim.TaskInfo.State.success:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
                 .format(task.info.error))
 
@@ -904,7 +905,7 @@ class VsphereClient(object):
                 )
 
             if network_name is None:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'Could not get network name for device with MAC address '
                     '{mac} on VM {vm}'.format(mac=nic.macAddress, vm=vm.name)
                 )
@@ -916,6 +917,65 @@ class VsphereClient(object):
             })
 
         return networks
+
+    def custom_values(self, thing):
+        return CustomValues(self, thing)
+
+    def add_custom_values(self, thing, attributes):
+        if attributes:
+            values = self.custom_values(thing)
+            values.update(attributes)
+            ctx.logger.debug('Added custom attributes')
+
+
+class CustomValues(MutableMapping):
+    """dict interface to ManagedObject customValue"""
+
+    def __init__(self, client, thing):
+        """
+        client: a VsphereClient instance
+        thing: a NamedTuple containing a ManagedObject-derived class as its
+        `obj` attribute: as supplied by `client._get_obj_by_name`
+        """
+        self.client = client
+        self.thing = thing
+
+    def __getitem__(self, key):
+        key_id = self._get_key_id(key)
+        for value in self.thing.obj.customValue:
+            if value.key == key_id:
+                return value.value
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self._get_key_id(key, create=True)
+        return self.thing.obj.setCustomValue(key, value)
+
+    def __delitem__(self, key):
+        raise NonRecoverableError("Unable to unset custom values")
+
+    def __iter__(self):
+        for value in self.thing.obj.customValue:
+            yield self._get_key_name(value.key)
+
+    def __len__(self):
+        return len(self.thing.obj.customValue)
+
+    def _get_key_id(self, k, create=False):
+        for key in self.client.si.content.customFieldsManager.field:
+            if key.name == k:
+                return key.key
+        if create:
+            key = self.client.si.content.customFieldsManager.AddCustomFieldDef(
+                name=k)
+            return key.key
+        raise KeyError(k)
+
+    def _get_key_name(self, k):
+        for key in self.client.si.content.customFieldsManager.field:
+            if key.key == k:
+                return key.name
+        raise ValueError(k)
 
 
 class ServerClient(VsphereClient):
@@ -1041,7 +1101,7 @@ class ServerClient(VsphereClient):
         for network in networks:
             try:
                 network_name = self._get_connected_network_name(network)
-            except cfy_exc.NonRecoverableError as err:
+            except NonRecoverableError as err:
                 issues.append(str(err))
                 continue
             network_name = self._get_normalised_name(network_name)
@@ -1110,7 +1170,7 @@ class ServerClient(VsphereClient):
         if issues:
             issues.insert(0, 'Issues found while validating inputs:')
             message = ' '.join(issues)
-            raise cfy_exc.NonRecoverableError(message)
+            raise NonRecoverableError(message)
 
     def _validate_windows_properties(self, props, password):
         issues = []
@@ -1148,7 +1208,7 @@ class ServerClient(VsphereClient):
         if issues:
             issues.insert(0, 'Issues found while validating inputs:')
             message = ' '.join(issues)
-            raise cfy_exc.NonRecoverableError(message)
+            raise NonRecoverableError(message)
 
     def create_server(self,
                       auto_placement,
@@ -1256,7 +1316,7 @@ class ServerClient(VsphereClient):
                     network_name,
                 )
             if network_obj is None:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'Network {0} could not be found'.format(network_name))
             nicspec = vim.vm.device.VirtualDeviceSpec()
             # Info level as this is something that was requested in the
@@ -1379,7 +1439,7 @@ class ServerClient(VsphereClient):
                 options.deleteAccounts = False
                 customspec.options = options
             else:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'os_type {os_type} was specified, but only "windows" and '
                     '"linux" are supported.'.format(os_type=os_type)
                 )
@@ -1403,7 +1463,7 @@ class ServerClient(VsphereClient):
                                      for item in vars(task).items()))
             self._wait_vm_running(task, adaptermaps)
         except task.info.error:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."
                 .format(vm_name))
 
@@ -1415,6 +1475,10 @@ class ServerClient(VsphereClient):
         ctx.instance.runtime_properties[NETWORKS] = \
             self.get_vm_networks(vm)
         ctx.logger.debug('Updated runtime properties with network information')
+
+        self.add_custom_values(
+            vm,
+            ctx.node.properties.get('custom_attributes', {}))
 
         return task.info.result
 
@@ -1442,7 +1506,7 @@ class ServerClient(VsphereClient):
             if self.is_server_poweredoff(server):
                 break
         else:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Server still running after {time}s timeout.".format(
                     time=max_wait_time,
                 ))
@@ -1484,7 +1548,7 @@ class ServerClient(VsphereClient):
             if server.obj.runtime.bootTime > start_bootTime:
                 break
         else:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Server still running after {time}s timeout.".format(
                     time=max_wait_time,
                 ))
@@ -1695,7 +1759,7 @@ class ServerClient(VsphereClient):
                     clusters=', '.join(allowed_clusters)
                 )
 
-            raise cfy_exc.NonRecoverableError(message)
+            raise NonRecoverableError(message)
 
     def get_resource_pool(self, host, resource_pool_name):
         """
@@ -1707,7 +1771,7 @@ class ServerClient(VsphereClient):
                 return resource_pool
         # If we get here, we somehow selected a host without the right
         # resource pool. This should not be able to happen.
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             'Resource pool {rp} not found on host {host}. '
             'Pools found were: {pools}'.format(
                 rp=resource_pool_name,
@@ -1883,7 +1947,7 @@ class ServerClient(VsphereClient):
             message += '{hosts}'.format(hosts=', '.join(
                 [hostt[0].name for hostt in candidate_hosts]
             ))
-            raise cfy_exc.NonRecoverableError(message)
+            raise NonRecoverableError(message)
 
     def get_host_free_memory(self, host):
         """
@@ -2041,23 +2105,23 @@ class ServerClient(VsphereClient):
             try:
                 cpus = int(cpus)
             except (ValueError, TypeError) as e:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     "Invalid cpus value: {}".format(e))
             if cpus < 1:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     "cpus must be at least 1. Is {}".format(cpus))
             config.numCPUs = cpus
         if memory is not None:
             try:
                 memory = int(memory)
             except (ValueError, TypeError) as e:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     "Invalid memory value: {}".format(e))
             if memory < 512:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     "Memory must be at least 512MB. Is {}".format(memory))
             if memory % 128:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     "Memory must be an integer multiple of 128. Is {}".format(
                         memory))
             config.memoryMB = memory
@@ -2066,9 +2130,9 @@ class ServerClient(VsphereClient):
 
         try:
             self._wait_for_task(task)
-        except cfy_exc.NonRecoverableError as e:
+        except NonRecoverableError as e:
             if 'configSpec.memoryMB' in e.args[0]:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     "Memory error resizing Server. May be caused by "
                     "https://kb.vmware.com/kb/2008405 . If so the Server may "
                     "be resized while it is switched off.",
@@ -2115,7 +2179,7 @@ class ServerClient(VsphereClient):
         try:
             return task.info.result.guest.guestState == "running"
         except vmodl.fault.ManagedObjectNotFound:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Server failed to enter running state, task has been deleted '
                 'by vCenter after failing.'
             )
@@ -2199,14 +2263,14 @@ class NetworkClient(VsphereClient):
         if runtime_properties['status'] == 'preparing':
             if vswitch_name not in vswitches:
                 if len(vswitches) == 0:
-                    raise cfy_exc.NonRecoverableError(
+                    raise NonRecoverableError(
                         'No valid vswitches found. '
                         'Every physical host in the datacenter must have the '
                         'same named vswitches available when not using '
                         'distributed vswitches.'
                     )
                 else:
-                    raise cfy_exc.NonRecoverableError(
+                    raise NonRecoverableError(
                         '{vswitch} was not a valid vswitch name. The valid '
                         'vswitches are: {vswitches}'.format(
                             vswitch=vswitch_name,
@@ -2330,13 +2394,13 @@ class NetworkClient(VsphereClient):
 
         if vswitch_name not in dvswitches:
             if len(dvswitches) == 0:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'No valid dvswitches found. '
                     'A distributed virtual switch must exist for distributed '
                     'port groups to be used.'
                 )
             else:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     '{dvswitch} was not a valid dvswitch name. The valid '
                     'dvswitches are: {dvswitches}'.format(
                         dvswitch=vswitch_name,
@@ -2392,7 +2456,7 @@ class StorageClient(VsphereClient):
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         ctx.logger.debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         if self.is_server_suspended(vm):
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to create storage:'
                 ' invalid VM state - \'suspended\''
             )
@@ -2438,7 +2502,7 @@ class StorageClient(VsphereClient):
 
         # Exit error if VMDK filename undefined
         if vm_disk_filename is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to create storage:'
                 ' Invalid VMDK name - \'{0}\''.format(vm_disk_filename_cur)
             )
@@ -2462,7 +2526,7 @@ class StorageClient(VsphereClient):
                 num_controller += 1
                 controller = vm_device
         if num_controller != 1:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to create storage: '
                 'SCSI controller cannot be found or is present more than '
                 'once.'
@@ -2476,7 +2540,7 @@ class StorageClient(VsphereClient):
         if vm_vdisk_number < 7:
             unit_number = vm_vdisk_number
         elif vm_vdisk_number == 15:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to create storage: one SCSI controller '
                 'cannot have more than 15 virtual disks.'
             )
@@ -2517,7 +2581,7 @@ class StorageClient(VsphereClient):
                 # We found the right disk, we can't do any better than this
                 break
         if bus_id is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Could not find SCSI bus ID for disk with filename: '
                 '{file}'.format(file=vm_disk_filename)
             )
@@ -2532,7 +2596,7 @@ class StorageClient(VsphereClient):
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         ctx.logger.debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         if self.is_server_suspended(vm):
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Error during trying to delete storage: invalid VM state - "
                 "'suspended'"
             )
@@ -2553,7 +2617,7 @@ class StorageClient(VsphereClient):
                 device_to_delete = device
 
         if device_to_delete is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to delete storage: storage not found')
 
         virtual_device_spec.device = device_to_delete
@@ -2586,7 +2650,7 @@ class StorageClient(VsphereClient):
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         ctx.logger.debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         if self.is_server_suspended(vm):
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to resize storage: invalid VM state'
                 ' - \'suspended\'')
 
@@ -2598,7 +2662,7 @@ class StorageClient(VsphereClient):
                 disk_to_resize = device
 
         if disk_to_resize is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to resize storage: storage not found')
 
         updated_devices = []
