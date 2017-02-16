@@ -918,6 +918,14 @@ class VsphereClient(object):
 
         return networks
 
+    def _get_custom_keys(self, use_cache=True):
+        if not use_cache or 'custom_keys' not in self._cache:
+            self._cache['custom_keys'] = (
+                self.si.content.customFieldsManager.field
+            )
+
+        return self._cache['custom_keys']
+
     def custom_values(self, thing):
         return CustomValues(self, thing)
 
@@ -962,17 +970,22 @@ class CustomValues(MutableMapping):
         return len(self.thing.obj.customValue)
 
     def _get_key_id(self, k, create=False):
-        for key in self.client.si.content.customFieldsManager.field:
+        for key in self.client._get_custom_keys():
             if key.name == k:
                 return key.key
         if create:
-            key = self.client.si.content.customFieldsManager.AddCustomFieldDef(
-                name=k)
+            try:
+                key = (
+                    self.client.si.content.customFieldsManager.
+                    AddCustomFieldDef)(name=k)
+            except vim.fault.DuplicateName:
+                self.client._get_custom_keys(use_cache=False)
+                return self._get_key_id(k, create=create)
             return key.key
         raise KeyError(k)
 
     def _get_key_name(self, k):
-        for key in self.client.si.content.customFieldsManager.field:
+        for key in self.client._get_custom_keys():
             if key.key == k:
                 return key.name
         raise ValueError(k)
