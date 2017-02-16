@@ -1104,16 +1104,19 @@ class VsphereIntegrationTest(TestCase):
             ),
         )
 
+    def _get_key_by_name(self, name):
+        return next(
+            key for
+            key in self.client.si.content.customFieldsManager.field
+            if key.name == name)
+
     def test_add_new_custom_attr(self):
         self.client._get_custom_keys()
         try:
             key = self.client.si.content.customFieldsManager.AddCustomFieldDef(
                 'test_custom_field')
         except vim.fault.DuplicateName:
-            key = next(
-                key for
-                key in self.client.si.content.customFieldsManager.field
-                if key.name == 'test_custom_field')
+            key = self._get_key_by_name('test_custom_field')
         self.addCleanup(
             self.client.si.content.customFieldsManager.RemoveCustomFieldDef,
             key.key,
@@ -1135,10 +1138,7 @@ class VsphereIntegrationTest(TestCase):
             key = self.client.si.content.customFieldsManager.AddCustomFieldDef(
                 'test_custom_field')
         except vim.fault.DuplicateName:
-            key = next(
-                key for
-                key in self.client.si.content.customFieldsManager.field
-                if key.name == 'test_custom_field')
+            key = self._get_key_by_name('test_custom_field')
         self.addCleanup(
             self.client.si.content.customFieldsManager.RemoveCustomFieldDef,
             key.key,
