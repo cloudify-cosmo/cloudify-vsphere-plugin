@@ -1104,6 +1104,55 @@ class VsphereIntegrationTest(TestCase):
             ),
         )
 
+    def _get_key_by_name(self, name):
+        return next(
+            key for
+            key in self.client.si.content.customFieldsManager.field
+            if key.name == name)
+
+    def test_add_new_custom_attr(self):
+        self.client._get_custom_keys()
+        try:
+            key = self.client.si.content.customFieldsManager.AddCustomFieldDef(
+                'test_custom_field')
+        except vim.fault.DuplicateName:
+            key = self._get_key_by_name('test_custom_field')
+        self.addCleanup(
+            self.client.si.content.customFieldsManager.RemoveCustomFieldDef,
+            key.key,
+        )
+        server = mock.Mock()
+
+        vals = self.client.custom_values(server)
+
+        vals['test_custom_field'] = 'dleif_motsuc_tset'
+
+        server.obj.setCustomValue.assert_called_once_with(
+            'test_custom_field', 'dleif_motsuc_tset'
+        )
+
+    def test_add_custom_attr_invalid_cache(self):
+        # populate the cache before creating
+        self.client._get_custom_keys()
+        try:
+            key = self.client.si.content.customFieldsManager.AddCustomFieldDef(
+                'test_custom_field')
+        except vim.fault.DuplicateName:
+            key = self._get_key_by_name('test_custom_field')
+        self.addCleanup(
+            self.client.si.content.customFieldsManager.RemoveCustomFieldDef,
+            key.key,
+        )
+        server = mock.Mock()
+
+        vals = self.client.custom_values(server)
+
+        vals['test_custom_field'] = 'dleif_motsuc_tset'
+
+        server.obj.setCustomValue.assert_called_once_with(
+            'test_custom_field', 'dleif_motsuc_tset'
+        )
+
     def _get_host_uncached(self, host_name):
         return self.client._get_obj_by_name(
             vimtype=vim.HostSystem,

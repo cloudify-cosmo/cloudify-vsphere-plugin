@@ -15,9 +15,10 @@
 
 # Stdlib imports
 import os
+import urllib
+from contextlib import contextmanager
 from copy import copy
 from functools import partial
-import urllib
 
 # Third party imports
 from pyVmomi import vim
@@ -1253,6 +1254,158 @@ class VsphereLocalLinuxTest(TestCase):
         self.assertEqual(urllib.unquote(net_name), name)
         assert self.vm_has_net(vm_id, network_id)
 
+    def test_empty_custom_attributes(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'custom-attributes-blueprint.yaml'
+        )
+        inputs = copy(self.ext_inputs)
+
+        self.custom_attrs_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.custom_attrs_env,
+        )
+
+        self.custom_attrs_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        with self.platform() as client:
+            vm = client._get_obj_by_name(
+                vim.VirtualMachine,
+                self.custom_attrs_env.storage.get_node_instances('testserver')
+                [0].runtime_properties['name'],
+            )
+
+            self.assertEqual(0, len(vm.obj.customValue))
+
+    def run_platform_command(self, command, *args, **kwargs):
+        with self.platform() as client:
+            comm = client
+            for part in command:
+                comm = getattr(comm, part)
+            return comm(*args, **kwargs)
+
+    def test_existing_custom_attributes(self):
+        with self.platform() as client:
+            field = client.si.content.customFieldsManager.AddCustomFieldDef(
+                name='test_field_name')
+            self.addCleanup(
+                self.run_platform_command,
+                ['si', 'content',
+                 'customFieldsManager', 'RemoveCustomFieldDef'],
+                key=field.key
+            )
+
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'custom-attributes-blueprint.yaml'
+        )
+        inputs = copy(self.ext_inputs)
+        inputs['custom_attributes'] = {
+            'test_field_name': 'test_value',
+        }
+        self.custom_attrs_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.custom_attrs_env,
+        )
+
+        self.custom_attrs_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        with self.platform() as client:
+            vm = client._get_obj_by_name(
+                vim.VirtualMachine,
+                self.custom_attrs_env.storage.get_node_instances('testserver')
+                [0].runtime_properties['name'],
+            )
+
+            self.assertEqual(1, len(vm.obj.customValue))
+
+            for item in vm.obj.customValue:
+                if item.key == field.key and item.value == 'test_value':
+                    break
+            else:
+                raise AssertionError(
+                    "matching custom attribute for {}: {} not found".format(
+                        field.key, item.value))
+
+    def test_new_custom_attributes(self):
+        def get_new_field_key(name):
+            with self.platform() as client:
+                for key in client.si.content.customFieldsManager.field:
+                    if key.name == name:
+                        return key.key
+            raise KeyError("Key not found: {}".format(name))
+
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'custom-attributes-blueprint.yaml'
+        )
+        inputs = copy(self.ext_inputs)
+        inputs['custom_attributes'] = {
+            'test_field_name': 'test_value',
+        }
+        self.custom_attrs_env = local.init_env(
+            blueprint,
+            inputs=inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.custom_attrs_env,
+        )
+
+        self.custom_attrs_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        self.addCleanup(
+            self.run_platform_command,
+            ['si', 'content',
+             'customFieldsManager', 'RemoveCustomFieldDef'],
+            key=get_new_field_key('test_field_name')
+        )
+
+        with self.platform() as client:
+            vm = client._get_obj_by_name(
+                vim.VirtualMachine,
+                self.custom_attrs_env.storage.get_node_instances('testserver')
+                [0].runtime_properties['name'],
+            )
+
+            self.assertEqual(1, len(vm.obj.customValue))
+
+            field = next(
+                key
+                for key in client.si.content.customFieldsManager.field
+                if key.name == 'test_field_name')
+
+            for item in vm.obj.customValue:
+                if item.key == field.key and item.value == 'test_value':
+                    break
+            else:
+                raise AssertionError(
+                    "matching custom attribute for {}: {} not found".format(
+                        field.key, item.value))
+
     def generic_cleanup(self, component):
         component.execute(
             'uninstall',
@@ -1260,22 +1413,22 @@ class VsphereLocalLinuxTest(TestCase):
             task_retry_interval=3,
         )
 
-    def get_vim_object(self, type, name):
+    @contextmanager
+    def platform(self):
         with PlatformCaller(
             host=self.ext_inputs['vsphere_host'],
             port=self.ext_inputs['vsphere_port'],
             username=self.ext_inputs['vsphere_username'],
             password=self.ext_inputs['vsphere_password'],
         ) as client:
+            yield client
+
+    def get_vim_object(self, type, name):
+        with self.platform() as client:
             return client._get_obj_by_name(type, name)
 
     def get_object_name(self, type, id):
-        with PlatformCaller(
-            host=self.ext_inputs['vsphere_host'],
-            port=self.ext_inputs['vsphere_port'],
-            username=self.ext_inputs['vsphere_username'],
-            password=self.ext_inputs['vsphere_password'],
-        ) as client:
+        with self.platform() as client:
             result = client._get_obj_by_id(type, id)
             objs = client._get_getter_method(type)()
             assert hasattr(result, 'name'), (
@@ -1289,12 +1442,7 @@ class VsphereLocalLinuxTest(TestCase):
             return result.name
 
     def vm_has_net(self, vm_id, net_id):
-        with PlatformCaller(
-            host=self.ext_inputs['vsphere_host'],
-            port=self.ext_inputs['vsphere_port'],
-            username=self.ext_inputs['vsphere_username'],
-            password=self.ext_inputs['vsphere_password'],
-        ) as client:
+        with self.platform() as client:
             vm = client._get_obj_by_id(vim.VirtualMachine, vm_id)
         for net in vm.network:
             if net.id == net_id:

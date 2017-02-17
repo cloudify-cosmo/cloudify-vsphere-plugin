@@ -123,6 +123,17 @@ node_types:
                 type: cloudify.datatypes.vsphere.ServerProperties
             networking:
                 type: cloudify.datatypes.vsphere.NetworkingProperties
+            custom_attributes:
+                description: |
+                    Dictionary of custom attribute keys & values.
+                    Keys which don't yet exist on the platform will
+                    be created automatically. ::
+
+                      custom_attributes:
+                        key: value
+                        lock: locked
+                        keyring: empty
+                required: false
             connection_config:
                 type: cloudify.datatypes.vsphere.Config
         interfaces:
