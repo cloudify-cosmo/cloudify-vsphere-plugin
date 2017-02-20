@@ -49,6 +49,22 @@ data_types:
                     vCenter port for SDK.
                 type: integer
                 required: false
+            allow_insecure:
+                description: >
+                    Whether to allow insecure connections. Defaults to false, but this is not
+                    yet enforced on Python versions older than 2.7.9.
+                    Python versions pre-2.7.9 can only make insecure connections, which will
+                    fail in the next major version of this plugin unless this is set to false.
+                type: boolean
+                required: false
+            certificate_path:
+                description: >
+                    The path to the PEM encoded certificate for the vCenter. This will be used
+                    on Python 2.7.9 and above to verify the SSL connection.
+                    On older versions of python the connection will be insecure.
+                    It is not supported to set this while allow_insecure is set to 'true'.
+                type: string
+                required: false
 
     cloudify.datatypes.vsphere.ServerProperties:
         properties:
