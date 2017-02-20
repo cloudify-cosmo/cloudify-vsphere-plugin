@@ -1778,14 +1778,14 @@ class ServerClient(VsphereClient):
 
             host_nets = set([
                 (
-                    network['name'],
+                    self._get_normalised_name(network['name']).lower(),
                     network['switch_distributed'],
                 )
                 for network in self.get_host_networks(host)
             ])
             vm_nets = set([
                 (
-                    self._get_normalised_name(network['name']),
+                    self._get_normalised_name(network['name']).lower(),
                     network['switch_distributed'],
                 )
                 for network in vm_networks
