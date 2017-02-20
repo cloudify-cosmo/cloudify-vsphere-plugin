@@ -27,6 +27,8 @@ from mock import Mock, MagicMock, patch, call
 from pyfakefs import fake_filesystem_unittest
 
 from cloudify.exceptions import NonRecoverableError
+from cloudify.state import current_ctx
+
 import vsphere_plugin_common
 
 
@@ -112,6 +114,11 @@ class VspherePluginsCommonTests(unittest.TestCase):
         _new_ssl = True
     else:
         _new_ssl = False
+
+    def setUp(self):
+        super(VspherePluginsCommonTests, self).setUp()
+        self.mock_ctx = MagicMock()
+        current_ctx.set(self.mock_ctx)
 
     def _make_mock_host(
         self,
@@ -213,9 +220,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_one_host_unusable(self,
-                                                    mock_ctx,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
                                                     mock_host_is_usable,
@@ -262,7 +267,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             allowed_clusters=None,
         )
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} not usable due to health status.'.format(
                 host=host_names[0],
             ),
@@ -303,9 +308,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_allowed_clusters(self,
-                                                   mock_ctx,
                                                    mock_get_hosts,
                                                    mock_get_clusters,
                                                    mock_host_is_usable,
@@ -356,7 +359,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Host {host} is not in a cluster, '
@@ -398,9 +401,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_insufficient_memory(self,
-                                                      mock_ctx,
                                                       mock_get_hosts,
                                                       mock_get_clusters,
                                                       mock_host_is_usable,
@@ -452,7 +453,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             allowed_clusters=None,
         )
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} will not have enough free memory '
             'if all VMs are powered on.'.format(
                 host=host_names[0],
@@ -493,9 +494,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_bad_networks(self,
-                                               mock_ctx,
                                                mock_get_hosts,
                                                mock_get_clusters,
                                                mock_host_is_usable,
@@ -545,7 +544,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Host {host} does not have all required networks. '
@@ -605,9 +604,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_all_unusable(self,
-                                               mock_ctx,
                                                mock_get_hosts,
                                                mock_get_clusters,
                                                mock_host_is_usable,
@@ -642,7 +639,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert 'No healthy hosts' in str(err)
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Host {host} not usable due to health status.'.format(
@@ -685,9 +682,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_no_allowed_usable(self,
-                                                    mock_ctx,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
                                                     mock_host_is_usable,
@@ -724,7 +719,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert "Only these hosts" in str(err)
             assert ', '.join(allowed_hosts) in str(err)
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} not usable due to health status.'.format(
                 host=host_names[0],
             ),
@@ -759,9 +754,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_no_usable_clusters(self,
-                                                     mock_ctx,
                                                      mock_get_hosts,
                                                      mock_get_clusters,
                                                      mock_host_is_usable,
@@ -801,7 +794,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert ', '.join(allowed_clusters) in str(err)
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Host {host} not usable due to health status.'.format(
@@ -844,9 +837,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_bad_cluster_hosts(self,
-                                                    mock_ctx,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
                                                     mock_host_is_usable,
@@ -888,7 +879,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert "Only these hosts" in str(err)
             assert ', '.join(allowed_hosts) in str(err)
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} not usable due to health status.'.format(
                 host=allowed_hosts[0],
             )
@@ -965,10 +956,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_none_allowed(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1004,7 +993,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert ', '.join(allowed_datastores) in str(err)
             assert ', '.join(host[0].name for host in hosts)
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} had no allowed datastores.'.format(
                 host=hosts[0][0].name,
             )
@@ -1016,10 +1005,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_none_usable(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1055,7 +1042,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         assert 'Only these datastores were allowed' not in str(err.exception)
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Excluding datastore {ds} on host {host} as it is not '
@@ -1079,10 +1066,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_insufficient_space(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1119,7 +1104,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert ', '.join(host[0].name for host in hosts)
             assert 'Only these datastores were allowed' not in str(err)
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Datastore {ds} on host {host} does not have enough free '
             'space.'.format(
                 ds=hosts[0][0].datastore[0].name,
@@ -1138,10 +1123,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_use_allowed(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1203,10 +1186,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_use_best_ds_on_best_host_if_possible(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1285,10 +1266,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_use_best_host_if_all_poor_datastores(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1367,10 +1346,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_use_best_datastore_if_current_poor(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1915,8 +1892,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertFalse(result)
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_128(self, ctx):
+    def test_resize_server_fails_128(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1924,8 +1900,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIn('must be an integer multiple of 128', str(e.exception))
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_512(self, ctx):
+    def test_resize_server_fails_512(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1933,8 +1908,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIn('at least 512MB', str(e.exception))
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_memory_NaN(self, ctx):
+    def test_resize_server_fails_memory_NaN(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1942,8 +1916,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIn('Invalid memory value', str(e.exception))
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_0_cpus(self, ctx):
+    def test_resize_server_fails_0_cpus(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1951,8 +1924,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIn('must be at least 1', str(e.exception))
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_cpu_NaN(self, ctx):
+    def test_resize_server_fails_cpu_NaN(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1961,8 +1933,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         self.assertIn('Invalid cpus value', str(e.exception))
 
     @patch('pyVmomi.vim.vm.ConfigSpec')
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server(self, ctx, configSpec):
+    def test_resize_server(self, configSpec):
         client = vsphere_plugin_common.ServerClient()
         server = Mock()
         server.obj.Reconfigure.return_value.info.state = 'success'
@@ -2170,8 +2141,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 expected_information=unexpected_warn_message_contents,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_conect_allow_insecure_with_certificate_path(self, mock_ctx):
+    def test_conect_allow_insecure_with_certificate_path(self):
         with WebServer():
             self._make_ssl_test_conn(
                 cert_path='anything',
@@ -2184,11 +2154,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                     'allow_insecure',
                     'both set',
                 ),
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_without_certificate_path(self, mock_ctx):
+    def test_connect_without_certificate_path(self):
         with WebServer():
             self._make_ssl_test_conn(
                 complain_on_success=True,
@@ -2198,11 +2167,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                     'allow_insecure',
                     'not set to true',
                 ),
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_without_certificate_path_allow_insecure(self, mock_ctx):
+    def test_connect_without_certificate_path_allow_insecure(self):
         with WebServer():
             self._make_ssl_test_conn(
                 allow_insecure=True,
@@ -2213,11 +2181,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                     'allow_insecure',
                     'not set to true',
                 ),
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_with_empty_certificate_path(self, mock_ctx):
+    def test_connect_with_empty_certificate_path(self):
         with WebServer():
             self._make_ssl_test_conn(
                 cert_path='',
@@ -2228,12 +2195,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                     'allow_insecure',
                     'not set to true',
                 ),
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_with_empty_certificate_path_allow_insecure(self,
-                                                                mock_ctx):
+    def test_connect_with_empty_certificate_path_allow_insecure(self):
         with WebServer():
             self._make_ssl_test_conn(
                 allow_insecure=True,
@@ -2245,11 +2210,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                     'allow_insecure',
                     'not set to true',
                 ),
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_with_bad_certificate_path(self, mock_ctx):
+    def test_connect_with_bad_certificate_path(self):
         with WebServer():
             if self._new_ssl:
                 expected_nre_message = (
@@ -2267,11 +2231,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 cert_path='path/that/is/not/real',
                 complain_on_success=True,
                 expected_nre_message_contents=expected_nre_message,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_with_cert_path_not_file(self, mock_ctx):
+    def test_connect_with_cert_path_not_file(self):
         with WebServer():
             if self._new_ssl:
                 expected_nre_message = (
@@ -2289,11 +2252,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 cert_path='sdk/',
                 complain_on_success=True,
                 expected_nre_message_contents=expected_nre_message,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_with_bad_cert_file(self, mock_ctx):
+    def test_connect_with_bad_cert_file(self):
         with WebServer():
             if self._new_ssl:
                 expected_nre_message = (
@@ -2311,11 +2273,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 cert_path='badcert.pem',
                 complain_on_success=True,
                 expected_nre_message_contents=expected_nre_message,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_with_bad_cert_file_not_a_cert(self, mock_ctx):
+    def test_connect_with_bad_cert_file_not_a_cert(self):
         with WebServer():
             if self._new_ssl:
                 expected_nre_message = (
@@ -2334,12 +2295,11 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 cert_path='sdk/vimService.wsdl',
                 complain_on_success=True,
                 expected_nre_message_contents=expected_nre_message,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
     @patch('vsphere_plugin_common.ssl')
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_with_bad_ssl_version_with_cert(self, mock_ctx, mock_ssl):
+    def test_connect_with_bad_ssl_version_with_cert(self, mock_ssl):
         delattr(mock_ssl, '_create_default_https_context')
         with WebServer():
             self._make_ssl_test_conn(
@@ -2355,11 +2315,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                     '2.7.9',
                     '2.7.12',
                 ),
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_connect_with_good_cert(self, mock_ctx):
+    def test_connect_with_good_cert(self):
         with WebServer():
             self._make_ssl_test_conn(
                 cert_path='public.pem',
@@ -2369,11 +2328,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                     'certificate_path',
                     'will be required',
                 ),
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_two_connections_wrong_then_right(self, mock_ctx):
+    def test_two_connections_wrong_then_right(self):
         with WebServer():
             if self._new_ssl:
                 expected_warn_message = ()
@@ -2394,7 +2352,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 complain_on_success=True,
                 expected_warn_message_contents=expected_warn_message,
                 expected_nre_message_contents=expected_bad_nre,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
             self._make_ssl_test_conn(
@@ -2402,11 +2360,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 complain_on_success=False,
                 expect_verify_fail=False,
                 expected_warn_message_contents=expected_warn_message,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_two_connections_right_then_wrong(self, mock_ctx):
+    def test_two_connections_right_then_wrong(self):
         with WebServer():
             if self._new_ssl:
                 expected_warn_message = ()
@@ -2427,7 +2384,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 complain_on_success=False,
                 expect_verify_fail=False,
                 expected_warn_message_contents=expected_warn_message,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
             self._make_ssl_test_conn(
@@ -2435,11 +2392,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 complain_on_success=True,
                 expected_warn_message_contents=expected_warn_message,
                 expected_nre_message_contents=expected_bad_nre,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_two_connections_no_path_then_good_path(self, mock_ctx):
+    def test_two_connections_no_path_then_good_path(self):
         with WebServer():
             expected_warn_message = (
                 'certificate_path',
@@ -2451,7 +2407,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             self._make_ssl_test_conn(
                 complain_on_success=True,
                 expected_warn_message_contents=expected_warn_message,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
             if self._new_ssl:
@@ -2466,11 +2422,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 cert_path='public.pem',
                 complain_on_success=False,
                 expect_verify_fail=False,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_two_connections_no_path_then_bad_cert(self, mock_ctx):
+    def test_two_connections_no_path_then_bad_cert(self):
         with WebServer():
             if self._new_ssl:
                 expected_warn_message = (
@@ -2499,22 +2454,21 @@ class VspherePluginsCommonTests(unittest.TestCase):
             self._make_ssl_test_conn(
                 complain_on_success=True,
                 expected_warn_message_contents=expected_warn_message,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
             self._make_ssl_test_conn(
                 cert_path='badcert.pem',
                 complain_on_success=True,
                 expected_nre_message_contents=expected_bad_nre,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
     @unittest.skipIf(
         not hasattr(ssl, '_create_default_https_context'),
         "Can't test SSL context changes on this version of python."
     )
-    @patch('vsphere_plugin_common.ctx')
-    def test_connection_does_not_lose_context(self, mock_ctx):
+    def test_connection_does_not_lose_context(self):
         with WebServer():
             self.addCleanup(self._revert_ssl_context)
             cont = ssl.create_default_context(
@@ -2532,7 +2486,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 cert_path='public.pem',
                 complain_on_success=False,
                 expect_verify_fail=False,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
             expected = ['127.0.0.1', '127.0.0.2']
@@ -2554,8 +2508,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         not hasattr(ssl, '_create_default_https_context'),
         "Can't test SSL context changes on this version of python."
     )
-    @patch('vsphere_plugin_common.ctx')
-    def test_connection_does_not_gain_context(self, mock_ctx):
+    def test_connection_does_not_gain_context(self):
         # Making sure we don't load certs we didn't ask for
         with WebServer():
             self.addCleanup(self._revert_ssl_context)
@@ -2573,7 +2526,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 cert_path='public.pem',
                 complain_on_success=False,
                 expect_verify_fail=False,
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
             unexpected = '127.0.0.2'
@@ -2594,8 +2547,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         not hasattr(ssl, '_create_default_https_context'),
         "Can't test SSL context changes on this version of python."
     )
-    @patch('vsphere_plugin_common.ctx')
-    def test_connection_cert_path_default_cont_no_verify(self, mock_ctx):
+    def test_connection_cert_path_default_cont_no_verify(self):
         with WebServer():
             self.addCleanup(self._revert_ssl_context)
             ssl._create_default_https_context = ssl._create_unverified_context
@@ -2609,7 +2561,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                     'not',
                     'verify',
                 ),
-                ctx=mock_ctx,
+                ctx=self.mock_ctx,
             )
 
     def _revert_ssl_context(self):
@@ -2622,8 +2574,10 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
     def setUp(self):
         super(VspherePluginCommonFSTests, self).setUp()
         self.setUpPyfakefs()
+        self.mock_ctx = MagicMock()
+        current_ctx.set(self.mock_ctx)
 
-    @patch('vsphere_plugin_common.ctx')
+    @patch('cloudify_vsphere.utils.feedback.ctx')
     def _simple_deprecated_test(self, path, mock_ctx):
         evaled_path = os.getenv(path, path)
         expanded_path = os.path.expanduser(evaled_path)
@@ -2662,20 +2616,18 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
             ret,
             '/etc/cloudify/vsphere_plugin/connection_config.yaml')
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_no_file(self, mock_ctx):
+    def test_no_file(self):
         config = vsphere_plugin_common.Config()
 
         ret = config.get()
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Unable to read configuration file '
             '/etc/cloudify/vsphere_plugin/connection_config.yaml.'
         )
         self.assertEqual(ret, {})
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_new_envvar(self, mock_ctx):
+    def test_new_envvar(self):
         self.fs.CreateFile(
             '/a/pth',
             contents="{'some': 'contents'}\n"
