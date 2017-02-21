@@ -25,7 +25,7 @@ Python
 
 vSphere Environment
 ~~~~~~~~~~~~~~~~~~~
-You will require a working vSphere environment. The plugin was tested with version 5.5.
+You will require a working vSphere environment. The plugin was tested with version 6.0.
 
 SSH Keys
 ~~~~~~~~
@@ -36,8 +36,6 @@ SSH Keys
 
     ssh-keygen -b2048 -N "" -q -f ~/.ssh/cloudify-manager-kp.pem
     ssh-keygen -b2048 -N "" -q -f ~/.ssh/cloudify-agent-kp.pem
-
-* A working vSphere environment. The plugin was tested with version 6.0.
 
 Permissions on vCenter
 ~~~~~~~~~~~~~~~~~~~~~~
