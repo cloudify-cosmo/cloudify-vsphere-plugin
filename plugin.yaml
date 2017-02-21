@@ -34,8 +34,9 @@ data_types:
                 required: false
             auto_placement:
                 description: >
-                    Signifies whether to use the plugin's auto-placement.
                     Must be true if you are using clusters.
+                    This is deprecated.
+                    In future releases the plugin will always determine where to place the VM.
                 type: string
                 required: false
             resource_pool_name:
