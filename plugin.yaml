@@ -97,7 +97,10 @@ data_types:
         properties:
             domain:
                 description: >
-                    The fully qualified domain name.
+                    the domain for this server.
+                    Combined with the hostname this will produce the fully-qualified domain name
+                    (e.g. if ``domain`` is ``example.local`` and the host name is ``test-abc123``
+                    then the fully-qualified domain name will be ``test-abc123.example.local``)
                 type: string
                 required: false
             dns_servers:
