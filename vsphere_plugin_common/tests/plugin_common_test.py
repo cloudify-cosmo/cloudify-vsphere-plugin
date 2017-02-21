@@ -13,17 +13,112 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+import BaseHTTPServer
+import multiprocessing
 import os
+import SimpleHTTPServer
+import socket
+import ssl
+import subprocess
+import time
 import unittest
 
 from mock import Mock, MagicMock, patch, call
 from pyfakefs import fake_filesystem_unittest
 
 from cloudify.exceptions import NonRecoverableError
+from cloudify.state import current_ctx
+
 import vsphere_plugin_common
 
 
+class WebServer(object):
+    def __init__(self, port=4443,
+                 key='private.pem', cert='public.pem',
+                 badkey='badkey.pem', badcert='badcert.pem'):
+        self.key = key
+        self.cert = cert
+        self.badkey = badkey
+        self.badcert = badcert
+        for i in range(0, 6):
+            try:
+                self.httpd = BaseHTTPServer.HTTPServer(
+                    ('localhost', port),
+                    SimpleHTTPServer.SimpleHTTPRequestHandler,
+                )
+            except socket.error:
+                time.sleep(0.5)
+
+    def _runserver(self):
+        self.httpd.serve_forever()
+
+    def makecert(self, key, cert, ip='127.0.0.1'):
+        subprocess.check_call([
+            'openssl',
+            'req', '-x509',
+            '-newkey', 'rsa:2048', '-sha256',
+            '-keyout', key,
+            '-out', cert,
+            '-days', '1',
+            '-nodes', '-subj',
+            '/CN={ip}'.format(ip=ip),
+        ])
+
+    def __enter__(self):
+        self.makecert(self.key, self.cert)
+        self.makecert(self.badkey, self.badcert, ip='127.0.0.2')
+        os.mkdir('sdk')
+        # We have to create the vimService file because the current version of
+        # pyvmomi seems happy to make an insecure request for the wsdl before
+        # it actually complains about SSL issues
+        with open('sdk/vimService.wsdl', 'w') as wsdl_handle:
+            wsdl_handle.write(
+                '<definitions xmlns="http://schemas.xmlsoap.org/wsdl/" '
+                'xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" '
+                'xmlns:interface="urn:vim25" '
+                'targetNamespace="urn:vim25Service">\n'
+                '<import location="vim.wsdl" namespace="urn:vim25"/>\n'
+                '<service name="VimService">\n'
+                '<port binding="interface:VimBinding" name="VimPort">\n'
+                '<soap:address '
+                'location="https://localhost/sdk/vimService"/>\n'
+                '</port>\n'
+                '</service>\n'
+                '</definitions>\n'
+            )
+        self.process = multiprocessing.Process(
+            target=self._runserver,
+        )
+        self.httpd.socket = ssl.wrap_socket(
+            self.httpd.socket,
+            keyfile=self.key,
+            certfile=self.cert,
+            server_side=True,
+        )
+        self.process.start()
+
+    def __exit__(self, *args):
+        self.process.terminate()
+        self.httpd.socket.close()
+        os.unlink(self.key)
+        os.unlink(self.cert)
+        os.unlink(self.badkey)
+        os.unlink(self.badcert)
+        os.unlink('sdk/vimService.wsdl')
+        os.rmdir('sdk')
+
+
 class VspherePluginsCommonTests(unittest.TestCase):
+    if hasattr(ssl, '_create_default_https_context'):
+        _base_ssl_context = ssl.create_default_context()
+        _new_ssl = True
+    else:
+        _new_ssl = False
+
+    def setUp(self):
+        super(VspherePluginsCommonTests, self).setUp()
+        self.mock_ctx = MagicMock()
+        current_ctx.set(self.mock_ctx)
 
     def _make_mock_host(
         self,
@@ -125,9 +220,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_one_host_unusable(self,
-                                                    mock_ctx,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
                                                     mock_host_is_usable,
@@ -174,7 +267,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             allowed_clusters=None,
         )
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} not usable due to health status.'.format(
                 host=host_names[0],
             ),
@@ -215,9 +308,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_allowed_clusters(self,
-                                                   mock_ctx,
                                                    mock_get_hosts,
                                                    mock_get_clusters,
                                                    mock_host_is_usable,
@@ -268,7 +359,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Host {host} is not in a cluster, '
@@ -310,9 +401,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_insufficient_memory(self,
-                                                      mock_ctx,
                                                       mock_get_hosts,
                                                       mock_get_clusters,
                                                       mock_host_is_usable,
@@ -364,7 +453,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             allowed_clusters=None,
         )
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} will not have enough free memory '
             'if all VMs are powered on.'.format(
                 host=host_names[0],
@@ -405,9 +494,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_bad_networks(self,
-                                               mock_ctx,
                                                mock_get_hosts,
                                                mock_get_clusters,
                                                mock_host_is_usable,
@@ -457,7 +544,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Host {host} does not have all required networks. '
@@ -517,9 +604,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_all_unusable(self,
-                                               mock_ctx,
                                                mock_get_hosts,
                                                mock_get_clusters,
                                                mock_host_is_usable,
@@ -554,7 +639,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert 'No healthy hosts' in str(err)
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Host {host} not usable due to health status.'.format(
@@ -597,9 +682,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_no_allowed_usable(self,
-                                                    mock_ctx,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
                                                     mock_host_is_usable,
@@ -636,7 +719,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert "Only these hosts" in str(err)
             assert ', '.join(allowed_hosts) in str(err)
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} not usable due to health status.'.format(
                 host=host_names[0],
             ),
@@ -671,9 +754,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_no_usable_clusters(self,
-                                                     mock_ctx,
                                                      mock_get_hosts,
                                                      mock_get_clusters,
                                                      mock_host_is_usable,
@@ -713,7 +794,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert ', '.join(allowed_clusters) in str(err)
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Host {host} not usable due to health status.'.format(
@@ -756,9 +837,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
     @patch('vsphere_plugin_common.VsphereClient._get_hosts')
-    @patch('vsphere_plugin_common.ctx')
     def test_find_candidate_hosts_bad_cluster_hosts(self,
-                                                    mock_ctx,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
                                                     mock_host_is_usable,
@@ -800,7 +879,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert "Only these hosts" in str(err)
             assert ', '.join(allowed_hosts) in str(err)
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} not usable due to health status.'.format(
                 host=allowed_hosts[0],
             )
@@ -877,10 +956,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_none_allowed(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -916,7 +993,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert ', '.join(allowed_datastores) in str(err)
             assert ', '.join(host[0].name for host in hosts)
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Host {host} had no allowed datastores.'.format(
                 host=hosts[0][0].name,
             )
@@ -928,10 +1005,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_none_usable(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -967,7 +1042,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         assert 'Only these datastores were allowed' not in str(err.exception)
 
         self.assertEqual(
-            mock_ctx.logger.warn.mock_calls,
+            self.mock_ctx.logger.warn.mock_calls,
             [
                 call(
                     'Excluding datastore {ds} on host {host} as it is not '
@@ -991,10 +1066,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_insufficient_space(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1031,7 +1104,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             assert ', '.join(host[0].name for host in hosts)
             assert 'Only these datastores were allowed' not in str(err)
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Datastore {ds} on host {host} does not have enough free '
             'space.'.format(
                 ds=hosts[0][0].datastore[0].name,
@@ -1050,10 +1123,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_use_allowed(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1115,10 +1186,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_use_best_ds_on_best_host_if_possible(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1197,10 +1266,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_use_best_host_if_all_poor_datastores(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1279,10 +1346,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.calculate_datastore_weighting')
     @patch('vsphere_plugin_common.ServerClient.datastore_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_datastores')
-    @patch('vsphere_plugin_common.ctx')
     def test_select_host_and_datastore_use_best_datastore_if_current_poor(
         self,
-        mock_ctx,
         mock_get_datastores,
         mock_datastore_is_usable,
         mock_datastore_weighting,
@@ -1827,8 +1892,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertFalse(result)
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_128(self, ctx):
+    def test_resize_server_fails_128(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1836,8 +1900,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIn('must be an integer multiple of 128', str(e.exception))
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_512(self, ctx):
+    def test_resize_server_fails_512(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1845,8 +1908,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIn('at least 512MB', str(e.exception))
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_memory_NaN(self, ctx):
+    def test_resize_server_fails_memory_NaN(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1854,8 +1916,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIn('Invalid memory value', str(e.exception))
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_0_cpus(self, ctx):
+    def test_resize_server_fails_0_cpus(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1863,8 +1924,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIn('must be at least 1', str(e.exception))
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server_fails_cpu_NaN(self, ctx):
+    def test_resize_server_fails_cpu_NaN(self):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
@@ -1873,8 +1933,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         self.assertIn('Invalid cpus value', str(e.exception))
 
     @patch('pyVmomi.vim.vm.ConfigSpec')
-    @patch('vsphere_plugin_common.ctx')
-    def test_resize_server(self, ctx, configSpec):
+    def test_resize_server(self, configSpec):
         client = vsphere_plugin_common.ServerClient()
         server = Mock()
         server.obj.Reconfigure.return_value.info.state = 'success'
@@ -1885,13 +1944,640 @@ class VspherePluginsCommonTests(unittest.TestCase):
             spec=configSpec.return_value,
         )
 
+    def test_add_new_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = MagicMock()
+        (client.si.content.customFieldsManager
+         .AddCustomFieldDef.return_value.key) = 3
+        server = Mock()
+        vals = client.custom_values(server)
+
+        vals['something'] = 'flob'
+
+        (client.si.content.customFieldsManager
+         .AddCustomFieldDef).assert_called_once_with(
+            name='something',
+        )
+        server.obj.setCustomValue.assert_called_once_with(
+            'something', 'flob',
+        )
+
+    def test_get_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        key = Mock()
+        client.si.content.customFieldsManager.field = [key]
+        key.name = 'test'
+        key.key = 133
+        server = Mock()
+        val = Mock()
+        server.obj.customValue = [val]
+        val.key = 133
+        val.value = 'something completely different'
+        vals = client.custom_values(server)
+
+        val = vals['test']
+
+        self.assertEqual('something completely different', val)
+
+    def test_get_custom_attr_keyerr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        key = Mock()
+        client.si.content.customFieldsManager.field = [key]
+        key.name = 'Yale'
+        key.key = 133
+        server = Mock()
+        server.obj.customValue = []
+        vals = client.custom_values(server)
+
+        with self.assertRaises(KeyError):
+            vals['Yale']
+
+    def test_get_custom_attr_global_keyerr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        client.si.content.customFieldsManager.field = []
+        server = Mock()
+        vals = client.custom_values(server)
+
+        with self.assertRaises(KeyError):
+            vals['Yale']
+
+    def test_delete_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        server = Mock()
+        vals = client.custom_values(server)
+
+        with self.assertRaises(NonRecoverableError):
+            del vals['something']
+
+    def test_iter_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        keys = client.si.content.customFieldsManager.field = [Mock(), Mock()]
+        keys[0].key = 3001
+        keys[0].name = 'Lever'
+        keys[1].key = 3002
+        keys[1].name = 'Yale'
+        server = Mock()
+        values = server.obj.customValue = [Mock(), Mock()]
+        values[0].key = 3001
+        values[0].value = 5
+        values[1].key = 3002
+        values[1].value = 8
+        vals = client.custom_values(server)
+
+        out = vals.items()
+
+        self.assertEqual(
+            {
+                'Lever': 5,
+                'Yale': 8,
+            },
+            dict(out))
+
+    def test_len_custom_attr(self):
+        client = vsphere_plugin_common.ServerClient()
+        client.si = Mock()
+        client.si.content.customFieldsManager.field = []
+        server = MagicMock()
+        vals = client.custom_values(server)
+
+        self.assertIs(
+            len(vals),
+            server.obj.customValue.__len__.return_value
+        )
+
+    def _find_deprecation_message(self, mock_ctx, expected_information=(),
+                                  expect_present=True):
+        for message in mock_ctx.logger.warn.call_args_list:
+            # call args [0] is
+            if 'message' in message[1]:
+                # message of **kwargs
+                message = message[1]['message'].lower()
+            else:
+                # First arg or *args
+                message = message[0][0].lower()
+
+            if 'deprecated' in message.lower():
+                for expected in expected_information:
+                    assert expected in message, (
+                        'Expected {mod}to find {exp} in "{msg}", but '
+                        'failed!'.format(
+                            mod='not ' if not expect_present else '',
+                            exp=expected,
+                            msg=message,
+                        )
+                    )
+                # We either just found the message or raised AssertionError
+                break
+
+    def _make_ssl_test_conn(self,
+                            ctx,
+                            cert_path='unset',
+                            allow_insecure=False,
+                            expect_501=True,
+                            expect_verify_fail=True,
+                            complain_on_success=False,
+                            expected_nre_message_contents=(),
+                            unexpected_nre_message_contents=(),
+                            expected_warn_message_contents=(),
+                            unexpected_warn_message_contents=()):
+        cfg = {
+            'host': '127.0.0.1',
+            'username': 'user',
+            'password': 'pass',
+            'port': 4443,
+            'allow_insecure': allow_insecure,
+        }
+
+        if cert_path is not 'unset':
+            cfg['certificate_path'] = cert_path
+
+        client = vsphere_plugin_common.VsphereClient()
+
+        try:
+            client.connect(cfg)
+            if complain_on_success:
+                raise AssertionError(
+                    'We somehow succeeded in connecting to a not vsphere '
+                    'server. This should not be able to happen.'
+                )
+        except NonRecoverableError as err:
+            for component in expected_nre_message_contents:
+                assert component in str(err).lower(), (
+                    '{comp} not found in "{err}", but should be!'.format(
+                        comp=component,
+                        err=str(err)
+                    )
+                )
+            for component in unexpected_nre_message_contents:
+                assert component not in str(err).lower(), (
+                    '{comp} found in "{err}", but should not be!'.format(
+                        comp=component,
+                        err=str(err)
+                    )
+                )
+        except Exception as err:
+            msg = str(err).lower()
+            if expect_verify_fail and "ssl: certificate_verify_fail" in msg:
+                pass
+            elif expect_501 and "501 unsupported method ('post')" in msg:
+                pass
+            else:
+                raise
+
+        if expected_warn_message_contents:
+            self._find_deprecation_message(
+                mock_ctx=ctx,
+                expected_information=expected_warn_message_contents,
+            )
+
+        if unexpected_warn_message_contents:
+            self._find_deprecation_message(
+                expect_present=False,
+                mock_ctx=ctx,
+                expected_information=unexpected_warn_message_contents,
+            )
+
+    def test_conect_allow_insecure_with_certificate_path(self):
+        with WebServer():
+            self._make_ssl_test_conn(
+                cert_path='anything',
+                allow_insecure=True,
+                complain_on_success=True,
+                expect_501=False,
+                expect_verify_fail=False,
+                expected_nre_message_contents=(
+                    'certificate_path',
+                    'allow_insecure',
+                    'both set',
+                ),
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_without_certificate_path(self):
+        with WebServer():
+            self._make_ssl_test_conn(
+                complain_on_success=True,
+                expected_warn_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                ),
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_without_certificate_path_allow_insecure(self):
+        with WebServer():
+            self._make_ssl_test_conn(
+                allow_insecure=True,
+                complain_on_success=True,
+                unexpected_warn_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                ),
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_with_empty_certificate_path(self):
+        with WebServer():
+            self._make_ssl_test_conn(
+                cert_path='',
+                complain_on_success=True,
+                expected_warn_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                ),
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_with_empty_certificate_path_allow_insecure(self):
+        with WebServer():
+            self._make_ssl_test_conn(
+                allow_insecure=True,
+                cert_path='',
+                complain_on_success=True,
+                unexpected_warn_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                ),
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_with_bad_certificate_path(self):
+        with WebServer():
+            if self._new_ssl:
+                expected_nre_message = (
+                    'certificate',
+                    'not found',
+                    'path/that/is/not/real',
+                )
+            else:
+                expected_nre_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='path/that/is/not/real',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_nre_message,
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_with_cert_path_not_file(self):
+        with WebServer():
+            if self._new_ssl:
+                expected_nre_message = (
+                    'certificate_path',
+                    'must be a file',
+                    'sdk/',
+                )
+            else:
+                expected_nre_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='sdk/',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_nre_message,
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_with_bad_cert_file(self):
+        with WebServer():
+            if self._new_ssl:
+                expected_nre_message = (
+                    'could not connect',
+                    'badcert.pem',
+                    'not valid',
+                )
+            else:
+                expected_nre_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='badcert.pem',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_nre_message,
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_with_bad_cert_file_not_a_cert(self):
+        with WebServer():
+            if self._new_ssl:
+                expected_nre_message = (
+                    'could not create ssl context',
+                    'sdk/vimservice.wsdl',
+                    'correct format',
+                    'pem',
+                )
+            else:
+                expected_nre_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='sdk/vimService.wsdl',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_nre_message,
+                ctx=self.mock_ctx,
+            )
+
+    @patch('vsphere_plugin_common.ssl')
+    def test_connect_with_bad_ssl_version_with_cert(self, mock_ssl):
+        delattr(mock_ssl, '_create_default_https_context')
+        with WebServer():
+            self._make_ssl_test_conn(
+                cert_path='anything',
+                complain_on_success=True,
+                expected_nre_message_contents=(
+                    'cannot create secure connection',
+                    'version of python',
+                    # Show minimum version and latest known-good version
+                    # because while _create_default_https_context is in
+                    # PEP493, it is also undocumented so could disappear
+                    # within python 2.7
+                    '2.7.9',
+                    '2.7.12',
+                ),
+                ctx=self.mock_ctx,
+            )
+
+    def test_connect_with_good_cert(self):
+        with WebServer():
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=True,
+                expect_verify_fail=False,
+                unexpected_nre_message_contents=(
+                    'certificate_path',
+                    'will be required',
+                ),
+                ctx=self.mock_ctx,
+            )
+
+    def test_two_connections_wrong_then_right(self):
+        with WebServer():
+            if self._new_ssl:
+                expected_warn_message = ()
+                expected_bad_nre = (
+                    'could not connect',
+                    'badcert.pem',
+                    'not valid',
+                )
+            else:
+                expected_warn_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+                expected_bad_nre = ()
+
+            self._make_ssl_test_conn(
+                cert_path='badcert.pem',
+                complain_on_success=True,
+                expected_warn_message_contents=expected_warn_message,
+                expected_nre_message_contents=expected_bad_nre,
+                ctx=self.mock_ctx,
+            )
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                expected_warn_message_contents=expected_warn_message,
+                ctx=self.mock_ctx,
+            )
+
+    def test_two_connections_right_then_wrong(self):
+        with WebServer():
+            if self._new_ssl:
+                expected_warn_message = ()
+                expected_bad_nre = (
+                    'could not connect',
+                    'badcert.pem',
+                    'not valid',
+                )
+            else:
+                expected_warn_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+                expected_bad_nre = ()
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                expected_warn_message_contents=expected_warn_message,
+                ctx=self.mock_ctx,
+            )
+
+            self._make_ssl_test_conn(
+                cert_path='badcert.pem',
+                complain_on_success=True,
+                expected_warn_message_contents=expected_warn_message,
+                expected_nre_message_contents=expected_bad_nre,
+                ctx=self.mock_ctx,
+            )
+
+    def test_two_connections_no_path_then_good_path(self):
+        with WebServer():
+            expected_warn_message = (
+                'certificate_path',
+                'will be required',
+                'allow_insecure',
+                'not set to true',
+            )
+
+            self._make_ssl_test_conn(
+                complain_on_success=True,
+                expected_warn_message_contents=expected_warn_message,
+                ctx=self.mock_ctx,
+            )
+
+            if self._new_ssl:
+                expected_warn_message = ()
+            else:
+                expected_warn_message = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                ctx=self.mock_ctx,
+            )
+
+    def test_two_connections_no_path_then_bad_cert(self):
+        with WebServer():
+            if self._new_ssl:
+                expected_warn_message = (
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                )
+                expected_bad_nre = (
+                    'could not connect',
+                    'badcert.pem',
+                    'not valid',
+                )
+            else:
+                expected_warn_message = (
+                    'certificate_path',
+                    'will be required',
+                    'allow_insecure',
+                    'not set to true',
+                )
+                expected_bad_nre = (
+                    'cannot create secure connection',
+                    'at least python 2.7.9',
+                )
+
+            self._make_ssl_test_conn(
+                complain_on_success=True,
+                expected_warn_message_contents=expected_warn_message,
+                ctx=self.mock_ctx,
+            )
+
+            self._make_ssl_test_conn(
+                cert_path='badcert.pem',
+                complain_on_success=True,
+                expected_nre_message_contents=expected_bad_nre,
+                ctx=self.mock_ctx,
+            )
+
+    @unittest.skipIf(
+        not hasattr(ssl, '_create_default_https_context'),
+        "Can't test SSL context changes on this version of python."
+    )
+    def test_connection_does_not_lose_context(self):
+        with WebServer():
+            self.addCleanup(self._revert_ssl_context)
+            cont = ssl.create_default_context(
+                capath=[],
+                cadata='',
+                cafile=None,
+            )
+            cont.load_verify_locations('badcert.pem')
+
+            def get_cont(*args, **kwargs):
+                return cont
+            ssl._create_default_https_context = get_cont
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                ctx=self.mock_ctx,
+            )
+
+            expected = ['127.0.0.1', '127.0.0.2']
+            expected.sort()
+            cns = []
+            for cert in ssl._create_default_https_context().get_ca_certs():
+                cns.append(cert['subject'][0][0][1])
+                cns.sort()
+
+            assert all(exp in cns for exp in expected), (
+                'Expected to find certs for {expected}, but only found for '
+                '{actual}.'.format(
+                    expected=','.join(expected),
+                    actual=','.join(cns),
+                )
+            )
+
+    @unittest.skipIf(
+        not hasattr(ssl, '_create_default_https_context'),
+        "Can't test SSL context changes on this version of python."
+    )
+    def test_connection_does_not_gain_context(self):
+        # Making sure we don't load certs we didn't ask for
+        with WebServer():
+            self.addCleanup(self._revert_ssl_context)
+            cont = ssl.create_default_context(
+                capath=[],
+                cadata='',
+                cafile=None,
+            )
+
+            def get_cont(*args, **kwargs):
+                return cont
+            ssl._create_default_https_context = get_cont
+
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=False,
+                expect_verify_fail=False,
+                ctx=self.mock_ctx,
+            )
+
+            unexpected = '127.0.0.2'
+            cns = []
+            for cert in ssl._create_default_https_context().get_ca_certs():
+                cns.append(cert['subject'][0][0][1])
+                cns.sort()
+
+            assert unexpected not in cns, (
+                'Expected not to find certs for {unexpected}, but only found '
+                'for {actual}.'.format(
+                    unexpected=unexpected,
+                    actual=','.join(cns),
+                )
+            )
+
+    @unittest.skipIf(
+        not hasattr(ssl, '_create_default_https_context'),
+        "Can't test SSL context changes on this version of python."
+    )
+    def test_connection_cert_path_default_cont_no_verify(self):
+        with WebServer():
+            self.addCleanup(self._revert_ssl_context)
+            ssl._create_default_https_context = ssl._create_unverified_context
+            self._make_ssl_test_conn(
+                cert_path='public.pem',
+                complain_on_success=True,
+                expect_verify_fail=False,
+                expect_501=False,
+                expected_nre_message_contents=(
+                    'default ssl context',
+                    'not',
+                    'verify',
+                ),
+                ctx=self.mock_ctx,
+            )
+
+    def _revert_ssl_context(self):
+        def get_cont(*args, **kwargs):
+            return self._base_ssl_context
+        ssl._create_default_https_context = get_cont
+
 
 class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
     def setUp(self):
         super(VspherePluginCommonFSTests, self).setUp()
         self.setUpPyfakefs()
+        self.mock_ctx = MagicMock()
+        current_ctx.set(self.mock_ctx)
 
-    @patch('vsphere_plugin_common.ctx')
+    @patch('cloudify_vsphere.utils.feedback.ctx')
     def _simple_deprecated_test(self, path, mock_ctx):
         evaled_path = os.getenv(path, path)
         expanded_path = os.path.expanduser(evaled_path)
@@ -1930,20 +2616,18 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
             ret,
             '/etc/cloudify/vsphere_plugin/connection_config.yaml')
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_no_file(self, mock_ctx):
+    def test_no_file(self):
         config = vsphere_plugin_common.Config()
 
         ret = config.get()
 
-        mock_ctx.logger.warn.assert_called_once_with(
+        self.mock_ctx.logger.warn.assert_called_once_with(
             'Unable to read configuration file '
             '/etc/cloudify/vsphere_plugin/connection_config.yaml.'
         )
         self.assertEqual(ret, {})
 
-    @patch('vsphere_plugin_common.ctx')
-    def test_new_envvar(self, mock_ctx):
+    def test_new_envvar(self):
         self.fs.CreateFile(
             '/a/pth',
             contents="{'some': 'contents'}\n"

@@ -1,14 +1,22 @@
 tosca_definitions_version: cloudify_dsl_1_2
 
+
 imports:
   - http://www.getcloudify.org/spec/cloudify/3.3.1/types.yaml
   - ../../../plugin.yaml
 
+
 inputs:
+  custom_attributes:
+    default: {}
+
   template_name:
     description: >
       Template to clone VMs from
-    default: WindowsServer2012R2ByCloudifyDefault
+  management_network:
+    description: >
+      Which management network to deploy the VM on
+    default: VM Network
   external_network:
     description: >
       Which external network to deploy the VM on
@@ -16,14 +24,6 @@ inputs:
   external_network_distributed:
     description: >
       Whether the external network is on a distributed switch
-    default: true
-  management_network:
-    description: >
-      Which management network to deploy the VM on
-    default: VM Network
-  management_network_distributed:
-    description: >
-      Whether the management network is on a distributed switch
     default: true
   vsphere_username:
     type: string
@@ -70,33 +70,27 @@ inputs:
       Whether to allow insecure connections.
     default: true
 
-node_types:
-  connection_configuration:
-     derived_from: cloudify.nodes.Root
-     properties:
-       connection_config: {}
+dsl_definitions:
+  - &connection_configuration
+    username: { get_input: vsphere_username }
+    password: { get_input: vsphere_password }
+    host: { get_input: vsphere_host }
+    port: { get_input: vsphere_port }
+    datacenter_name: { get_input: vsphere_datacenter_name }
+    resource_pool_name: { get_input: vsphere_resource_pool_name }
+    auto_placement: { get_input: vsphere_auto_placement }
+    certificate_path: { get_input: certificate_path }
+    allow_insecure: { get_input: allow_insecure }
+
 
 node_templates:
-  connection_configuration:
-    type: connection_configuration
-    properties:
-      connection_config:
-        username: { get_input: vsphere_username }
-        password: { get_input: vsphere_password }
-        host: { get_input: vsphere_host }
-        port: { get_input: vsphere_port }
-        datacenter_name: { get_input: vsphere_datacenter_name }
-        resource_pool_name: { get_input: vsphere_resource_pool_name }
-        auto_placement: { get_input: vsphere_auto_placement }
-        certificate_path: { get_input: certificate_path }
-        allow_insecure: { get_input: allow_insecure }
-
   testserver:
     type: cloudify.vsphere.nodes.Server
     properties:
+      custom_attributes: { get_input: custom_attributes }
       install_agent: false
       server:
-        name: systemtestlinuxnoexternalnet
+        name: systemtestlinuxsimple
         template: { get_input: template_name }
         cpus: 1
         memory: 2048
@@ -104,5 +98,5 @@ node_templates:
         connect_networks:
           - name: { get_input: external_network }
             switch_distributed: { get_input: external_network_distributed }
-            management: True
-      connection_config: { get_property: [connection_configuration, connection_config] }
+            external: True
+      connection_config: *connection_configuration
