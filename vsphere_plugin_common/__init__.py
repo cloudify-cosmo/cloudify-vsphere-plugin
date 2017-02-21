@@ -1398,7 +1398,7 @@ class ServerClient(VsphereClient):
 
         nicspec = vim.vm.device.VirtualDeviceSpec()
         for device in template_vm.config.hardware.device:
-            if isinstance(device, vim.vm.device.VirtualVmxnet3):
+            if hasattr(device, 'macAddress'):
                 nicspec.device = device
                 logger().warn(
                     'Removing network adapter from template. '
