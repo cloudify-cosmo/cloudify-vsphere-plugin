@@ -37,7 +37,7 @@ SSH Keys
     ssh-keygen -b2048 -N "" -q -f ~/.ssh/cloudify-manager-kp.pem
     ssh-keygen -b2048 -N "" -q -f ~/.ssh/cloudify-agent-kp.pem
 
-* A working vSphere environment. The plugin was tested with version 5.5.
+* A working vSphere environment. The plugin was tested with version 6.0.
 
 Permissions on vCenter
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -83,7 +83,13 @@ Permissions on vCenter
 OS Templates
 ~~~~~~~~~~~~
 
-* You need two OS templates of your preferred operating systems (e.g. Ubuntu Trusty) within the vSphere datastores. One for the Cloudify manager and one for the application VMs. The application VM template should accept the Cloudify agent public key for its root user. The Cloudify manager template must accept the cloudify manager public key. Note that you can choose to use same template for both the manager and the application VMs, in that case the shared template must accept both public keys.
+* You need two OS templates within the vSphere datastores.
+  One for the Cloudify manager and one for the application VMs.
+  The Cloudify manager template must have CentOS 7 installed.
+  The application VM template should accept the Cloudify agent public key for its root user.
+  The Cloudify manager template must accept the cloudify manager public key.
+  Note that you can choose to use same template for both the manager and the application VMs,
+  in that case the shared template must accept both public keys.
 * Both templates must have SSH activated and open on the firewall.
 * Both templates must have VMWare tools installed. Instructions for this can be found on the [VMWare site](http://kb.vmware.com/selfservice/microsites/search.do?language=en_US&cmd=displayKC&externalId=2075048). Please note, however, that the instructions on this site give incorrect tools for importing keys (it should be using `rpm --import <key>` rather than the apt-key equivalent). After following the instructions you should also run: `chkconfig vmtoolsd on`.
 * It is also necessary to install the deployPkg plugin on the VM according to [VMWare documentation](http://kb.vmware.com/selfservice/microsites/search.do?language=en_US&cmd=displayKC&externalId=2075048)
