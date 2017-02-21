@@ -1188,3 +1188,59 @@ class VsphereIntegrationTest(TestCase):
                 host=host.name,
             )
         )
+
+    @mock.patch('vsphere_plugin_common.ctx')
+    def test_find_candidate_hosts_case_insensitive_nets(self, mock_ctx):
+        resource_pool_name = (
+            self.env.cloudify_config['vsphere_resource_pool_name']
+        )
+        cpus = 1
+        vm_memory = 512
+        allowed_hosts = ()
+        allowed_clusters = ()
+
+        net = self.env.cloudify_config['existing_standard_network']
+        networks_upper = [
+            {
+                'name': net.upper(),
+                'switch_distributed': False,
+            }
+        ]
+        networks_lower = [
+            {
+                'name': net.lower(),
+                'switch_distributed': False,
+            }
+        ]
+
+        candidates_upper_net = self.client.find_candidate_hosts(
+            resource_pool=resource_pool_name,
+            vm_cpus=cpus,
+            vm_memory=vm_memory,
+            vm_networks=networks_upper,
+            allowed_hosts=allowed_hosts,
+            allowed_clusters=allowed_clusters,
+        )
+        candidates_lower_net = self.client.find_candidate_hosts(
+            resource_pool=resource_pool_name,
+            vm_cpus=cpus,
+            vm_memory=vm_memory,
+            vm_networks=networks_lower,
+            allowed_hosts=allowed_hosts,
+            allowed_clusters=allowed_clusters,
+        )
+
+        assert candidates_upper_net == candidates_lower_net
+
+        for message in mock_ctx.logger.warn.call_args_list:
+            # call args [0] is
+            if 'message' in message[1]:
+                # message of **kwargs
+                message = message[1]['message'].lower()
+            else:
+                # First arg or *args
+                message = message[0][0].lower()
+
+            if 'Missing standard networks:' in message:
+                assert net.upper() not in message
+                assert net.lower() not in message
