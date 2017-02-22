@@ -96,11 +96,14 @@ class VsphereLocalLinuxTest(TestCase):
             'naming-blueprint.yaml'
         )
 
+        inputs = copy(self.ext_inputs)
+        inputs.pop('vsphere_auto_placement')
+
         self.logger.info('Deploying linux host with name assigned')
 
         self.naming_env = local.init_env(
             blueprint,
-            inputs=self.ext_inputs,
+            inputs=inputs,
             name=self._testMethodName,
             ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
         self.naming_env.execute(

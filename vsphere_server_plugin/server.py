@@ -161,7 +161,9 @@ def create_new_server(server_client):
     connection_config = server_client.cfg
     datacenter_name = connection_config['datacenter_name']
     resource_pool_name = connection_config['resource_pool_name']
-    auto_placement = connection_config['auto_placement']
+    # auto_placement deprecated- deprecation warning emitted where it is
+    # actually used.
+    auto_placement = connection_config.get('auto_placement', True)
     template_name = server['template']
     cpus = server['cpus']
     memory = server['memory']
