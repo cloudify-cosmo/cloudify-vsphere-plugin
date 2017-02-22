@@ -1394,6 +1394,10 @@ class ServerClient(VsphereClient):
         relospec.datastore = datastore.obj
         relospec.pool = resource_pool.obj
         if not auto_placement:
+            logger().warn(
+               'DEPRECATED: Setting auto_placement to false will not be possible '
+               'in the next major release of the plugin.'
+            )
             relospec.host = host.obj
 
         nicspec = vim.vm.device.VirtualDeviceSpec()
