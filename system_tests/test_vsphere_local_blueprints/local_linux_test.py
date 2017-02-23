@@ -15,7 +15,11 @@
 
 # Stdlib imports
 import os
+import re
+import sys
 import urllib
+import threading
+from bdb import Bdb
 from contextlib import contextmanager
 from copy import copy
 from functools import partial
@@ -30,6 +34,7 @@ from cloudify_cli import constants as cli_constants
 from cosmo_tester.framework.testenv import TestCase
 
 # This package imports
+import vsphere_plugin_common
 from . import (
     PlatformCaller,
     get_runtime_props,
@@ -399,6 +404,10 @@ class VsphereLocalLinuxTest(TestCase):
     def test_double_storage(self):
         # Based on an issue reported where trying to have two disks attached
         # to one VM results in failures
+        # This test abuses bdb to hack around with the storage.create operation
+        # in the middle of a function. That means debugging using pdb, ipdb or
+        # similar which make use of sys.settrace will break this test.
+        # IPython.embed can be safely used instead.
         blueprint = os.path.join(
             self.blueprints_path,
             'double_storage-blueprint.yaml'
@@ -417,16 +426,76 @@ class VsphereLocalLinuxTest(TestCase):
             inputs=inputs,
             name=self._testMethodName,
             ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.double_storage_env,
+        )
+
+        class Edb(Bdb):
+            """
+            This "debugger" class will actually sabotage a call to
+            StorageClient.create_storage by inspecting the config_spec it
+            produces and then creating the disk it's about to create.
+
+            Once it has performed the sabotage it deactivates itself by calling
+            sys.settrace(None).
+            """
+
+            def __init__(self, *args, **kwargs):
+                Bdb.__init__(self, *args, **kwargs)
+                self.ran_continue = False
+                self.sabotage_complete = False
+
+            def user_call(self, frame, args):
+                if not self.ran_continue:
+                    print('first')
+                    self.set_continue()
+                    self.ran_continue = True
+
+            def user_line(self, frame):
+                if self.sabotage_complete:
+                    # Stop running this tracer
+                    sys.settrace(None)
+                    return
+                self.set_next(frame)
+
+                if 'config_spec' in frame.f_locals:
+                    print('found it')
+                    spec = frame.f_locals['config_spec']
+                    spec.deviceChange = frame.f_locals['devices']
+                    task = frame.f_locals['vm'].obj.Reconfigure(spec=spec)
+                    frame.f_locals['self']._wait_for_task(task)
+                    self.sabotage_complete = True
+
+        bug = Edb()
+
+        filename = vsphere_plugin_common.__file__
+        if filename.endswith('pyc'):
+            filename = filename[:-1]
+        with open(filename) as f:
+            for lineno, line in enumerate(f, 1):
+                if re.match('    def create_storage', line):
+                    print('file: "{}" line: {}'.format(filename, lineno))
+                    break
+            else:
+                self.fail('function not found')
+
+        bug.reset()
+        bug.set_break(filename, lineno + 1)
+
+        old_tracer = threading._trace_hook
+        threading.settrace(bug.trace_dispatch)
+
         self.double_storage_env.execute(
             'install',
             task_retries=50,
             task_retry_interval=3,
         )
 
-        self.addCleanup(
-            self.generic_cleanup,
-            self.double_storage_env,
-        )
+        threading.settrace(old_tracer)
+
+        if not bug.sabotage_complete:
+            self.fail("Sabotage of storage creation didn't work")
 
         scsi_ids = self.double_storage_env.outputs()['scsi_ids']
         for scsi_id in scsi_ids:
