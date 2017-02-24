@@ -1394,11 +1394,16 @@ class ServerClient(VsphereClient):
         relospec.datastore = datastore.obj
         relospec.pool = resource_pool.obj
         if not auto_placement:
+            logger().warn(
+                'DEPRECATED: Setting auto_placement will not be '
+                'possible in the next major release of the plugin. '
+                'The setting will default to true.'
+            )
             relospec.host = host.obj
 
         nicspec = vim.vm.device.VirtualDeviceSpec()
         for device in template_vm.config.hardware.device:
-            if isinstance(device, vim.vm.device.VirtualVmxnet3):
+            if hasattr(device, 'macAddress'):
                 nicspec.device = device
                 logger().warn(
                     'Removing network adapter from template. '

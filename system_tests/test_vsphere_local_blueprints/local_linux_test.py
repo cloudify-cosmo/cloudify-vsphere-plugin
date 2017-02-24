@@ -96,11 +96,14 @@ class VsphereLocalLinuxTest(TestCase):
             'naming-blueprint.yaml'
         )
 
+        inputs = copy(self.ext_inputs)
+        inputs.pop('vsphere_auto_placement')
+
         self.logger.info('Deploying linux host with name assigned')
 
         self.naming_env = local.init_env(
             blueprint,
-            inputs=self.ext_inputs,
+            inputs=inputs,
             name=self._testMethodName,
             ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
         self.naming_env.execute(
@@ -1194,6 +1197,57 @@ class VsphereLocalLinuxTest(TestCase):
 
         self.assertEqual('poweredOff', vm.summary.runtime.powerState)
 
+    def _has_non_vmxnet3_nic(self, vm):
+        for dev in vm.config.hardware.device:
+            if hasattr(dev, 'macAddress'):
+                if not isinstance(dev, vim.vm.device.VirtualVmxnet3):
+                    return True
+        # If we didn't find one by now, there isn't one
+        return False
+
+    def test_remove_interfaces(self):
+        blueprint = os.path.join(
+            self.blueprints_path,
+            'simple-blueprint.yaml'
+        )
+
+        self.logger.info('Deploying linux host to check NIC removal')
+
+        vm = self.get_vim_object(
+            vim.VirtualMachine,
+            self.env.cloudify_config['linux_template'],
+        )
+        assert self._has_non_vmxnet3_nic(vm), (
+            'Linux template must have at least one non-VMXNet3 network '
+            'interface for interface removal test. Please add one, e.g. '
+            'an E1000.'
+        )
+
+        self.nicremove_env = local.init_env(
+            blueprint,
+            inputs=self.ext_inputs,
+            name=self._testMethodName,
+            ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.nicremove_env,
+        )
+
+        self.nicremove_env.execute(
+            'install',
+            task_retries=50,
+            task_retry_interval=3,
+        )
+
+        vm = self.get_vim_object(
+            vim.VirtualMachine,
+            self.nicremove_env.storage.get_node_instances('testserver')
+            [0].runtime_properties['name'],
+        )
+        assert not self._has_non_vmxnet3_nic(vm), (
+            'Deployed VM still has non-VMXNet3 interfaces. It should not.'
+        )
+
     def test_network_name_just_slashes(self):
         self._name_test_template(
             net_name='systest/network',
@@ -1297,13 +1351,6 @@ class VsphereLocalLinuxTest(TestCase):
             )
 
             self.assertEqual(0, len(vm.obj.customValue))
-
-    def run_platform_command(self, command, *args, **kwargs):
-        with self.platform() as client:
-            comm = client
-            for part in command:
-                comm = getattr(comm, part)
-            return comm(*args, **kwargs)
 
     def test_existing_custom_attributes(self):
         with self.platform() as client:
@@ -1460,3 +1507,10 @@ class VsphereLocalLinuxTest(TestCase):
             if net.id == net_id:
                 return True
         return False
+
+    def run_platform_command(self, command, *args, **kwargs):
+        with self.platform() as client:
+            comm = client
+            for part in command:
+                comm = getattr(comm, part)
+            return comm(*args, **kwargs)
