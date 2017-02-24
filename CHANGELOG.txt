@@ -1,7 +1,19 @@
-tbd:
-  - Move default connection config to /etc/cloudify/vsphere_plugin/connection_config.yaml
-  - Add Server power operations (on, off, reboot, reset)
-  - Allow host memory overcommit (best-effort placement of VMs)
+2.3.0:
+  - Move default connection config to /etc/cloudify/vsphere_plugin/connection_config.yaml (VSPHERE-1, VSPHERE-17)
+  - Add Server power operations (on, off, reboot, reset) (VSPHERE-73)
+  - Allow host memory overcommit (best-effort placement of VMs) (VSPHERE-74)
+  - Allow adding metadata (custom attributes) to VMs (VSPHERE-49)
+  - Support slashes in network names (VSPHERE-29)
+  - Don't try to deploy on hypervisors in maintenance mode (VSPHERE-76)
+  - Provide NSX compatibility helpers (VSPHERE-75)
+  - Add Server resize operations (CPU, RAM) (VSPHERE-38)
+  - Fix case sensitivity issue in candidate host finder (VSPHERE-89)
+  - Remove all NICs from template when cloning, not just VMXNet3 (VSPHERE-3)
+  - Support for SSL verification (or disabling of verification) (VSPHERE-39, VSPHERE-47)
+  - Fix naming collision when deploying a node with two attached volumes (VSPHERE-27)
+  - Deprecate auto_placement
+2.2.1:
+  - Fix handling of VMs currently being cloned (VSPHERE-86)
 2.2.0:
   - Support setting organization on Windows VMs.
   - Support Windows custom sysprep.
