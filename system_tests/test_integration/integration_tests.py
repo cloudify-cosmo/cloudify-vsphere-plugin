@@ -933,7 +933,6 @@ class VsphereIntegrationTest(TestCase):
     ):
         template = self.client._get_obj_by_name(
             vimtype=vim.VirtualMachine,
-            # Use windows template because their minimum size is huge
             name=self.env.cloudify_config[vm_template_key],
         ).obj
         datastore = self.client._get_obj_by_name(
