@@ -513,7 +513,7 @@ class VsphereLocalLinuxTest(TestCase):
             # 7 is expected to be the controller unit number
             assert int(scsi_id[1]) != 7
 
-    def test_network(self):
+    def test_network(self, net_name=None):
         blueprint = os.path.join(
             self.blueprints_path,
             'network-blueprint.yaml'
@@ -527,9 +527,6 @@ class VsphereLocalLinuxTest(TestCase):
             inputs['username'] = self.env.cloudify_config['ssh_user']
         if 'ssh_key_filename' in self.env.cloudify_config.keys():
             inputs['key_path'] = self.env.cloudify_config['ssh_key_filename']
-        if 'test_network_name' in self.env.cloudify_config.keys():
-            inputs['test_network_name'] = self.env.cloudify_config[
-                'test_network_name']
         if 'test_network_vlan' in self.env.cloudify_config.keys():
             inputs['test_network_vlan'] = self.env.cloudify_config[
                 'test_network_vlan']
@@ -537,24 +534,38 @@ class VsphereLocalLinuxTest(TestCase):
             inputs['test_network_vswitch'] = self.env.cloudify_config[
                 'test_network_vswitch']
 
+        if net_name:
+            inputs['test_network_name'] = net_name
+        elif 'test_network_name' in self.env.cloudify_config.keys():
+                inputs['test_network_name'] = self.env.cloudify_config[
+                    'test_network_name']
+
         self.network_env = local.init_env(
             blueprint,
             inputs=inputs,
             name=self._testMethodName,
             ignored_modules=cli_constants.IGNORED_LOCAL_WORKFLOW_MODULES)
+        self.addCleanup(
+            self.generic_cleanup,
+            self.network_env,
+        )
+
         self.network_env.execute(
             'install',
             task_retries=50,
             task_retry_interval=3,
         )
 
-        self.addCleanup(
-            self.generic_cleanup,
-            self.network_env,
-        )
-
         test_results = self.network_env.outputs()['test_results']
         assert True in test_results
+
+    def test_network_with_slash(self):
+        if 'test_network_name' in self.env.cloudify_config.keys():
+            net_name = self.env.cloudify_config['test_network_name']
+        else:
+            net_name = 'test_network_name'
+        net_name = net_name[0] + '/' + net_name[1:]
+        return self.test_network(net_name)
 
     def test_distributed_network(self):
         blueprint = os.path.join(
