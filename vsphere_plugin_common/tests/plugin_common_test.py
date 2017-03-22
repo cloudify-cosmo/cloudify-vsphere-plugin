@@ -2638,3 +2638,41 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
             ret = config.get()
 
         self.assertEqual({'some': 'contents'}, ret)
+
+
+class PluginCommonUnitTests(unittest.TestCase):
+
+    @patch('vsphere_plugin_common.get_ip_from_vsphere_nic_ips')
+    def test_get_server_ip(self, get_ip_from_nic_mock):
+        client = vsphere_plugin_common.ServerClient()
+        server = Mock()
+        server.guest.net = [
+            MagicMock(name='oobly'),
+            MagicMock(name='hoobly'),
+        ]
+        server.guest.net[0].network = 'oobly'
+        server.guest.net[0].ipAddress = '10.11.12.13'
+        server.guest.net[1].network = 'hoobly'
+        server.guest.net[1].ipAddress = '10.11.12.14'
+
+        res = client.get_server_ip(server, 'hoobly')
+
+        self.assertEqual(
+            get_ip_from_nic_mock.return_value,
+            res)
+
+    @patch('vsphere_plugin_common.get_ip_from_vsphere_nic_ips')
+    def test_get_server_ip_with_slash(self, get_ip_from_nic_mock):
+        client = vsphere_plugin_common.ServerClient()
+        server = Mock()
+        server.guest.net = [
+            MagicMock(name='oobly/hoobly'),
+        ]
+        server.guest.net[0].network = 'oobly%2fhoobly'
+        server.guest.net[0].ipAddress = '10.11.12.13'
+
+        res = client.get_server_ip(server, 'oobly/hoobly')
+
+        self.assertEqual(
+            get_ip_from_nic_mock.return_value,
+            res)
