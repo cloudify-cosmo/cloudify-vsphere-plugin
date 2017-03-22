@@ -2279,7 +2279,8 @@ class ServerClient(VsphereClient):
                 continue
             if (
                 network.network and
-                network_name.lower() == network.network.lower() and
+                network_name.lower() == self._get_normalised_name(
+                    network.network.lower()) and
                 len(network.ipAddress) > 0
             ):
                 ip_address = get_ip_from_vsphere_nic_ips(network)
