@@ -537,8 +537,8 @@ class VsphereLocalLinuxTest(TestCase):
         if net_name:
             inputs['test_network_name'] = net_name
         elif 'test_network_name' in self.env.cloudify_config.keys():
-                inputs['test_network_name'] = self.env.cloudify_config[
-                    'test_network_name']
+            inputs['test_network_name'] = self.env.cloudify_config[
+                'test_network_name']
 
         self.network_env = local.init_env(
             blueprint,
