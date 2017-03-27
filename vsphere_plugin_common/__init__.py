@@ -70,7 +70,8 @@ def remove_runtime_properties(properties, context):
 class Config(object):
 
     # Required during vsphere manager bootstrap
-    CONNECTION_CONFIG_PATH_DEFAULT = DEFAULT_CONFIG_PATH
+    # Hard-coded to old path so old manager blueprints aren't broken
+    CONNECTION_CONFIG_PATH_DEFAULT = '/root/connection_config.yaml'
 
     _path_options = [
         {'source': '/root/connection_config.yaml', 'warn': True},
