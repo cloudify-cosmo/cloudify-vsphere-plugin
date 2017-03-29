@@ -13,43 +13,38 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
+from __future__ import division
+
 # Stdlib imports
+import atexit
 import os
 import re
+import ssl
 import time
-import atexit
+import urllib
+from collections import MutableMapping
 from copy import copy
 from functools import wraps
 
 # Third party imports
 import yaml
 from netaddr import IPNetwork
-from pyVmomi import vim, vmodl
 from pyVim.connect import SmartConnect, Disconnect
+from pyVmomi import vim, vmodl
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify import exceptions as cfy_exc
+from cloudify.exceptions import NonRecoverableError
 
 # This package imports
 from vsphere_plugin_common.constants import (
+    DEFAULT_CONFIG_PATH,
     NETWORKS,
+    NETWORK_ID,
     TASK_CHECK_SLEEP,
 )
-from vsphere_plugin_common.vendored_collections import namedtuple
-
-
-def prepare_for_log(inputs):
-    result = {}
-    for key, value in inputs.items():
-        if isinstance(value, dict):
-            value = prepare_for_log(value)
-
-        if 'password' in key:
-            value = '**********'
-
-        result[key] = value
-    return result
+from cloudify_vsphere.vendored.collections import namedtuple
+from cloudify_vsphere.utils.feedback import logger, prepare_for_log
 
 
 def get_ip_from_vsphere_nic_ips(nic):
@@ -57,8 +52,8 @@ def get_ip_from_vsphere_nic_ips(nic):
         if ip.startswith('169.254.') or ip.lower().startswith('fe80::'):
             # This is a locally assigned IPv4 or IPv6 address and thus we
             # will assume it is not routable
-            ctx.logger.debug('Found locally assigned IP {ip}. '
-                             'Skipping.'.format(ip=ip))
+            logger().debug(
+                'Found locally assigned IP {ip}. Skipping.'.format(ip=ip))
             continue
         else:
             return ip
@@ -75,32 +70,51 @@ def remove_runtime_properties(properties, context):
 class Config(object):
 
     # Required during vsphere manager bootstrap
-    CONNECTION_CONFIG_PATH_DEFAULT = '~/connection_config.yaml'
+    # Hard-coded to old path so old manager blueprints aren't broken
+    CONNECTION_CONFIG_PATH_DEFAULT = '/root/connection_config.yaml'
+
+    _path_options = [
+        {'source': '/root/connection_config.yaml', 'warn': True},
+        {'source': '~/connection_config.yaml', 'warn': True},
+        {'source': DEFAULT_CONFIG_PATH, 'warn': False},
+        {'env': True, 'source': 'CONNECTION_CONFIG_PATH', 'warn': True},
+        {'env': True, 'source': 'CFY_VSPHERE_CONFIG_PATH', 'warn': False},
+    ]
+
+    def _find_config_file(self):
+        selected = DEFAULT_CONFIG_PATH
+        warnings = []
+
+        for path in self._path_options:
+            source = path['source']
+            if path.get('env'):
+                source = os.getenv(source)
+            if source:
+                source = os.path.expanduser(source)
+                if os.path.isfile(source):
+                    selected = source
+                    if path['warn']:
+                        warnings.append(path['source'])
+
+        if warnings:
+            logger().warn(
+                "Deprecated configuration options were found: {}".format(
+                    "; ".join(warnings)),
+            )
+
+        return selected
 
     def get(self):
         cfg = {}
-        which = self.__class__.which
-        env_name = which.upper() + '_CONFIG_PATH'
-        default_location_tpl = '~/' + which + '_config.yaml'
-        default_location = os.path.expanduser(default_location_tpl)
-        config_path = os.getenv(env_name, default_location)
+        config_path = self._find_config_file()
         try:
             with open(config_path) as f:
                 cfg = yaml.load(f.read())
         except IOError:
-            ctx.logger.warn("Unable to read %s "
-                            "configuration file %s." %
-                            (which, config_path))
+            logger().warn(
+                "Unable to read configuration file %s." % (config_path))
 
         return cfg
-
-
-class ConnectionConfig(Config):
-    which = 'connection'
-
-
-class TestsConfig(Config):
-    which = 'unit_tests'
 
 
 class _ContainerView(object):
@@ -123,18 +137,16 @@ class _ContainerView(object):
 
 class VsphereClient(object):
 
-    config = ConnectionConfig
-
     def __init__(self):
         self._cache = {}
 
     def get(self, config=None, *args, **kw):
-        static_config = self.__class__.config().get()
-        cfg = {}
-        cfg.update(static_config)
+        static_config = Config().get()
+        self.cfg = {}
+        self.cfg.update(static_config)
         if config:
-            cfg.update(config)
-        ret = self.connect(cfg)
+            self.cfg.update(config)
+        ret = self.connect(self.cfg)
         ret.format = 'yaml'
         return ret
 
@@ -143,6 +155,90 @@ class VsphereClient(object):
         username = cfg['username']
         password = cfg['password']
         port = cfg['port']
+        certificate_path = cfg.get('certificate_path')
+        # Until the next major release this will have limited effect, but is
+        # in place to allow a clear path to the next release for users
+        allow_insecure = cfg.get('allow_insecure', False)
+
+        if certificate_path and allow_insecure:
+            raise NonRecoverableError(
+                'Cannot connect when certificate_path and allow_insecure '
+                'are both set. Unable to determine whether connection should '
+                'be secure or insecure.'
+            )
+        elif certificate_path:
+            if not hasattr(ssl, '_create_default_https_context'):
+                raise NonRecoverableError(
+                    'Cannot create secure connection with this version of '
+                    'python. This functionality requires at least python '
+                    '2.7.9 and has been confirmed to work on at least 2.7.12.'
+                )
+
+            if not os.path.exists(certificate_path):
+                raise NonRecoverableError(
+                    'Certificate was not found in {path}'.format(
+                        path=certificate_path,
+                    )
+                )
+            elif not os.path.isfile(certificate_path):
+                raise NonRecoverableError(
+                    'Found directory at {path}, but the certificate_path '
+                    'must be a file.'.format(
+                        path=certificate_path,
+                    )
+                )
+            try:
+                # We want to load the cert into the existing default context
+                # in case any other python modules have already defined their
+                # default https context.
+                ssl_context = ssl._create_default_https_context()
+                if ssl_context.verify_mode == 0:
+                    raise NonRecoverableError(
+                        'Default SSL context is not set to verify. '
+                        'Cannot use a certificate while other imported '
+                        'modules are disabling verification on the default '
+                        'SSL context.'
+                    )
+                ssl_context.load_verify_locations(certificate_path)
+            except ssl.SSLError as err:
+                if 'unknown error' in str(err).lower():
+                    raise NonRecoverableError(
+                        'Could not create SSL context with provided '
+                        'certificate {path}. This problem may be caused by '
+                        'the certificate not being in the correct format '
+                        '(PEM).'.format(
+                            host=host,
+                            path=certificate_path,
+                        )
+                    )
+                else:
+                    raise
+
+            def get_ssl_context(*args, **kwargs):
+                return ssl_context
+            ssl._create_default_https_context = get_ssl_context
+        elif allow_insecure and hasattr(ssl, '_create_default_https_context'):
+                # This will disable verification for any other python
+                # libraries imported in the same process that use the
+                # default ssl context.
+                # This cannot be fixed until pyvmomi is updated.
+                logger().warn(
+                    'SSL verification disabled for all legacy code. '
+                    'Please note that this may result in other code '
+                    'from the same blueprint running with reduced '
+                    'security.'
+                )
+                ssl._create_default_https_context = (
+                    ssl._create_unverified_context
+                )
+        else:
+            logger().warn(
+                'DEPRECATED: certificate_path was not supplied. '
+                'A certificate will be required in the next major '
+                'release of the plugin if allow_insecure is not set '
+                'to true.'
+            )
+
         try:
             self.si = SmartConnect(host=host,
                                    user=username,
@@ -151,10 +247,21 @@ class VsphereClient(object):
             atexit.register(Disconnect, self.si)
             return self
         except vim.fault.InvalidLogin:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Could not login to vSphere on {host} with provided "
                 "credentials".format(host=host)
             )
+        except vim.fault.HostConnectFault as err:
+            if 'certificate verify failed' in err.msg:
+                raise NonRecoverableError(
+                    'Could not connect to vSphere on {host} with provided '
+                    'certificate {path}. Certificate was not valid.'.format(
+                        host=host,
+                        path=certificate_path,
+                    )
+                )
+            else:
+                raise
 
     def is_server_suspended(self, server):
         return server.summary.runtime.powerState.lower() == "suspended"
@@ -172,19 +279,34 @@ class VsphereClient(object):
             item for item in split_list
             if len(item) > 1
         ]
-        the_dict['_values'] = vals
+        the_dict['_values'] = set(vals)
         for item in keys:
             key_name = item[0]
             sub_keys = item[1:]
-            dict_entry = the_dict.get(key_name, {})
+            dict_entry = the_dict.get(key_name, {'_values': set()})
             update_dict = self._convert_props_list_to_dict(
                 sub_keys
             )
-            if '_values' in dict_entry.keys():
-                update_dict['_values'].extend(dict_entry['_values'])
-            dict_entry.update(update_dict)
-            the_dict[key_name] = dict_entry
+            the_dict[key_name] = self._merge_props_dicts(
+                dict_entry,
+                update_dict,
+            )
         return the_dict
+
+    def _merge_props_dicts(self, dict1, dict2):
+        new_dict = {}
+        keys = set(dict1.keys() + dict2.keys())
+        keys.remove('_values')
+
+        new_dict['_values'] = dict1['_values'] | dict2['_values']
+
+        for key in keys:
+            new_dict[key] = self._merge_props_dicts(
+                dict1.get(key, {'_values': set()}),
+                dict2.get(key, {'_values': set()})
+            )
+
+        return new_dict
 
     def _get_platform_sub_results(self, platform_results, target_key):
         sub_results = {}
@@ -193,6 +315,12 @@ class VsphereClient(object):
             if key_components[0] == target_key:
                 sub_results[key_components[1]] = value
         return sub_results
+
+    def _get_normalised_name(self, name):
+        """
+            Get the normalised form of a platform entity's name.
+        """
+        return urllib.unquote(name)
 
     def _make_cached_object(self, obj_name, props_dict, platform_results,
                             root_object=True, other_entity_mappings=None,
@@ -271,6 +399,9 @@ class VsphereClient(object):
                 root_object=False,
             )
 
+        if 'name' in args.keys():
+            args['name'] = self._get_normalised_name(args['name'])
+
         result = obj(
             **args
         )
@@ -303,7 +434,7 @@ class VsphereClient(object):
                 )
             except KeyError as err:
                 if not skip_broken_objects:
-                    raise cfy_exc.NonRecoverableError(
+                    raise NonRecoverableError(
                         'Could not retrieve all details for {type} object. '
                         '{err} was missing.'.format(
                             type=entity_name,
@@ -330,6 +461,9 @@ class VsphereClient(object):
             return ctx.operation.retry(
                 'Resource pools changed while getting resource pool details.'
             )
+
+        if 'name' in this_pool.keys():
+            this_pool['name'] = self._get_normalised_name(this_pool['name'])
 
         base_object = rp_object(
             name=this_pool['name'],
@@ -419,6 +553,59 @@ class VsphereClient(object):
             use_cache=use_cache,
         )
 
+    def _get_connected_network_name(self, network):
+        name = None
+        if network.get('from_relationship'):
+            net_id = None
+            found = False
+            for relationship in ctx.instance.relationships:
+                if relationship.target.node.name == network['name']:
+                    props = relationship.target.instance.runtime_properties
+                    net_id = props.get(NETWORK_ID)
+                    found = True
+                    break
+            if not found:
+                raise NonRecoverableError(
+                    'Could not find any relationships to a node called '
+                    '"{name}", so {prop} could not be retrieved.'.format(
+                        name=network['name'],
+                        prop=NETWORK_ID,
+                    )
+                )
+            elif net_id is None:
+                raise NonRecoverableError(
+                    'Could not get a {prop} runtime property from '
+                    'relationship to a node called "{name}".'.format(
+                        name=network['name'],
+                        prop=NETWORK_ID,
+                    )
+                )
+
+            if isinstance(net_id, list):
+                # We won't alert on switch_distributed mismatch here, as the
+                # validation logic handles that
+
+                # Standard port groups will have multiple IDs, but since we
+                # use the name, just using the first one will give the right
+                # name
+                net_id = net_id[0]
+
+            net = self._get_obj_by_id(
+                vimtype=vim.Network,
+                id=net_id,
+            )
+
+            if net is None:
+                raise NonRecoverableError(
+                    'Could not get network given network ID: {id}'.format(
+                        id=net_id,
+                    )
+                )
+            name = net.name
+        else:
+            name = network['name']
+        return name
+
     def _get_networks(self, use_cache=True):
         if 'network' in self._cache and use_cache:
             return self._cache['network']
@@ -451,6 +638,9 @@ class VsphereClient(object):
 
         networks = []
         for item in results:
+            if 'name' in item.keys():
+                item['name'] = self._get_normalised_name(item['name'])
+
             network = net_object(
                 name=item['name'],
                 id=item['obj']._moId,
@@ -480,6 +670,12 @@ class VsphereClient(object):
         return [
             network for network in self._get_networks(use_cache)
             if self._port_group_is_distributed(network)
+        ]
+
+    def _get_standard_networks(self, use_cache=True):
+        return [
+            network for network in self._get_networks(use_cache)
+            if not self._port_group_is_distributed(network)
         ]
 
     def _get_extra_dv_port_group_details(self, use_cache=True):
@@ -594,6 +790,7 @@ class VsphereClient(object):
             'overallStatus',
             'network',
             'summary.runtime.connectionState',
+            'summary.runtime.inMaintenanceMode',
             'vm',
             'datastore',
             'config.network.vswitch',
@@ -636,7 +833,7 @@ class VsphereClient(object):
             vim.dvs.DistributedVirtualPortgroup: self._get_dv_networks,
         }.get(vimtype)
         if getter_method is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Cannot retrieve objects for {vimtype}'.format(
                     vimtype=vimtype,
                 )
@@ -712,6 +909,8 @@ class VsphereClient(object):
 
         entities = self._get_getter_method(vimtype)(use_cache)
 
+        name = self._get_normalised_name(name)
+
         for entity in entities:
             if name.lower() == entity.name.lower():
                 obj = entity
@@ -730,10 +929,13 @@ class VsphereClient(object):
         return obj
 
     def _wait_for_task(self, task):
-        while task.info.state == vim.TaskInfo.State.running:
+        while task.info.state in (
+            vim.TaskInfo.State.queued,
+            vim.TaskInfo.State.running,
+        ):
             time.sleep(TASK_CHECK_SLEEP)
         if task.info.state != vim.TaskInfo.State.success:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
                 .format(task.info.error))
 
@@ -753,15 +955,15 @@ class VsphereClient(object):
             }
         """
         nics = []
-        ctx.logger.debug('Getting NIC list')
+        logger().debug('Getting NIC list')
         for dev in vm.config.hardware.device:
             if hasattr(dev, 'macAddress'):
                 nics.append(dev)
 
-        ctx.logger.debug('Got NICs: {nics}'.format(nics=nics))
+        logger().debug('Got NICs: {nics}'.format(nics=nics))
         networks = []
         for nic in nics:
-            ctx.logger.debug('Checking details for NIC {nic}'.format(nic=nic))
+            logger().debug('Checking details for NIC {nic}'.format(nic=nic))
             distributed = hasattr(nic.backing, 'port') and isinstance(
                 nic.backing.port,
                 vim.dvs.PortConnection,
@@ -770,19 +972,19 @@ class VsphereClient(object):
             network_name = None
             if distributed:
                 mapping_id = nic.backing.port.portgroupKey
-                ctx.logger.debug(
+                logger().debug(
                     'Found NIC was on distributed port group with port group '
                     'key {key}'.format(key=mapping_id)
                 )
                 for network in vm.network:
                     if hasattr(network, 'key'):
-                        ctx.logger.debug(
+                        logger().debug(
                             'Checking for match on network with key: '
                             '{key}'.format(key=network.key)
                         )
                         if mapping_id == network.key:
                             network_name = network.name
-                            ctx.logger.debug(
+                            logger().debug(
                                 'Found NIC was distributed and was on '
                                 'network {network}'.format(
                                     network=network_name,
@@ -792,14 +994,14 @@ class VsphereClient(object):
                 # If not distributed, the port group name can be retrieved
                 # directly
                 network_name = nic.backing.deviceName
-                ctx.logger.debug(
+                logger().debug(
                     'Found NIC was on port group {network}'.format(
                         network=network_name,
                     )
                 )
 
             if network_name is None:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'Could not get network name for device with MAC address '
                     '{mac} on VM {vm}'.format(mac=nic.macAddress, vm=vm.name)
                 )
@@ -811,6 +1013,78 @@ class VsphereClient(object):
             })
 
         return networks
+
+    def _get_custom_keys(self, use_cache=True):
+        if not use_cache or 'custom_keys' not in self._cache:
+            self._cache['custom_keys'] = (
+                self.si.content.customFieldsManager.field
+            )
+
+        return self._cache['custom_keys']
+
+    def custom_values(self, thing):
+        return CustomValues(self, thing)
+
+    def add_custom_values(self, thing, attributes):
+        if attributes:
+            values = self.custom_values(thing)
+            values.update(attributes)
+            logger().debug('Added custom attributes')
+
+
+class CustomValues(MutableMapping):
+    """dict interface to ManagedObject customValue"""
+
+    def __init__(self, client, thing):
+        """
+        client: a VsphereClient instance
+        thing: a NamedTuple containing a ManagedObject-derived class as its
+        `obj` attribute: as supplied by `client._get_obj_by_name`
+        """
+        self.client = client
+        self.thing = thing
+
+    def __getitem__(self, key):
+        key_id = self._get_key_id(key)
+        for value in self.thing.obj.customValue:
+            if value.key == key_id:
+                return value.value
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self._get_key_id(key, create=True)
+        return self.thing.obj.setCustomValue(key, value)
+
+    def __delitem__(self, key):
+        raise NonRecoverableError("Unable to unset custom values")
+
+    def __iter__(self):
+        for value in self.thing.obj.customValue:
+            yield self._get_key_name(value.key)
+
+    def __len__(self):
+        return len(self.thing.obj.customValue)
+
+    def _get_key_id(self, k, create=False):
+        for key in self.client._get_custom_keys():
+            if key.name == k:
+                return key.key
+        if create:
+            try:
+                key = (
+                    self.client.si.content.customFieldsManager.
+                    AddCustomFieldDef)(name=k)
+            except vim.fault.DuplicateName:
+                self.client._get_custom_keys(use_cache=False)
+                return self._get_key_id(k, create=create)
+            return key.key
+        raise KeyError(k)
+
+    def _get_key_name(self, k):
+        for key in self.client._get_custom_keys():
+            if key.key == k:
+                return key.name
+        raise ValueError(k)
 
 
 class ServerClient(VsphereClient):
@@ -834,7 +1108,7 @@ class ServerClient(VsphereClient):
             Validate that an allowed hosts, clusters, or datastores list is
             valid.
         """
-        ctx.logger.debug(
+        logger().debug(
             'Checking allowed {thing}s list.'.format(thing=thing_type)
         )
         not_things = set(allowed_things).difference(set(existing_things))
@@ -848,7 +1122,7 @@ class ServerClient(VsphereClient):
                 )
             )
         elif len(not_things) > 0:
-            ctx.logger.warn(
+            logger().warn(
                 'One or more specified allowed {thing}s do not exist: '
                 '{not_things}'.format(
                     thing=thing_type,
@@ -868,9 +1142,9 @@ class ServerClient(VsphereClient):
                          vm_memory):
         """
             Make sure we can actually continue with the inputs given.
-            If we can't, we want to report all of the issues t once.
+            If we can't, we want to report all of the issues at once.
         """
-        ctx.logger.debug('Validating inputs for this platform.')
+        logger().debug('Validating inputs for this platform.')
         issues = []
 
         hosts = self._get_hosts()
@@ -903,7 +1177,7 @@ class ServerClient(VsphereClient):
             if error:
                 issues.append(error)
 
-        ctx.logger.debug('Checking template exists.')
+        logger().debug('Checking template exists.')
         template_vm = self._get_obj_by_name(vim.VirtualMachine,
                                             template_name)
         if template_vm is None:
@@ -911,7 +1185,7 @@ class ServerClient(VsphereClient):
                 template_name
             ))
 
-        ctx.logger.debug('Checking resource pool exists.')
+        logger().debug('Checking resource pool exists.')
         resource_pool = self._get_obj_by_name(
             vim.ResourcePool,
             resource_pool_name,
@@ -921,7 +1195,7 @@ class ServerClient(VsphereClient):
                 resource_pool_name,
             ))
 
-        ctx.logger.debug('Checking datacenter exists.')
+        logger().debug('Checking datacenter exists.')
         datacenter = self._get_obj_by_name(vim.Datacenter,
                                            datacenter_name)
         if datacenter is None:
@@ -929,12 +1203,17 @@ class ServerClient(VsphereClient):
                 datacenter_name
             ))
 
-        ctx.logger.debug(
+        logger().debug(
             'Checking networks exist.'
         )
         port_groups, distributed_port_groups = self._get_port_group_names()
         for network in networks:
-            network_name = network['name']
+            try:
+                network_name = self._get_connected_network_name(network)
+            except NonRecoverableError as err:
+                issues.append(str(err))
+                continue
+            network_name = self._get_normalised_name(network_name)
             network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
 
@@ -1000,7 +1279,7 @@ class ServerClient(VsphereClient):
         if issues:
             issues.insert(0, 'Issues found while validating inputs:')
             message = ' '.join(issues)
-            raise cfy_exc.NonRecoverableError(message)
+            raise NonRecoverableError(message)
 
     def _validate_windows_properties(self, props, password):
         issues = []
@@ -1038,7 +1317,7 @@ class ServerClient(VsphereClient):
         if issues:
             issues.insert(0, 'Issues found while validating inputs:')
             message = ' '.join(issues)
-            raise cfy_exc.NonRecoverableError(message)
+            raise NonRecoverableError(message)
 
     def create_server(self,
                       auto_placement,
@@ -1055,8 +1334,9 @@ class ServerClient(VsphereClient):
                       allowed_hosts=None,
                       allowed_clusters=None,
                       allowed_datastores=None):
-        ctx.logger.debug("Entering create_server with parameters %s"
-                         % prepare_for_log(locals()))
+        logger().debug(
+            "Entering create_server with parameters %s"
+            % prepare_for_log(locals()))
 
         self._validate_inputs(
             allowed_hosts=allowed_hosts,
@@ -1069,6 +1349,10 @@ class ServerClient(VsphereClient):
             vm_cpus=cpus,
             vm_memory=memory,
         )
+
+        # Correct the network name for all networks from relationships
+        for network in networks:
+            network['name'] = self._get_connected_network_name(network)
 
         candidate_hosts = self.find_candidate_hosts(
             resource_pool=resource_pool_name,
@@ -1088,7 +1372,7 @@ class ServerClient(VsphereClient):
             template=template_vm,
             allowed_datastores=allowed_datastores,
         )
-        ctx.logger.debug(
+        logger().debug(
             'Using host {host} and datastore {ds} for deployment.'.format(
                 host=host.name,
                 ds=datastore.name,
@@ -1111,14 +1395,20 @@ class ServerClient(VsphereClient):
         relospec.datastore = datastore.obj
         relospec.pool = resource_pool.obj
         if not auto_placement:
+            logger().warn(
+                'DEPRECATED: Setting auto_placement will not be '
+                'possible in the next major release of the plugin. '
+                'The setting will default to true.'
+            )
             relospec.host = host.obj
 
         nicspec = vim.vm.device.VirtualDeviceSpec()
         for device in template_vm.config.hardware.device:
-            if isinstance(device, vim.vm.device.VirtualVmxnet3):
+            if hasattr(device, 'macAddress'):
                 nicspec.device = device
-                ctx.logger.warn('Removing network adapter from template. '
-                                'Template should have no attached adapters.')
+                logger().warn(
+                    'Removing network adapter from template. '
+                    'Template should have no attached adapters.')
                 nicspec.operation = \
                     vim.vm.device.VirtualDeviceSpec.Operation.remove
                 devices.append(nicspec)
@@ -1142,14 +1432,15 @@ class ServerClient(VsphereClient):
                     network_name,
                 )
             if network_obj is None:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'Network {0} could not be found'.format(network_name))
             nicspec = vim.vm.device.VirtualDeviceSpec()
             # Info level as this is something that was requested in the
             # blueprint
-            ctx.logger.info('Adding network interface on {name} to {server}'
-                            .format(name=network_name,
-                                    server=vm_name))
+            logger().info(
+                'Adding network interface on {name} to {server}'.format(
+                    name=network_name,
+                    server=vm_name))
             nicspec.operation = \
                 vim.vm.device.VirtualDeviceSpec.Operation.add
             nicspec.device = vim.vm.device.VirtualVmxnet3()
@@ -1200,7 +1491,7 @@ class ServerClient(VsphereClient):
         clonespec.template = False
 
         if adaptermaps:
-            ctx.logger.debug(
+            logger().debug(
                 'Preparing OS customization spec for {server}'.format(
                     server=vm_name,
                 )
@@ -1265,7 +1556,7 @@ class ServerClient(VsphereClient):
                 options.deleteAccounts = False
                 customspec.options = options
             else:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'os_type {os_type} was specified, but only "windows" and '
                     '"linux" are supported.'.format(os_type=os_type)
                 )
@@ -1278,18 +1569,19 @@ class ServerClient(VsphereClient):
             customspec.globalIPSettings = globalip
 
             clonespec.customization = customspec
-        ctx.logger.info('Cloning {server} from {template}.'
-                        .format(server=vm_name, template=template_name))
+        logger().info(
+            'Cloning {server} from {template}.'.format(
+                server=vm_name, template=template_name))
         task = template_vm.obj.Clone(folder=destfolder,
                                      name=vm_name,
                                      spec=clonespec)
         try:
-            ctx.logger.debug("Task info: \n%s." %
-                             "".join("%s: %s" % item
-                                     for item in vars(task).items()))
+            logger().debug(
+                "Task info: \n%s." % "".join(
+                    "%s: %s" % item for item in vars(task).items()))
             self._wait_vm_running(task, adaptermaps)
         except task.info.error:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."
                 .format(vm_name))
 
@@ -1300,43 +1592,102 @@ class ServerClient(VsphereClient):
         )
         ctx.instance.runtime_properties[NETWORKS] = \
             self.get_vm_networks(vm)
-        ctx.logger.debug('Updated runtime properties with network information')
+        logger().debug('Updated runtime properties with network information')
+
+        self.add_custom_values(
+            vm,
+            ctx.node.properties.get('custom_attributes', {}))
 
         return task.info.result
 
     def start_server(self, server):
-        ctx.logger.debug("Entering server start procedure.")
+        if self.is_server_poweredon(server):
+            logger().info("Server '{}' already running".format(server.name))
+            return
+        logger().debug("Entering server start procedure.")
         task = server.obj.PowerOn()
         self._wait_for_task(task)
-        ctx.logger.debug("Server is now running.")
+        logger().debug("Server is now running.")
 
-    def shutdown_server_guest(self, server):
-        ctx.logger.debug("Entering server shutdown procedure.")
+    def shutdown_server_guest(
+        self, server,
+        timeout=TASK_CHECK_SLEEP,
+        max_wait_time=300,
+    ):
+        if self.is_server_poweredoff(server):
+            logger().info("Server '{}' already stopped".format(server.name))
+            return
+        logger().debug("Entering server shutdown procedure.")
         server.obj.ShutdownGuest()
-        ctx.logger.debug("Server is now shut down.")
+        for _ in range(max_wait_time // timeout):
+            time.sleep(timeout)
+            if self.is_server_poweredoff(server):
+                break
+        else:
+            raise NonRecoverableError(
+                "Server still running after {time}s timeout.".format(
+                    time=max_wait_time,
+                ))
+        logger().debug("Server is now shut down.")
 
     def stop_server(self, server):
-        ctx.logger.debug("Entering stop server procedure.")
+        if self.is_server_poweredoff(server):
+            logger().info("Server '{}' already stopped".format(server.name))
+            return
+        logger().debug("Entering stop server procedure.")
         task = server.obj.PowerOff()
         self._wait_for_task(task)
-        ctx.logger.debug("Server is now stopped.")
+        logger().debug("Server is now stopped.")
+
+    def reset_server(self, server):
+        if self.is_server_poweredoff(server):
+            logger().info(
+                "Server '{}' currently stopped, starting.".format(server.name))
+            return self.start_server(server)
+        logger().debug("Entering stop server procedure.")
+        task = server.obj.Reset()
+        self._wait_for_task(task)
+        logger().debug("Server has been reset")
+
+    def reboot_server(
+        self, server,
+        timeout=TASK_CHECK_SLEEP,
+        max_wait_time=300,
+    ):
+        if self.is_server_poweredoff(server):
+            logger().info(
+                "Server '{}' currently stopped, starting.".format(server.name))
+            return self.start_server(server)
+        logger().debug("Entering reboot server procedure.")
+        start_bootTime = server.obj.runtime.bootTime
+        server.obj.RebootGuest()
+        for _ in range(max_wait_time // timeout):
+            time.sleep(timeout)
+            if server.obj.runtime.bootTime > start_bootTime:
+                break
+        else:
+            raise NonRecoverableError(
+                "Server still running after {time}s timeout.".format(
+                    time=max_wait_time,
+                ))
+        logger().debug("Server has been rebooted")
 
     def is_server_poweredoff(self, server):
-        return server.summary.runtime.powerState.lower() == "poweredoff"
+        return server.obj.summary.runtime.powerState.lower() == "poweredoff"
 
     def is_server_poweredon(self, server):
-        return server.summary.runtime.powerState.lower() == "poweredon"
+        return server.obj.summary.runtime.powerState.lower() == "poweredon"
 
     def is_server_guest_running(self, server):
-        return server.guest.guestState == "running"
+        return server.obj.guest.guestState == "running"
 
     def delete_server(self, server):
-        ctx.logger.debug("Entering server delete procedure.")
+        logger().debug("Entering server delete procedure.")
         if self.is_server_poweredon(server):
             self.stop_server(server)
         task = server.obj.Destroy()
         self._wait_for_task(task)
-        ctx.logger.debug("Server is now deleted.")
+        logger().debug("Server is now deleted.")
 
     def get_server_by_name(self, name):
         return self._get_obj_by_name(vim.VirtualMachine, name)
@@ -1351,11 +1702,11 @@ class ServerClient(VsphereClient):
                              vm_networks,
                              allowed_hosts=None,
                              allowed_clusters=None):
-        ctx.logger.debug('Finding suitable hosts for deployment.')
+        logger().debug('Finding suitable hosts for deployment.')
 
         hosts = self._get_hosts()
         host_names = [host.name for host in hosts]
-        ctx.logger.debug(
+        logger().debug(
             'Found hosts: {hosts}'.format(
                 hosts=', '.join(host_names),
             )
@@ -1363,7 +1714,7 @@ class ServerClient(VsphereClient):
 
         if allowed_hosts:
             hosts = [host for host in hosts if host.name in allowed_hosts]
-            ctx.logger.debug(
+            logger().debug(
                 'Filtered list of hosts to be considered: {hosts}'.format(
                     hosts=', '.join(host_names),
                 )
@@ -1373,7 +1724,7 @@ class ServerClient(VsphereClient):
             cluster_list = self._get_clusters()
             cluster_names = [cluster.name for cluster in cluster_list]
             valid_clusters = set(allowed_clusters).union(set(cluster_names))
-            ctx.logger.debug(
+            logger().debug(
                 'Only hosts on the following clusters will be used: '
                 '{clusters}'.format(
                     clusters=', '.join(valid_clusters),
@@ -1383,7 +1734,7 @@ class ServerClient(VsphereClient):
         candidate_hosts = []
         for host in hosts:
             if not self.host_is_usable(host):
-                ctx.logger.warn(
+                logger().warn(
                     'Host {host} not usable due to health status.'.format(
                         host=host.name,
                     )
@@ -1394,7 +1745,7 @@ class ServerClient(VsphereClient):
                 cluster = self.get_host_cluster_membership(host)
                 if cluster not in allowed_clusters:
                     if cluster:
-                        ctx.logger.warn(
+                        logger().warn(
                             'Host {host} is in cluster {cluster}, '
                             'which is not an allowed cluster.'.format(
                                 host=host.name,
@@ -1402,7 +1753,7 @@ class ServerClient(VsphereClient):
                             )
                         )
                     else:
-                        ctx.logger.warn(
+                        logger().warn(
                             'Host {host} is not in a cluster, '
                             'and allowed clusters have been set.'.format(
                                 host=host.name,
@@ -1410,20 +1761,20 @@ class ServerClient(VsphereClient):
                         )
                     continue
 
-            free_memory = self.get_host_free_memory(host)
+            memory_weight = self.host_memory_usage_ratio(host, vm_memory)
 
-            if free_memory - vm_memory < 0:
-                ctx.logger.warn(
-                    'Host {host} does not have enough free memory.'.format(
+            if memory_weight < 0:
+                logger().warn(
+                    'Host {host} will not have enough free memory if all VMs '
+                    'are powered on.'.format(
                         host=host.name,
                     )
                 )
-                continue
 
             resource_pools = self.get_host_resource_pools(host)
             resource_pools = [pool.name for pool in resource_pools]
             if resource_pool not in resource_pools:
-                ctx.logger.warn(
+                logger().warn(
                     'Host {host} does not have resource pool {rp}.'.format(
                         host=host.name,
                         rp=resource_pool,
@@ -1433,14 +1784,14 @@ class ServerClient(VsphereClient):
 
             host_nets = set([
                 (
-                    network['name'],
+                    self._get_normalised_name(network['name']).lower(),
                     network['switch_distributed'],
                 )
                 for network in self.get_host_networks(host)
             ])
             vm_nets = set([
                 (
-                    network['name'],
+                    self._get_normalised_name(network['name']).lower(),
                     network['switch_distributed'],
                 )
                 for network in vm_networks
@@ -1466,7 +1817,7 @@ class ServerClient(VsphereClient):
                 if missing_distributed_nets:
                     message += 'Missing distributed networks: {dnets}. '
 
-                ctx.logger.warn(
+                logger().warn(
                     message.format(
                         host=host.name,
                         nets=missing_standard_nets,
@@ -1475,45 +1826,44 @@ class ServerClient(VsphereClient):
                 )
                 continue
 
-            ctx.logger.debug(
+            logger().debug(
                 'Host {host} is a candidate for deployment.'.format(
                     host=host.name,
                 )
             )
-            candidate_hosts.append(host)
+            candidate_hosts.append((
+                host,
+                self.host_cpu_thread_usage_ratio(host, vm_cpus),
+                memory_weight,
+            ))
 
         # Sort hosts based on the best processor ratio after deployment
-        candidate_hosts = [
-            (
-                host,
-                self.host_cpu_thread_usage_ratio(host, vm_cpus)
-            ) for host in candidate_hosts
-        ]
         if candidate_hosts:
-            ctx.logger.debug(
+            logger().debug(
                 'Host CPU ratios: {ratios}'.format(
                     ratios=', '.join([
-                        '{hostname}: {ratio}'.format(
+                        '{hostname}: {ratio} {mem_ratio}'.format(
                             hostname=c[0].name,
-                            ratio=c[1]
+                            ratio=c[1],
+                            mem_ratio=c[2],
                         ) for c in candidate_hosts
                     ])
                 )
             )
         candidate_hosts.sort(
             reverse=True,
-            key=lambda host_rating: host_rating[1]
+            key=lambda host_rating: host_rating[1] * host_rating[2]
+            # If more ratios are added, take care that they are proper ratios
+            # (i.e. > 0), because memory ([2]) isn't, and 2 negatives would
+            # cause badly ordered candidates.
         )
-        candidate_hosts = [
-            host[0] for host in candidate_hosts
-        ]
 
         if candidate_hosts:
             return candidate_hosts
         else:
             message = (
                 "No healthy hosts could be found with resource pool {pool}, "
-                "all required networks, and at least {memory} free memory."
+                "and all required networks."
             ).format(pool=resource_pool, memory=vm_memory)
 
             if allowed_hosts:
@@ -1527,7 +1877,7 @@ class ServerClient(VsphereClient):
                     clusters=', '.join(allowed_clusters)
                 )
 
-            raise cfy_exc.NonRecoverableError(message)
+            raise NonRecoverableError(message)
 
     def get_resource_pool(self, host, resource_pool_name):
         """
@@ -1539,7 +1889,7 @@ class ServerClient(VsphereClient):
                 return resource_pool
         # If we get here, we somehow selected a host without the right
         # resource pool. This should not be able to happen.
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             'Resource pool {rp} not found on host {host}. '
             'Pools found were: {pools}'.format(
                 rp=resource_pool_name,
@@ -1558,7 +1908,7 @@ class ServerClient(VsphereClient):
             This will assume that the hosts are sorted from most desirable to
             least desirable.
         """
-        ctx.logger.debug('Selecting best host and datastore.')
+        logger().debug('Selecting best host and datastore.')
 
         best_host = None
         best_datastore = None
@@ -1571,7 +1921,7 @@ class ServerClient(VsphereClient):
             valid_datastores = set(allowed_datastores).union(
                 set(datastore_names)
             )
-            ctx.logger.debug(
+            logger().debug(
                 'Only the following datastores will be used: '
                 '{datastores}'.format(
                     datastores=', '.join(valid_datastores),
@@ -1579,17 +1929,18 @@ class ServerClient(VsphereClient):
             )
 
         for host in candidate_hosts:
-            ctx.logger.debug('Considering host {host}'.format(host=host.name))
+            host = host[0]
+            logger().debug('Considering host {host}'.format(host=host.name))
 
             datastores = host.datastore
-            ctx.logger.debug(
+            logger().debug(
                 'Host {host} has datastores: {ds}'.format(
                     host=host.name,
                     ds=', '.join([ds.name for ds in datastores]),
                 )
             )
             if allowed_datastores:
-                ctx.logger.debug(
+                logger().debug(
                     'Checking only allowed datastores: {allow}'.format(
                         allow=', '.join(allowed_datastores),
                     )
@@ -1601,14 +1952,14 @@ class ServerClient(VsphereClient):
                 ]
 
                 if len(datastores) == 0:
-                    ctx.logger.warn(
+                    logger().warn(
                         'Host {host} had no allowed datastores.'.format(
                             host=host.name,
                         )
                     )
                     continue
 
-            ctx.logger.debug(
+            logger().debug(
                 'Filtering for healthy datastores on host {host}'.format(
                     host=host.name,
                 )
@@ -1617,7 +1968,7 @@ class ServerClient(VsphereClient):
             healthy_datastores = []
             for datastore in datastores:
                 if self.datastore_is_usable(datastore):
-                    ctx.logger.debug(
+                    logger().debug(
                         'Datastore {ds} on host {host} is healthy.'.format(
                             ds=datastore.name,
                             host=host.name,
@@ -1625,7 +1976,7 @@ class ServerClient(VsphereClient):
                     )
                     healthy_datastores.append(datastore)
                 else:
-                    ctx.logger.warn(
+                    logger().warn(
                         'Excluding datastore {ds} on host {host} as it is '
                         'not healthy.'.format(
                             ds=datastore.name,
@@ -1634,7 +1985,7 @@ class ServerClient(VsphereClient):
                     )
 
             if len(healthy_datastores) == 0:
-                ctx.logger.warn(
+                logger().warn(
                     'Host {host} has no usable datastores.'.format(
                         host=host.name,
                     )
@@ -1648,7 +1999,7 @@ class ServerClient(VsphereClient):
                     template=template,
                 )
                 if weighting is not None:
-                    ctx.logger.debug(
+                    logger().debug(
                         'Datastore {ds} on host {host} has suitability '
                         '{weight}'.format(
                             ds=datastore.name,
@@ -1658,7 +2009,7 @@ class ServerClient(VsphereClient):
                     )
                     candidate_datastores.append((datastore, weighting))
                 else:
-                    ctx.logger.warn(
+                    logger().warn(
                         'Datastore {ds} on host {host} does not have enough '
                         'free space.'.format(
                             ds=datastore.name,
@@ -1693,7 +2044,7 @@ class ServerClient(VsphereClient):
                 if candidate_host == best_host and (
                     candidate_datastore == best_datastore
                 ):
-                    ctx.logger.debug(
+                    logger().debug(
                         'Host {host} and datastore {datastore} are current '
                         'best candidate. Best datastore weighting '
                         '{weight}.'.format(
@@ -1712,15 +2063,15 @@ class ServerClient(VsphereClient):
                 message = message.format(ds=', '.join(allowed_datastores))
             message += ' Only the suitable candidate hosts were checked: '
             message += '{hosts}'.format(hosts=', '.join(
-                [host.name for host in candidate_hosts]
+                [hostt[0].name for hostt in candidate_hosts]
             ))
-            raise cfy_exc.NonRecoverableError(message)
+            raise NonRecoverableError(message)
 
     def get_host_free_memory(self, host):
         """
             Get the amount of unallocated memory on a host.
         """
-        total_memory = host.hardware.memorySize
+        total_memory = host.hardware.memorySize // 1024 // 1024
         used_memory = 0
         for vm in host.vm:
             if not vm.summary.config.template:
@@ -1742,14 +2093,22 @@ class ServerClient(VsphereClient):
         """
         total_threads = host.hardware.cpuInfo.numCpuThreads
 
-        # Convert total_threads to float to allow a non-integer return
-        total_threads = float(total_threads)
-
         total_assigned = vm_cpus
         for vm in host.vm:
             total_assigned += vm.summary.config.numCpu
 
         return total_threads / total_assigned
+
+    def host_memory_usage_ratio(self, host, new_mem):
+        """
+        Return the proporiton of resulting memory overcommit if a VM with
+        new_mem is added to this host.
+        """
+        free_memory = self.get_host_free_memory(host)
+        free_memory_after = free_memory - new_mem
+        weight = free_memory_after / (host.hardware.memorySize // 1024 // 1024)
+
+        return weight
 
     def datastore_is_usable(self, datastore):
         """
@@ -1844,29 +2203,67 @@ class ServerClient(VsphereClient):
             based on its health.
             Return False otherwise.
         """
-        if host.overallStatus in (
+        healthy_state = host.overallStatus in (
             vim.ManagedEntity.Status.green,
             vim.ManagedEntity.Status.yellow,
-        ) and host.summary.runtime.connectionState == 'connected':
+        )
+        connected = host.summary.runtime.connectionState == 'connected'
+        maintenance = host.summary.runtime.inMaintenanceMode
+
+        if healthy_state and connected and not maintenance:
             # TODO: Check license state (will be yellow for bad license)
             return True
         else:
             return False
 
     def resize_server(self, server, cpus=None, memory=None):
-        ctx.logger.debug("Entering resize reconfiguration.")
+        logger().debug("Entering resize reconfiguration.")
         config = vim.vm.ConfigSpec()
-        if cpus:
+        if cpus is not None:
+            try:
+                cpus = int(cpus)
+            except (ValueError, TypeError) as e:
+                raise NonRecoverableError(
+                    "Invalid cpus value: {}".format(e))
+            if cpus < 1:
+                raise NonRecoverableError(
+                    "cpus must be at least 1. Is {}".format(cpus))
             config.numCPUs = cpus
-        if memory:
+        if memory is not None:
+            try:
+                memory = int(memory)
+            except (ValueError, TypeError) as e:
+                raise NonRecoverableError(
+                    "Invalid memory value: {}".format(e))
+            if memory < 512:
+                raise NonRecoverableError(
+                    "Memory must be at least 512MB. Is {}".format(memory))
+            if memory % 128:
+                raise NonRecoverableError(
+                    "Memory must be an integer multiple of 128. Is {}".format(
+                        memory))
             config.memoryMB = memory
-        task = server.Reconfigure(spec=config)
-        self._wait_for_task(task)
-        ctx.logger.debug("Server resized with new number of "
-                         "CPUs: %s and RAM: %s." % (cpus, memory))
+
+        task = server.obj.Reconfigure(spec=config)
+
+        try:
+            self._wait_for_task(task)
+        except NonRecoverableError as e:
+            if 'configSpec.memoryMB' in e.args[0]:
+                raise NonRecoverableError(
+                    "Memory error resizing Server. May be caused by "
+                    "https://kb.vmware.com/kb/2008405 . If so the Server may "
+                    "be resized while it is switched off.",
+                    e,
+                )
+            raise
+
+        logger().debug(
+            "Server '%s' resized with new number of "
+            "CPUs: %s and RAM: %s." % (server.name, cpus, memory))
 
     def get_server_ip(self, vm, network_name):
-        ctx.logger.debug(
+        logger().debug(
             'Getting server IP from {network}.'.format(
                 network=network_name,
             )
@@ -1874,7 +2271,7 @@ class ServerClient(VsphereClient):
 
         for network in vm.guest.net:
             if not network.network:
-                ctx.logger.warn(
+                logger().warn(
                     'Ignoring device with MAC {mac} as it is not on a '
                     'vSphere network.'.format(
                         mac=network.macAddress,
@@ -1883,13 +2280,14 @@ class ServerClient(VsphereClient):
                 continue
             if (
                 network.network and
-                network_name.lower() == network.network.lower() and
+                network_name.lower() == self._get_normalised_name(
+                    network.network.lower()) and
                 len(network.ipAddress) > 0
             ):
                 ip_address = get_ip_from_vsphere_nic_ips(network)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
-                ctx.logger.info(
+                logger().info(
                     'Found {ip} from device with MAC {mac}'.format(
                         ip=ip_address,
                         mac=network.macAddress,
@@ -1901,7 +2299,7 @@ class ServerClient(VsphereClient):
         try:
             return task.info.result.guest.guestState == "running"
         except vmodl.fault.ManagedObjectNotFound:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Server failed to enter running state, task has been deleted '
                 'by vCenter after failing.'
             )
@@ -1937,15 +2335,13 @@ class NetworkClient(VsphereClient):
         return self.host_list
 
     def delete_port_group(self, name):
-        ctx.logger.debug("Deleting port group {name}.".format(
-                         name=name))
+        logger().debug("Deleting port group {name}.".format(name=name))
         for host in self.get_host_list():
             host.configManager.networkSystem.RemovePortGroup(name)
-        ctx.logger.debug("Port group {name} was deleted.".format(
-                         name=name))
+        logger().debug("Port group {name} was deleted.".format(name=name))
 
     def get_vswitches(self):
-        ctx.logger.debug('Getting list of vswitches')
+        logger().debug('Getting list of vswitches')
 
         # We only want to list vswitches that are on all hosts, as we will try
         # to create port groups on the same vswitch on every host.
@@ -1960,22 +2356,22 @@ class NetworkClient(VsphereClient):
             else:
                 vswitches = vswitches.union(current_host_vswitches)
 
-        ctx.logger.debug('Found vswitches'.format(vswitches=vswitches))
+        logger().debug('Found vswitches'.format(vswitches=vswitches))
         return vswitches
 
     def get_dvswitches(self):
-        ctx.logger.debug('Getting list of dvswitches')
+        logger().debug('Getting list of dvswitches')
 
         # This does not currently address multiple datacenters (indeed,
         # much of this code will probably have issues in such an environment).
         dvswitches = self._get_dvswitches()
         dvswitches = [dvswitch.name for dvswitch in dvswitches]
 
-        ctx.logger.debug('Found dvswitches'.format(dvswitches=dvswitches))
+        logger().debug('Found dvswitches'.format(dvswitches=dvswitches))
         return dvswitches
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
-        ctx.logger.debug("Entering create port procedure.")
+        logger().debug("Entering create port procedure.")
         runtime_properties = ctx.instance.runtime_properties
         if 'status' not in runtime_properties.keys():
             runtime_properties['status'] = 'preparing'
@@ -1985,27 +2381,20 @@ class NetworkClient(VsphereClient):
         if runtime_properties['status'] == 'preparing':
             if vswitch_name not in vswitches:
                 if len(vswitches) == 0:
-                    raise cfy_exc.NonRecoverableError(
+                    raise NonRecoverableError(
                         'No valid vswitches found. '
                         'Every physical host in the datacenter must have the '
                         'same named vswitches available when not using '
                         'distributed vswitches.'
                     )
                 else:
-                    raise cfy_exc.NonRecoverableError(
+                    raise NonRecoverableError(
                         '{vswitch} was not a valid vswitch name. The valid '
                         'vswitches are: {vswitches}'.format(
                             vswitch=vswitch_name,
                             vswitches=', '.join(vswitches),
                         )
                     )
-
-            if self.port_group_is_on_any_hosts(port_group_name):
-                raise cfy_exc.NonRecoverableError(
-                    'Port group {name} already exists on vSphere.'.format(
-                        name=port_group_name,
-                    )
-                )
 
         if runtime_properties['status'] in ('preparing', 'creating'):
             runtime_properties['status'] = 'creating'
@@ -2025,7 +2414,7 @@ class NetworkClient(VsphereClient):
                 specification.vswitchName = vswitch_name
                 vswitch = network_system.networkConfig.vswitch[0]
                 specification.policy = vswitch.spec.policy
-                ctx.logger.debug(
+                logger().debug(
                     'Adding port group {group_name} to vSwitch '
                     '{vswitch_name} on host {host_name}'.format(
                         group_name=port_group_name,
@@ -2062,13 +2451,6 @@ class NetworkClient(VsphereClient):
         )
         return hosts == port_groups
 
-    def port_group_is_on_any_hosts(self, port_group_name, distributed=False):
-        port_groups, _ = self._get_port_group_host_count(
-            port_group_name,
-            distributed,
-        )
-        return port_groups > 0
-
     def _get_port_group_host_count(self, port_group_name, distributed=False):
         hosts = self.get_host_list()
         host_count = len(hosts)
@@ -2096,7 +2478,7 @@ class NetworkClient(VsphereClient):
 
         port_group_count = sum(port_group_counts)
 
-        ctx.logger.debug(
+        logger().debug(
             '{type} group {name} found on {port_group_count} out of '
             '{host_count} hosts.'.format(
                 type='Distributed port' if distributed else 'Port',
@@ -2109,34 +2491,35 @@ class NetworkClient(VsphereClient):
         return port_group_count, host_count
 
     def get_port_group_by_name(self, name):
-        ctx.logger.debug("Getting port group by name.")
+        logger().debug("Getting port group by name.")
         result = []
         for host in self.get_host_list():
             network_system = host.configManager.networkSystem
             port_groups = network_system.networkInfo.portgroup
             for port_group in port_groups:
                 if name.lower() == port_group.spec.name.lower():
-                    ctx.logger.debug("Port group(s) info: \n%s." %
-                                     "".join("%s: %s" % item
-                                             for item in
-                                             vars(port_group).items()))
+                    logger().debug(
+                        "Port group(s) info: \n%s." % "".join(
+                            "%s: %s" % item
+                            for item in
+                            vars(port_group).items()))
                     result.append(port_group)
         return result
 
     def create_dv_port_group(self, port_group_name, vlan_id, vswitch_name):
-        ctx.logger.debug("Creating dv port group.")
+        logger().debug("Creating dv port group.")
 
         dvswitches = self.get_dvswitches()
 
         if vswitch_name not in dvswitches:
             if len(dvswitches) == 0:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'No valid dvswitches found. '
                     'A distributed virtual switch must exist for distributed '
                     'port groups to be used.'
                 )
             else:
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     '{dvswitch} was not a valid dvswitch name. The valid '
                     'dvswitches are: {dvswitches}'.format(
                         dvswitch=vswitch_name,
@@ -2149,10 +2532,11 @@ class NetworkClient(VsphereClient):
             vim.DistributedVirtualSwitch,
             vswitch_name,
         )
-        ctx.logger.debug("Distributed vSwitch info: \n%s." %
-                         "".join("%s: %s" % item
-                                 for item in
-                                 vars(dvswitch).items()))
+        logger().debug(
+            "Distributed vSwitch info: \n%s." % "".join(
+                "%s: %s" % item
+                for item in
+                vars(dvswitch).items()))
         vlan_spec = vim.dvs.VmwareDistributedVirtualSwitch.VlanIdSpec(
             vlanId=vlan_id)
         port_settings = \
@@ -2162,7 +2546,7 @@ class NetworkClient(VsphereClient):
             name=port_group_name,
             defaultPortConfig=port_settings,
             type=dv_port_group_type)
-        ctx.logger.debug(
+        logger().debug(
             'Adding distributed port group {group_name} to dvSwitch '
             '{dvswitch_name}'.format(
                 group_name=port_group_name,
@@ -2171,28 +2555,27 @@ class NetworkClient(VsphereClient):
         )
         task = dvswitch.obj.AddPortgroup(specification)
         self._wait_for_task(task)
-        ctx.logger.debug("Port created.")
+        logger().debug("Port created.")
 
     def delete_dv_port_group(self, name):
-        ctx.logger.debug("Deleting dv port group {name}.".format(
-                         name=name))
+        logger().debug("Deleting dv port group {name}.".format(name=name))
         dv_port_group = self._get_obj_by_name(
             vim.dvs.DistributedVirtualPortgroup,
             name,
         )
         task = dv_port_group.obj.Destroy()
         self._wait_for_task(task)
-        ctx.logger.debug("Port deleted.")
+        logger().debug("Port deleted.")
 
 
 class StorageClient(VsphereClient):
 
     def create_storage(self, vm_id, storage_size):
-        ctx.logger.debug("Entering create storage procedure.")
+        logger().debug("Entering create storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        ctx.logger.debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         if self.is_server_suspended(vm):
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to create storage:'
                 ' invalid VM state - \'suspended\''
             )
@@ -2238,7 +2621,7 @@ class StorageClient(VsphereClient):
 
         # Exit error if VMDK filename undefined
         if vm_disk_filename is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to create storage:'
                 ' Invalid VMDK name - \'{0}\''.format(vm_disk_filename_cur)
             )
@@ -2262,7 +2645,7 @@ class StorageClient(VsphereClient):
                 num_controller += 1
                 controller = vm_device
         if num_controller != 1:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to create storage: '
                 'SCSI controller cannot be found or is present more than '
                 'once.'
@@ -2276,7 +2659,7 @@ class StorageClient(VsphereClient):
         if vm_vdisk_number < 7:
             unit_number = vm_vdisk_number
         elif vm_vdisk_number == 15:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to create storage: one SCSI controller '
                 'cannot have more than 15 virtual disks.'
             )
@@ -2292,7 +2675,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        ctx.logger.debug("Task info: \n%s." % prepare_for_log(vars(task)))
+        logger().debug("Task info: \n%s." % prepare_for_log(vars(task)))
         self._wait_for_task(task)
 
         # Get the SCSI bus and unit IDs
@@ -2317,7 +2700,7 @@ class StorageClient(VsphereClient):
                 # We found the right disk, we can't do any better than this
                 break
         if bus_id is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Could not find SCSI bus ID for disk with filename: '
                 '{file}'.format(file=vm_disk_filename)
             )
@@ -2328,11 +2711,11 @@ class StorageClient(VsphereClient):
         return vm_disk_filename, scsi_id
 
     def delete_storage(self, vm_id, storage_file_name):
-        ctx.logger.debug("Entering delete storage procedure.")
+        logger().debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        ctx.logger.debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         if self.is_server_suspended(vm):
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 "Error during trying to delete storage: invalid VM state - "
                 "'suspended'"
             )
@@ -2353,7 +2736,7 @@ class StorageClient(VsphereClient):
                 device_to_delete = device
 
         if device_to_delete is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to delete storage: storage not found')
 
         virtual_device_spec.device = device_to_delete
@@ -2364,29 +2747,29 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        ctx.logger.debug("Task info: \n%s." % prepare_for_log(vars(task)))
+        logger().debug("Task info: \n%s." % prepare_for_log(vars(task)))
         self._wait_for_task(task)
 
     def get_storage(self, vm_id, storage_file_name):
-        ctx.logger.debug("Entering get storage procedure.")
+        logger().debug("Entering get storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        ctx.logger.debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         if vm:
             for device in vm.config.hardware.device:
                 if isinstance(device, vim.vm.device.VirtualDisk)\
                         and device.backing.fileName == storage_file_name:
-                    ctx.logger.debug(
+                    logger().debug(
                         "Device info: \n%s." % prepare_for_log(vars(device))
                     )
                     return device
         return None
 
     def resize_storage(self, vm_id, storage_filename, storage_size):
-        ctx.logger.debug("Entering resize storage procedure.")
+        logger().debug("Entering resize storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        ctx.logger.debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         if self.is_server_suspended(vm):
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to resize storage: invalid VM state'
                 ' - \'suspended\'')
 
@@ -2398,7 +2781,7 @@ class StorageClient(VsphereClient):
                 disk_to_resize = device
 
         if disk_to_resize is None:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Error during trying to resize storage: storage not found')
 
         updated_devices = []
@@ -2417,36 +2800,22 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = updated_devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        ctx.logger.debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         self._wait_for_task(task)
-        ctx.logger.debug("Storage resized to a new size %s." % storage_size)
+        logger().debug("Storage resized to a new size %s." % storage_size)
 
 
-def with_server_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        server_client = ServerClient().get(config=config)
-        kw['server_client'] = server_client
-        return f(*args, **kw)
-    return wrapper
+def _with_client(client_name, client):
+    def decorator(f):
+        @wraps(f)
+        def wrapper(*args, **kwargs):
+            config = ctx.node.properties.get('connection_config')
+            kwargs[client_name] = client().get(config=config)
+            return f(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
-def with_network_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        network_client = NetworkClient().get(config=config)
-        kw['network_client'] = network_client
-        return f(*args, **kw)
-    return wrapper
-
-
-def with_storage_client(f):
-    @wraps(f)
-    def wrapper(*args, **kw):
-        config = ctx.node.properties.get('connection_config')
-        storage_client = StorageClient().get(config=config)
-        kw['storage_client'] = storage_client
-        return f(*args, **kw)
-    return wrapper
+with_server_client = _with_client('server_client', ServerClient)
+with_network_client = _with_client('network_client', NetworkClient)
+with_storage_client = _with_client('storage_client', StorageClient)

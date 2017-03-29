@@ -61,6 +61,14 @@ inputs:
       signifies if server is to be automatically placed on a host
     default: false
     type: boolean
+  certificate_path:
+    description: >
+      The path to the vCenter certificate.
+    default: ''
+  allow_insecure:
+    description: >
+      Whether to allow insecure connections.
+    default: true
 
 node_types:
   connection_configuration:
@@ -80,6 +88,8 @@ node_templates:
         datacenter_name: { get_input: vsphere_datacenter_name }
         resource_pool_name: { get_input: vsphere_resource_pool_name }
         auto_placement: { get_input: vsphere_auto_placement }
+        certificate_path: { get_input: certificate_path }
+        allow_insecure: { get_input: allow_insecure }
 
   systemtestlinuxnamingnoname:
     type: cloudify.vsphere.nodes.Server

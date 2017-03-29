@@ -21,6 +21,7 @@ from pyVim.connect import Disconnect
 from pyVmomi import vim
 
 from cloudify.exceptions import NonRecoverableError
+from cloudify.state import current_ctx
 from cosmo_tester.framework.testenv import TestCase
 
 from . import categorise_calls
@@ -186,7 +187,8 @@ class VsphereIntegrationTest(TestCase):
         (
             'get_properties_name,parent,hardware.memorySize,'
             'hardware.cpuInfo.numCpuThreads,overallStatus,network,'
-            'summary.runtime.connectionState,vm,datastore,'
+            'summary.runtime.connectionState,'
+            'summary.runtime.inMaintenanceMode,vm,datastore,'
             'config.network.vswitch,configManager_from_HostSystem'
         ): 1,
         'get_properties_name,resourcePool_from_ClusterComputeResource': 1,
@@ -218,13 +220,16 @@ class VsphereIntegrationTest(TestCase):
 
         self.client = ServerClient()
         self.client.connect(cfg=self.cfg)
+        self.addCleanup(
+            Disconnect,
+            self.client.si,
+        )
         self.platform_caller = mock.patch.object(
             self.client.si._stub, 'InvokeMethod',
             wraps=self.client.si._stub.InvokeMethod,
         ).start()
 
     def tearDown(self):
-        Disconnect(self.client.si)
         self.platform_caller = None
 
     def _get_nocache_expectation(self, original_calls):
@@ -580,6 +585,7 @@ class VsphereIntegrationTest(TestCase):
             host.summary.runtime,
             [
                 'connectionState',
+                'inMaintenanceMode',
             ],
             include_defaults=False,
         )
@@ -901,7 +907,8 @@ class VsphereIntegrationTest(TestCase):
             (
                 'get_properties_name,parent,hardware.memorySize,'
                 'hardware.cpuInfo.numCpuThreads,overallStatus,network,'
-                'summary.runtime.connectionState,vm,datastore,'
+                'summary.runtime.connectionState,'
+                'summary.runtime.inMaintenanceMode,vm,datastore,'
                 'config.network.vswitch,configManager_from_HostSystem'
             ): 2,
             'get_properties_name,resourcePool_from_ClusterComputeResource': 2,
@@ -919,11 +926,14 @@ class VsphereIntegrationTest(TestCase):
         calls = categorise_calls(self.platform_caller.call_args_list)
         self.assertEqual(expected_calls, calls)
 
-    def start_vm_deploy(self, vm_name):
+    def start_vm_deploy(
+        self, vm_name,
+        vm_template_key='windows_template',
+        vm_memory=512,
+    ):
         template = self.client._get_obj_by_name(
             vimtype=vim.VirtualMachine,
-            # Use windows template because their minimum size is huge
-            name=self.env.cloudify_config['windows_template'],
+            name=self.env.cloudify_config[vm_template_key],
         ).obj
         datastore = self.client._get_obj_by_name(
             vimtype=vim.Datastore,
@@ -945,7 +955,7 @@ class VsphereIntegrationTest(TestCase):
 
         conf = vim.vm.ConfigSpec()
         conf.numCPUs = 1
-        conf.memoryMB = 512
+        conf.memoryMB = vm_memory
 
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
@@ -1001,3 +1011,235 @@ class VsphereIntegrationTest(TestCase):
             self.logger.info('get_vms concurrency is healthy')
         except NonRecoverableError as err:
             raise AssertionError(err.message)
+
+    def test_vm_memory_overcommit(self):
+        ctx = mock.Mock()
+        current_ctx.set(ctx)
+        vm_name = 'vm_overcommit_test'
+        task = self.start_vm_deploy(
+            vm_name,
+            vm_memory=4177920,  # vSphere max memory size
+            vm_template_key='linux_template',
+        )
+
+        while task.info.state in (
+            vim.TaskInfo.State.queued,
+            vim.TaskInfo.State.running,
+        ):
+            time.sleep(0.5)
+
+        vm = self.client._get_obj_by_name(
+            vim.VirtualMachine,
+            vm_name,
+            use_cache=False,
+        )
+
+        self.addCleanup(
+            self.client.delete_server,
+            vm,
+        )
+
+        candidates = self.client.find_candidate_hosts(
+            resource_pool='Resources',
+            vm_cpus=1,
+            vm_memory=2048,
+            vm_networks={},
+        )
+
+        for candidate in candidates:
+            if candidate[0].name == vm.summary.runtime.host.name:
+                # Should be less than 0 memory because we created a huge VM
+                self.assertLess(candidate[2], 0)
+                break
+        else:
+            raise ValueError(
+                "didn't find the host for the test VM. "
+                "Something bad is going on")
+
+    def test_maintenance_mode_unsuitable(self):
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+        print(host)
+
+        self.assertTrue(
+            self.client.host_is_usable(host),
+            msg=(
+                'temporary_maintenance_host should be healthy but is not. '
+                'Check that health is green or yellow and it is not '
+                'disconnected or in maintenance mode.'
+            ),
+        )
+
+        self._maint_mode('enter', host)
+
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+        usable_during = self.client.host_is_usable(host)
+
+        self._maint_mode('exit', host)
+        host = self._get_host_uncached(
+            self.env.cloudify_config['temporary_maintenance_host'],
+        )
+
+        self.assertFalse(
+            usable_during,
+            msg=(
+                'Host {host} should not be usable while in maintenance '
+                'mode.'.format(
+                    host=host.name,
+                )
+            ),
+        )
+
+        self.assertTrue(
+            self.client.host_is_usable(host),
+            msg=(
+                'Host {host} should be usable again after exiting '
+                'maintenance mode.'.format(
+                    host=host.name,
+                )
+            ),
+        )
+
+    def _get_key_by_name(self, name):
+        return next(
+            key for
+            key in self.client.si.content.customFieldsManager.field
+            if key.name == name)
+
+    def test_add_new_custom_attr(self):
+        self.client._get_custom_keys()
+        try:
+            key = self.client.si.content.customFieldsManager.AddCustomFieldDef(
+                'test_custom_field')
+        except vim.fault.DuplicateName:
+            key = self._get_key_by_name('test_custom_field')
+        self.addCleanup(
+            self.client.si.content.customFieldsManager.RemoveCustomFieldDef,
+            key.key,
+        )
+        server = mock.Mock()
+
+        vals = self.client.custom_values(server)
+
+        vals['test_custom_field'] = 'dleif_motsuc_tset'
+
+        server.obj.setCustomValue.assert_called_once_with(
+            'test_custom_field', 'dleif_motsuc_tset'
+        )
+
+    def test_add_custom_attr_invalid_cache(self):
+        # populate the cache before creating
+        self.client._get_custom_keys()
+        try:
+            key = self.client.si.content.customFieldsManager.AddCustomFieldDef(
+                'test_custom_field')
+        except vim.fault.DuplicateName:
+            key = self._get_key_by_name('test_custom_field')
+        self.addCleanup(
+            self.client.si.content.customFieldsManager.RemoveCustomFieldDef,
+            key.key,
+        )
+        server = mock.Mock()
+
+        vals = self.client.custom_values(server)
+
+        vals['test_custom_field'] = 'dleif_motsuc_tset'
+
+        server.obj.setCustomValue.assert_called_once_with(
+            'test_custom_field', 'dleif_motsuc_tset'
+        )
+
+    def _get_host_uncached(self, host_name):
+        return self.client._get_obj_by_name(
+            vimtype=vim.HostSystem,
+            name=host_name,
+            use_cache=False,
+        )
+
+    def _maint_mode(self, enter_or_exit, host):
+        expected = {
+            'enter': True,
+            'exit': False,
+        }[enter_or_exit]
+
+        # This has been observed to fail without obvious cause on one attempt
+        # then succeed on the next so we will retry so that we can confirm the
+        # plugin behaves correctly even if the environment it deploys in may
+        # not always.
+        attempts = 3
+        for i in range(0, attempts):
+            if enter_or_exit == 'enter':
+                task = host.obj.EnterMaintenanceMode(timeout=60)
+            else:
+                task = host.obj.ExitMaintenanceMode(timeout=60)
+            while task.info.state in ('queued', 'running'):
+                time.sleep(0.5)
+
+            if host.obj.summary.runtime.inMaintenanceMode == expected:
+                return True
+        raise AssertionError(
+            'Failed to {eoe} maintenance mode on host '
+            '{host}.'.format(
+                eoe=enter_or_exit,
+                host=host.name,
+            )
+        )
+
+    @mock.patch('vsphere_plugin_common.ctx')
+    def test_find_candidate_hosts_case_insensitive_nets(self, mock_ctx):
+        resource_pool_name = (
+            self.env.cloudify_config['vsphere_resource_pool_name']
+        )
+        cpus = 1
+        vm_memory = 512
+        allowed_hosts = ()
+        allowed_clusters = ()
+
+        net = self.env.cloudify_config['existing_standard_network']
+        networks_upper = [
+            {
+                'name': net.upper(),
+                'switch_distributed': False,
+            }
+        ]
+        networks_lower = [
+            {
+                'name': net.lower(),
+                'switch_distributed': False,
+            }
+        ]
+
+        candidates_upper_net = self.client.find_candidate_hosts(
+            resource_pool=resource_pool_name,
+            vm_cpus=cpus,
+            vm_memory=vm_memory,
+            vm_networks=networks_upper,
+            allowed_hosts=allowed_hosts,
+            allowed_clusters=allowed_clusters,
+        )
+        candidates_lower_net = self.client.find_candidate_hosts(
+            resource_pool=resource_pool_name,
+            vm_cpus=cpus,
+            vm_memory=vm_memory,
+            vm_networks=networks_lower,
+            allowed_hosts=allowed_hosts,
+            allowed_clusters=allowed_clusters,
+        )
+
+        assert candidates_upper_net == candidates_lower_net
+
+        for message in mock_ctx.logger.warn.call_args_list:
+            # call args [0] is
+            if 'message' in message[1]:
+                # message of **kwargs
+                message = message[1]['message'].lower()
+            else:
+                # First arg or *args
+                message = message[0][0].lower()
+
+            if 'Missing standard networks:' in message:
+                assert net.upper() not in message
+                assert net.lower() not in message

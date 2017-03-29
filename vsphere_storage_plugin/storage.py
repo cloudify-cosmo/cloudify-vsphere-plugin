@@ -20,11 +20,10 @@
 # Cloudify imports
 from cloudify import ctx
 from cloudify.decorators import operation
-from cloudify import exceptions as cfy_exc
+from cloudify.exceptions import NonRecoverableError
 
 # This package imports
 from vsphere_plugin_common import (
-    prepare_for_log,
     with_storage_client,
     remove_runtime_properties,
 )
@@ -36,6 +35,7 @@ from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_RUNTIME_PROPERTIES,
 )
 from vsphere_server_plugin.server import VSPHERE_SERVER_ID
+from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
 @operation
@@ -56,14 +56,14 @@ def create(storage_client, **kwargs):
     storage_size = storage['storage_size']
     capabilities = ctx.capabilities.get_all().values()
     if not capabilities:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             'Error during trying to create storage: storage should be '
             'related to a VM, but capabilities are empty.')
 
     connected_vms = [rt_properties for rt_properties in capabilities
                      if VSPHERE_SERVER_ID in rt_properties]
     if len(connected_vms) > 1:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             'Error during trying to create storage: storage may be '
             'connected to at most one VM')
 
@@ -77,10 +77,21 @@ def create(storage_client, **kwargs):
             size=storage['storage_size']
         )
     )
-    storage_file_name, scsi_id = storage_client.create_storage(
-        vm_id,
-        storage_size,
-    )
+
+    try:
+        storage_file_name, scsi_id = storage_client.create_storage(
+            vm_id,
+            storage_size,
+        )
+    except NonRecoverableError as e:
+        # If more than one storage is attached to the same VM, there is a race
+        # and they might try to use the same name. If that happens the loser
+        # will retry.
+        if 'vim.fault.FileAlreadyExists' in str(e):
+            ctx.operation.retry('Name clash with another storage. Retrying')
+            return
+        raise
+
     ctx.logger.info(
         "Storage successfully created on VM '{vm}' with file name "
         "'{file_name}' and SCSI ID: {scsi} ".format(
@@ -129,7 +140,7 @@ def resize(storage_client, **kwargs):
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
     storage_size = ctx.instance.runtime_properties.get('storage_size')
     if not storage_size:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             'Error during trying to resize storage: new storage size wasn\'t'
             ' specified.')
     ctx.logger.info(

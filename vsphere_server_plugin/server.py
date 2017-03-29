@@ -20,24 +20,23 @@ import string
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.decorators import operation
 from cloudify import exceptions as cfy_exc
+from cloudify.decorators import operation
 
 # This package imports
 from vsphere_plugin_common import (
-    prepare_for_log,
-    ConnectionConfig,
-    with_server_client,
-    remove_runtime_properties,
     get_ip_from_vsphere_nic_ips,
+    remove_runtime_properties,
+    with_server_client,
 )
 from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,
     PUBLIC_IP,
-    VSPHERE_SERVER_ID,
     SERVER_RUNTIME_PROPERTIES,
+    VSPHERE_SERVER_ID,
 )
+from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
 def validate_connect_network(network):
@@ -49,6 +48,7 @@ def validate_connect_network(network):
 
     allowed = {
         'name': basestring,
+        'from_relationship': bool,
         'management': bool,
         'external': bool,
         'switch_distributed': bool,
@@ -137,35 +137,33 @@ def create_new_server(server_client):
 
         for network in connect_networks:
             validate_connect_network(network)
-            if network.get('external', False):
+            net = {
+                'name': network['name'],
+                'from_relationship': network.get('from_relationship', False),
+                'external': network.get('external', False),
+                'switch_distributed': network.get('switch_distributed',
+                                                  False),
+                'use_dhcp': network.get('use_dhcp', True),
+                'network': network.get('network'),
+                'gateway': network.get('gateway'),
+                'ip': network.get('ip'),
+            }
+            if net['external']:
                 networks.insert(
                     0,
-                    {'name': network['name'],
-                     'external': True,
-                     'switch_distributed': network.get('switch_distributed',
-                                                       False),
-                     'use_dhcp': network.get('use_dhcp', True),
-                     'network': network.get('network'),
-                     'gateway': network.get('gateway'),
-                     'ip': network.get('ip'),
-                     })
+                    net,
+                )
             else:
                 networks.append(
-                    {'name': network['name'],
-                     'external': False,
-                     'switch_distributed': network.get('switch_distributed',
-                                                       False),
-                     'use_dhcp': network.get('use_dhcp', True),
-                     'network': network.get('network'),
-                     'gateway': network.get('gateway'),
-                     'ip': network.get('ip'),
-                     })
+                    net,
+                )
 
-    connection_config = ConnectionConfig().get()
-    connection_config.update(ctx.node.properties.get('connection_config'))
+    connection_config = server_client.cfg
     datacenter_name = connection_config['datacenter_name']
     resource_pool_name = connection_config['resource_pool_name']
-    auto_placement = connection_config['auto_placement']
+    # auto_placement deprecated- deprecation warning emitted where it is
+    # actually used.
+    auto_placement = connection_config.get('auto_placement', True)
     template_name = server['template']
     cpus = server['cpus']
     memory = server['memory']
@@ -397,7 +395,42 @@ def get_state(server_client, **kwargs):
 
 @operation
 @with_server_client
+def resize_server(server_client, cpus=None, memory=None, **kwargs):
+    if not any((
+        cpus,
+        memory,
+    )):
+        ctx.logger.info(
+            "Attempt to resize Server with no sizes specified")
+        return
+
+    server = get_server_by_context(server_client)
+    if server is None:
+        raise cfy_exc.NonRecoverableError(
+            "Cannot resize server - server doesn't exist for node: {0}"
+            .format(ctx.node.id))
+
+    server_client.resize_server(
+        server,
+        cpus=cpus,
+        memory=memory,
+    )
+
+    for property in 'cpus', 'memory':
+        value = locals()[property]
+        if value:
+            ctx.instance.runtime_properties[property] = value
+
+
+@operation
+@with_server_client
 def resize(server_client, **kwargs):
+    ctx.logger.warn(
+        "This operation may be removed at any point from "
+        "cloudify-vsphere-plugin==3. "
+        "Please use resize_server (cloudify.interfaces.modify.resize) "
+        "instead.",
+    )
     server = get_server_by_context(server_client)
     if server is None:
         raise cfy_exc.NonRecoverableError(

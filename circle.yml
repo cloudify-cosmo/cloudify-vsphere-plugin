@@ -1,22 +1,19 @@
-checkout:
-  post:
-    - >
-      if [ -n "$CI_PULL_REQUEST" ]; then
-        PR_ID=${CI_PULL_REQUEST##*/}
-        git fetch origin +refs/pull/$PR_ID/merge:
-        git checkout -qf FETCH_HEAD
-      fi
+machine:
+  python:
+    version: 2.7.9
 
 dependencies:
-  pre:
-    - pyenv local 2.7.9
   override:
     - pip install tox
 
 test:
   override:
+    - pip install virtualenv
+    - mkdir -p "$CIRCLE_TEST_REPORTS/nose"
     - tox -e pep8
-    - tox -e py27
+    - tox -e py27 -- --with-xunit --xunit-file="$CIRCLE_TEST_REPORTS/nose/nose.xml"
+    - tox -e docs
+    - mv .tox/docs/tmp/html $CIRCLE_ARTIFACTS
 
 deployment:
   release:
