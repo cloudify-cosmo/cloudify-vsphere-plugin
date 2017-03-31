@@ -1,0 +1,279 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/3.4.1/types.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.3.0-devel/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-nsx-plugin/master/plugin.yaml
+
+inputs:
+  nsx_ip:
+    type: string
+    description: >
+       nsx server ip
+  nsx_user:
+    type: string
+    description: >
+       nsx server user
+  nsx_password:
+    type: string
+    description: >
+       nsx server user password
+  nsx_raml:
+    type: string
+    description: >
+       RAML file path.
+       It is recommended that this is left blank, which will cause the NSX plugin to use
+       its built in RAML.
+    default: ""
+
+  vsphere_username:
+    type: string
+    description: >
+      User login for vsphere
+  vsphere_password:
+    type: string
+    default: ''
+    description: >
+      User password for vsphere
+  vsphere_host:
+    description: >
+      vSphere host
+    type: string
+  vsphere_port:
+    description: >
+      Port which the vSphere API is on.
+      This should probably not be changed.
+    default: 443
+    type: string
+  vsphere_datacenter_name:
+    description: >
+      datacenter name
+    default: Datacenter
+    type: string
+  vsphere_resource_pool_name:
+    description: >
+      Resource pool name. Represents a set of physical resources:
+      a single host, a subset of a host's resources, or resources
+      spanning multiple hosts
+    default: Resources
+    type: string
+  certificate_path:
+    description: >
+      Path to the PEM encoded certificate for vSphere.
+      If this is not used, allow_insecure MUST be set to true
+      This can only be used if you are using python >= 2.7.9.
+      If you are using an older version of python, allow_insecure should be set true.
+    type: string
+  allow_insecure:
+    description: >
+      Whether to allow insecure connections to vSphere.
+      Currently, not setting this will simply result in a deprecation warning,
+      but for compatibility with future versions of the plugin it should be set.
+      If you are on python < 2.7.9 you should set this to true.
+      If you are using python >= 2.7.9 and you have set a certificate_path, you must set this false.
+    type: boolean
+    default: false
+
+  name_prefix:
+    description: >
+      What to prefix all created entities with.
+      For best results, this should have a trailing -
+    type: string
+    default: cfy-example-
+
+  linux_template:
+    description: >
+      The name of the linux template to use.
+      It is recommended that this be Centos 7.
+    type: string
+  windows_template:
+    description: >
+      The name of the windows template to use.
+    type: string
+
+  external_network:
+    description: >
+      The name of the external facing network.
+      This is the network, which is expected to have DHCP, which is reachable from
+      the location this blueprint is being run from.
+      If there is no DHCP, the blueprint will need modifying to use static IPs.
+    type: string
+  external_network_distributed:
+    description: >
+      Whether the external network is a distributed port group (true)
+      or standard port group (false).
+    default: true
+    type: boolean
+
+  key_path:
+    description: >
+      The path to the private key which can be used to SSH into the linux template.
+    type: string
+    default: ~/.ssh/id_rsa
+  username:
+    description: >
+      The user name to use with the private key when SSHing into the linux template.
+    type: string
+    default: centos
+
+dsl_definitions:
+  - &nsx_auth
+    username: { get_input: nsx_user }
+    password: { get_input: nsx_password }
+    host: { get_input: nsx_ip }
+    raml: { get_input: nsx_raml }
+
+  - &connection_configuration
+    username: { get_input: vsphere_username }
+    password: { get_input: vsphere_password }
+    host: { get_input: vsphere_host }
+    port: { get_input: vsphere_port }
+    datacenter_name: { get_input: vsphere_datacenter_name }
+    resource_pool_name: { get_input: vsphere_resource_pool_name }
+    certificate_path: { get_input: certificate_path }
+    allow_insecure: { get_input: allow_insecure }
+
+node_templates:
+  # server - connected to NSX net; member of nested sec group
+  server_linux:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      install_agent: false
+      server:
+        name: { concat: [ { get_input: name_prefix }, example-linux ] }
+        template: { get_input: linux_template }
+        cpus: 1
+        memory: 2048
+      networking:
+        connect_networks:
+          - name: { get_input: external_network }
+            switch_distributed: { get_input: external_network_distributed }
+            external: True
+      connection_config: *connection_configuration
+
+  # windows server - connected to NSX net; member of nested sec group
+  server_windows:
+    type: cloudify.vsphere.nodes.WindowsServer
+    properties:
+      install_agent: false
+      server:
+        name: { concat: [ { get_input: name_prefix }, example-windows ] }
+        template: { get_input: windows_template }
+        cpus: 1
+        memory: 2048
+      networking:
+        connect_networks:
+          - name: { get_input: external_network }
+            switch_distributed: { get_input: external_network_distributed }
+            external: True
+      connection_config: *connection_configuration
+
+  # NSX network
+  lswitch:
+    type: cloudify.nsx.lswitch
+    properties:
+      nsx_auth: *nsx_auth
+      switch:
+        name: {concat:[{get_input: name_prefix}, example-lswitch]}
+        transport_zone: Main_Zone
+        # UNICAST_MODE, MULTYCAST_MODE, HYBRID_MODE
+        mode: UNICAST_MODE
+
+  # NSX security tag on windows server
+  security_tag:
+    type: cloudify.nsx.security_tag
+    properties:
+      nsx_auth: *nsx_auth
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            tag:
+              name: {concat:[{get_input: name_prefix}, example-tag]}
+              description: Example security tag
+  tag_vm:
+    type: cloudify.nsx.security_tag_vm
+    properties:
+      nsx_auth: *nsx_auth
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            vm_tag:
+              # These must go into inputs rather than properties
+              # if they go into properties they will not look up the attributes
+              tag_id: { get_attribute: [ security_tag, resource_id ] }
+              vm_id: { get_attribute: [ server_windows, vsphere_server_id ] }
+    relationships:
+      - type: cloudify.relationships.contained_in
+        target: security_tag
+      - type: cloudify.relationships.connected_to
+        target: server_windows
+
+  # Storage on linux server
+  disk:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      storage:
+        storage_size: 1
+      connection_config: *connection_configuration
+    relationships:
+      - target: server_linux
+        type: cloudify.vsphere.storage_connected_to_server
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file: scripts/test_disk.py
+            task_name: configure
+            fabric_env:
+              user: { get_input: username }
+              key_filename: { get_input: key_path }
+              host_string: { get_attribute: [ server_linux, public_ip ] }
+              scsi_id: { get_attribute: [ disk, scsi_id ] }
+
+  # NSX security group
+  root_security_group:
+    type: cloudify.nsx.security_group
+    properties:
+      nsx_auth: *nsx_auth
+      group:
+        scopeId: globalroot-0
+        name: {concat:[{get_input: name_prefix}, example-root-security-group]}
+
+  # NSX security group nested
+  nested_security_group:
+    type: cloudify.nsx.security_group
+    properties:
+      nsx_auth: *nsx_auth
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            group:
+              scopeId: globalroot-0
+              name: {concat:[{get_input: name_prefix}, example-nested-security-group]}
+              member:
+                objectId: { get_attribute: [ root_security_group, resource_id ] }
+              dynamicMemberDefinition:
+                dynamicSet:
+                  - operator: OR
+                    dynamicCriteria:
+                      operator: OR
+                      isValid: true
+                      key: VM.GUEST_HOST_NAME
+                      value: linux
+                      criteria: contains
+                  - operator: OR
+                    dynamicCriteria:
+                      operator: OR
+                      isValid: true
+                      key: VM.SECURITY_TAG
+                      value: { get_attribute: [ security_tag, tag, name ] }
+                      criteria: contains
+    relationships:
+      - type: cloudify.relationships.connected_to
+        target: root_security_group
+      - type: cloudify.relationships.connected_to
+        target: security_tag

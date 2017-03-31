@@ -1,0 +1,44 @@
+namespace: vsphere
+username:
+  description: The username to use when connecting to the vCenter.
+password:
+  description: The password to use when connecting to the vCenter.
+host:
+  description: The IP or (resolvable) host name of the vCenter.
+port:
+  description: The port of the vCenter. You are unlikely to need to change this.
+  default: 443
+resource_pool:
+  description: Which resource pool to deploy test VMs into.
+  default: Resources
+datacenter:
+  description: Which datacenter to deploy test resources in.
+  default: Datacenter
+certificate_path:
+  description: The path to the certificate for the vCenter. On versions of python prior to 2.7.11 you should leave this blank.
+  default: ''
+allow_insecure:
+  description: Whether to allow insecure connections to the vCenter. On versions of python prior to 2.7.11 you must set this to true.
+  default: false
+linux_template:
+  description: >
+    The name of a usable linux template.
+    The template must allow SSH access based on the ssh_username and ssh_key_path configuration entries.
+    It is expected that all utilities within the test_disk and test_net scripts can be run on the template.
+windows_template:
+  description: The name of a usable windows template. WinRM must be enabled as detailed in the WinRM documentation.
+distributed_network:
+  description: The name of a usable distributed network. This network is expected to have DHCP and to be reachable via SSH and WinRM from the host on which these tests are being run.
+test_vlan:
+  description: The VLAN to use when creating test networks. This does not need any external access but should be different to any other VLANs you are using.
+  default: 404
+standard_vswitch:
+  description: The standard vswitch to create test networks (port groups) on. This vSwitch must be on all servers.
+  default: vSwitch0
+distributed_vswitch:
+  description: The distributed vswitch to create test networks (distributed port groups) on.
+  default: DSwitch
+ssh_username:
+  description: Username that allows SSH access to the linux template.
+ssh_key_path:
+  description: Path to SSH key that allows SSH access to the linux template with the ssh_username.

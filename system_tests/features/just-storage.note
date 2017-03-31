@@ -1,0 +1,2 @@
+# Storage cannot be created alone and appears more like an extra attribute on a VM.
+# Therefore, there is no test of just storage until/unless it can be modified to be a separate entity.
