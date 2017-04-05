@@ -433,14 +433,25 @@ class VsphereClient(object):
                     )
                 )
             except KeyError as err:
-                if not skip_broken_objects:
-                    raise NonRecoverableError(
-                        'Could not retrieve all details for {type} object. '
-                        '{err} was missing.'.format(
-                            type=entity_name,
-                            err=str(err)
-                        )
+                message = (
+                    'Could not retrieve all details for {type} object. '
+                    '{err} was missing.'.format(
+                        type=entity_name,
+                        err=str(err)
                     )
+                )
+                if hasattr(result, 'name'):
+                    message += (
+                        ' Object name was {name}.'.format(name=result.name)
+                    )
+                if hasattr(result, '_moId'):
+                    message += (
+                        ' Object ID was {id}.'.format(id=result._moId)
+                    )
+                if skip_broken_objects:
+                    ctx.logger.warn(message)
+                else:
+                    raise NonRecoverableError(message)
 
         self._cache[entity_name] = results
 
@@ -817,6 +828,7 @@ class VsphereClient(object):
                     'datastore': self._get_datastores(use_cache=use_cache),
                 },
             },
+            skip_broken_objects=True,
         )
 
     def _get_getter_method(self, vimtype):

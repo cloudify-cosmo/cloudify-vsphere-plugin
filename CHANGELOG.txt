@@ -12,6 +12,7 @@
   - Support for SSL verification (or disabling of verification) (VSPHERE-39, VSPHERE-47)
   - Fix naming collision when deploying a node with two attached volumes (VSPHERE-27)
   - Deprecate auto_placement
+  - Handle unhealthy hypervisors (VSPHERE-101)
 2.2.1:
   - Fix handling of VMs currently being cloned (VSPHERE-86)
 2.2.0:

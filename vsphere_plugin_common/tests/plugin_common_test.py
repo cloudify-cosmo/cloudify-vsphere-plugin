@@ -2049,8 +2049,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
             server.obj.customValue.__len__.return_value
         )
 
-    def _find_deprecation_message(self, mock_ctx, expected_information=(),
-                                  expect_present=True):
+    def _get_warning_messages(self, mock_ctx):
+        messages = []
         for message in mock_ctx.logger.warn.call_args_list:
             # call args [0] is
             if 'message' in message[1]:
@@ -2060,6 +2060,13 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 # First arg or *args
                 message = message[0][0].lower()
 
+            messages.append(message)
+
+        return messages
+
+    def _find_deprecation_message(self, mock_ctx, expected_information=(),
+                                  expect_present=True):
+        for message in self._get_warning_messages(mock_ctx):
             if 'deprecated' in message.lower():
                 for expected in expected_information:
                     assert expected in message, (
@@ -2568,6 +2575,92 @@ class VspherePluginsCommonTests(unittest.TestCase):
         def get_cont(*args, **kwargs):
             return self._base_ssl_context
         ssl._create_default_https_context = get_cont
+
+    @patch('vsphere_plugin_common.VsphereClient._get_clusters')
+    @patch('vsphere_plugin_common.VsphereClient._get_computes')
+    @patch('vsphere_plugin_common.VsphereClient._get_networks')
+    @patch('vsphere_plugin_common.VsphereClient._get_vms')
+    @patch('vsphere_plugin_common.VsphereClient._get_datastores')
+    @patch('vsphere_plugin_common.VsphereClient._collect_properties')
+    @patch('vsphere_plugin_common.VsphereClient._convert_props_list_to_dict')
+    @patch('vsphere_plugin_common.VsphereClient._make_cached_object')
+    def test_get_hosts_some_broken(self,
+                                   mock_cached_object,
+                                   mock_convert,
+                                   mock_collect,
+                                   mock_get_datastores,
+                                   mock_get_vms,
+                                   mock_get_networks,
+                                   mock_get_computes,
+                                   mock_get_clusters):
+        mock_get_datastores.return_value = []
+        mock_get_vms.return_value = []
+        mock_get_networks.return_value = []
+        mock_get_computes.return_value = []
+        mock_get_clusters.return_value = []
+
+        broken_host_1 = Mock()
+        broken_host_1.name = 'brokenhost1'
+        broken_host_1._moId = 'host-1'
+
+        broken_host_2 = Mock()
+        delattr(broken_host_2, 'name')
+        broken_host_2._moId = 'host-2'
+
+        broken_host_3 = Mock()
+        broken_host_3.name = 'brokenhost3'
+        delattr(broken_host_3, '_moId')
+
+        broken_host_4 = Mock()
+        delattr(broken_host_4, 'name')
+        delattr(broken_host_4, '_moId')
+
+        happy_host = Mock()
+        happy_host.name = 'happyhost'
+        happy_host._moId = 'host-5'
+
+        mock_collect.return_value = (
+            broken_host_1,
+            broken_host_2,
+            broken_host_3,
+            broken_host_4,
+            happy_host,
+        )
+
+        failingkey = 'fakekey'
+        mock_cached_object.side_effect = (
+            KeyError(failingkey),
+            KeyError(failingkey),
+            KeyError(failingkey),
+            KeyError(failingkey),
+            'happy',
+        )
+
+        client = vsphere_plugin_common.ServerClient()
+        results = client._get_hosts()
+
+        warnings = self._get_warning_messages(self.mock_ctx)
+
+        self.assertEqual(results, ['happy'])
+
+        self.assertEqual(len(warnings), 4)
+
+        for warning in warnings:
+            self.assertIn('could not retrieve', warning)
+            self.assertIn('host object', warning)
+            self.assertIn('fakekey', warning)
+
+        self.assertIn('name was brokenhost1', warnings[0])
+        self.assertIn('id was host-1', warnings[0])
+
+        self.assertNotIn('name', warnings[1])
+        self.assertIn('id was host-2', warnings[1])
+
+        self.assertIn('name was brokenhost3', warnings[2])
+        self.assertNotIn('id', warnings[2])
+
+        self.assertNotIn('name', warnings[3])
+        self.assertNotIn('id', warnings[3])
 
 
 class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
