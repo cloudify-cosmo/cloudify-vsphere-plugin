@@ -229,6 +229,9 @@ class VsphereIntegrationTest(TestCase):
             wraps=self.client.si._stub.InvokeMethod,
         ).start()
 
+        ctx = mock.Mock()
+        current_ctx.set(ctx)
+
     def tearDown(self):
         self.platform_caller = None
 
