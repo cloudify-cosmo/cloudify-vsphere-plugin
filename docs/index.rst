@@ -15,6 +15,7 @@ Contents:
     requirements
     types
     examples
+    changelog
 
 
 Indices and tables
