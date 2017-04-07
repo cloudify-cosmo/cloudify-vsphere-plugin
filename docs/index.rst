@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Cloudify vSphere Plugin documentation
-=====================================
+Cloudify vSphere Plugin
+=======================
 The vSphere plugin allows users to use a vSphere based infrastructure for deploying services and applications.
 
 Contents:
