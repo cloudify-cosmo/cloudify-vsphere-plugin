@@ -263,6 +263,9 @@ class VsphereClient(object):
             else:
                 raise
 
+    def get_tasks(self):
+        return self.si.RetrieveContent().taskManager.recentTask
+
     def is_server_suspended(self, server):
         return server.summary.runtime.powerState.lower() == "suspended"
 

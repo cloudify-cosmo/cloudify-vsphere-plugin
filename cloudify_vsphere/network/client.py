@@ -1,11 +1,12 @@
 # Stdlib imports
+import time
 
 # Third party imports
 from pyVmomi import vim
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import RecoverableError, NonRecoverableError
 
 # This package imports
 from cloudify_vsphere.utils.feedback import logger
@@ -26,6 +27,23 @@ class NetworkClient(VsphereClient):
         logger().debug("Deleting port group {name}.".format(name=name))
         for host in self.get_host_list():
             host.configManager.networkSystem.RemovePortGroup(name)
+
+        # Putting in a short delay with retrying checks to allow success when
+        # uninstall workflows without retries are being run
+        check = 0
+        max_checks = 3
+        delay = 1
+        while self.port_group_is_on_any_hosts(name) and check < max_checks:
+            time.sleep(delay)
+            check += 1
+
+        if self.port_group_is_on_any_hosts(name):
+            raise RecoverableError(
+                'Port group {name} not yet deleted on all hosts.'.format(
+                    name=name,
+                )
+            )
+
         logger().debug("Port group {name} was deleted.".format(name=name))
 
     def get_vswitches(self):
@@ -138,6 +156,13 @@ class NetworkClient(VsphereClient):
             distributed,
         )
         return hosts == port_groups
+
+    def port_group_is_on_any_hosts(self, port_group_name, distributed=False):
+        port_groups, _ = self._get_port_group_host_count(
+            port_group_name,
+            distributed,
+        )
+        return port_groups > 0
 
     def _get_port_group_host_count(self, port_group_name, distributed=False):
         hosts = self.get_host_list()
