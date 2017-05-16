@@ -24,8 +24,8 @@ from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
+from cloudify_vsphere.network.client import with_network_client
 from vsphere_plugin_common import (
-    with_network_client,
     remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
