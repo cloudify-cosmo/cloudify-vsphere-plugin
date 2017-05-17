@@ -24,9 +24,15 @@ SERVER_RUNTIME_PROPERTIES = [VSPHERE_SERVER_ID, PUBLIC_IP, NETWORKS, IP]
 
 NETWORK_NAME = 'network_name'
 SWITCH_DISTRIBUTED = 'switch_distributed'
+CREATION_STATE = 'status'
+CREATED_ON = 'created_on'
 # If you change the next line you will probably break NSX integration
 NETWORK_ID = 'vsphere_network_id'
-NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME, SWITCH_DISTRIBUTED, NETWORK_ID]
+NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME,
+                              SWITCH_DISTRIBUTED,
+                              NETWORK_ID,
+                              CREATION_STATE,
+                              CREATED_ON]
 
 VSPHERE_STORAGE_FILE_NAME = 'datastore_file_name'
 VSPHERE_STORAGE_VM_ID = 'attached_vm_id'

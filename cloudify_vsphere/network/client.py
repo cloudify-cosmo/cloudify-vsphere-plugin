@@ -26,7 +26,10 @@ class NetworkClient(VsphereClient):
     def delete_port_group(self, name):
         logger().debug("Deleting port group {name}.".format(name=name))
         for host in self.get_host_list():
-            host.configManager.networkSystem.RemovePortGroup(name)
+            try:
+                host.configManager.networkSystem.RemovePortGroup(name)
+            except vim.fault.NotFound:
+                pass
 
         # Putting in a short delay with retrying checks to allow success when
         # uninstall workflows without retries are being run
@@ -278,8 +281,9 @@ class NetworkClient(VsphereClient):
             vim.dvs.DistributedVirtualPortgroup,
             name,
         )
-        task = dv_port_group.obj.Destroy()
-        self._wait_for_task(task)
+        if dv_port_group is not None:
+            task = dv_port_group.obj.Destroy()
+            self._wait_for_task(task)
         logger().debug("Port deleted.")
 
 
