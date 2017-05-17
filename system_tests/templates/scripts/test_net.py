@@ -115,7 +115,16 @@ def clear_ip_address(interface, ip):
     )
 
 
-def configure():
+def make_centos_not_break_test(interface):
+    run(
+        'echo -e "DEVICE={dev}\nBOOTPROTO=none" '
+        '> /etc/sysconfig/network-scripts/ifcfg-{dev} '
+        '&& service network restart '
+        '|| true'.format(dev=interface)
+    )
+
+
+def configure(prefix='172.31.0.'):
     test_network = env['test_network']
     relationship = ctx.instance.relationships[0]
 
@@ -128,8 +137,8 @@ def configure():
             else:
                 mac_address = net['mac']
 
-    prefix = '172.31.0.'
     interface = get_interface(mac_address)
+    make_centos_not_break_test(interface)
     last_octet = 1
     ip_assigned = False
 
@@ -160,10 +169,11 @@ def configure():
 
     ctx.instance.runtime_properties['ping_success'] = False
     if last_octet == 1:
-        target = '2'
+        # We'll let the ping test be done from the second configured node
+        pass
     else:
         target = '1'
-    # Test the networking by pinging the first IP in the range unless we
-    # are on that IP
-    run('ping -c4 -W1 {prefix}{dest}'.format(prefix=prefix, dest=target))
+        # Test the networking by pinging the first IP in the range unless we
+        # are on that IP
+        run('ping -c4 -W1 {prefix}{dest}'.format(prefix=prefix, dest=target))
     ctx.instance.runtime_properties['ping_success'] = True

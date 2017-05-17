@@ -122,6 +122,8 @@ node_templates:
           inputs:
             tasks_file: scripts/test_net.py
             task_name: configure
+            task_properties:
+                prefix: 172.17.45.
             fabric_env:
               user: { get_input: username }
               key_filename: { get_input: key_path }
@@ -140,6 +142,8 @@ node_templates:
           inputs:
             tasks_file: scripts/test_net.py
             task_name: configure
+            task_properties:
+                prefix: 172.17.46.
             fabric_env:
               user: { get_input: username }
               key_filename: { get_input: key_path }
@@ -184,6 +188,8 @@ node_templates:
           inputs:
             tasks_file: scripts/test_net.py
             task_name: configure
+            task_properties:
+                prefix: 172.17.45.
             fabric_env:
               user: { get_input: username }
               key_filename: { get_input: key_path }
@@ -202,6 +208,8 @@ node_templates:
           inputs:
             tasks_file: scripts/test_net.py
             task_name: configure
+            task_properties:
+                prefix: 172.17.46.
             fabric_env:
               user: { get_input: username }
               key_filename: { get_input: key_path }
