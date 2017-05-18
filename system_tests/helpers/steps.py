@@ -1,3 +1,4 @@
+from clients import get_vsphere_client
 from platform_state import (
     get_platform_entities,
     compare_state,
@@ -5,7 +6,7 @@ from platform_state import (
     supports_prefix_search,
 )
 
-from pytest_bdd import given, parsers, when, then
+from pytest_bdd import given, parsers, then, when
 import pytest
 
 import time
@@ -169,3 +170,98 @@ def get_created_entities(platform_changes):
 
 def get_deleted_entities(platform_changes):
     return platform_changes['deleted']
+
+
+@then(parsers.cfparse('local VM {node_name} power state is {state}'))
+def check_power_state(node_name, state, environment, tester_conf):
+    """
+        Assuming only one VM exists in the specified node, check that it
+        is in the correct power state- e.g. on or off.
+    """
+    check_state = get_power_state_name(state)
+
+    vm = get_vm_from_node(node_name, environment, tester_conf)
+
+    assert vm.obj.summary.runtime.powerState == check_state
+
+
+def get_power_state_name(state):
+    state = state.lower()
+    power_states = {
+        'on': 'poweredOn',
+        'off': 'poweredOff',
+    }
+    check_state = power_states.get(state)
+    if not check_state:
+        raise ValueError(
+            'Only power states the following power states can be checked: '
+            '{states}'.format(states=','.join(power_states.keys()))
+        )
+    return check_state
+
+
+def get_vm_from_node(node_name, environment, tester_conf):
+    deployment_instances = environment.cfy.local.instances()['cfy_instances']
+    vm_name = None
+    for instance in deployment_instances:
+        if instance['node_id'] == node_name:
+            vm_name = instance['runtime_properties']['name']
+            break
+    assert vm_name is not None, 'Instance {name} not found!'.format(
+        name=node_name,
+    )
+
+    client = get_vsphere_client(tester_conf)
+    vms = client._get_vms()
+    vm = None
+    for candidate_vm in vms:
+        if candidate_vm.name == vm_name:
+            vm = candidate_vm
+            break
+    assert vm is not None, 'VM {name} not found!'.format(name=vm_name)
+
+    return vm
+
+
+@given(parsers.cfparse(
+    'I ensure that local VM {node_name} is powered {state}'
+))
+def ensure_power_state(node_name, state, environment, tester_conf):
+    vm = get_vm_from_node(node_name, environment, tester_conf)
+    expected_state = get_power_state_name(state)
+
+    power_func = {
+        'on': vm.obj.PowerOn,
+        'off': vm.obj.PowerOff,
+    }
+
+    power_func.get(state)()
+
+    attempt = 0
+    attempts = 30
+    delay = 2
+    while vm.obj.summary.runtime.powerState != expected_state:
+        time.sleep(delay)
+        attempt += 1
+
+        assert attempt < attempts, (
+            'VM for node did not power {state} within {time} seconds.'.format(
+                state=state,
+                time=attempts*delay,
+            )
+        )
+
+
+@given(parsers.cfparse('I know the last boot time of local VM {node_name}'))
+def vm_original_boot_time(node_name, environment, tester_conf):
+    vm = get_vm_from_node(node_name, environment, tester_conf)
+    return vm.obj.summary.runtime.bootTime
+
+
+@then(parsers.cfparse(
+    'local VM {node_name} has been restarted during this test'
+))
+def vm_was_rebooted(node_name, environment, vm_original_boot_time, tester_conf):
+    vm = get_vm_from_node(node_name, environment, tester_conf)
+
+    assert vm_original_boot_time < vm.obj.summary.runtime.bootTime
