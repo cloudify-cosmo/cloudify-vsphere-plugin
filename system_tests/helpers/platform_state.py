@@ -26,6 +26,11 @@ def get_platform_entities(tester_conf):
         cluster.name: cluster.id
         for cluster in clusters
     }
+    datacenters = client._get_datacenters(use_cache=False)
+    result['datacenters'] = {
+        datacenter.name: datacenter.id
+        for datacenter in datacenters
+    }
 
     return result
 
@@ -56,6 +61,7 @@ def validate_entity_type(entity_type):
         'standard_network',
         'distributed_network',
         'cluster',
+        'datacenter',
     ]
 
     assert entity_type in valid_types, \
@@ -68,6 +74,7 @@ def supports_prefix_search(entity_type):
         'standard_network',
         'distributed_network',
         'cluster',
+        'datacenter',
     ]
 
     assert entity_type in supports_prefix, \

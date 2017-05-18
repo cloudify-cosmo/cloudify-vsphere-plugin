@@ -283,4 +283,9 @@ def runtime_property_of_node_has_prefix(node_name, property_name, prefix,
     for instance in instances:
         assert instance['runtime_properties'][property_name].startswith(
             prefix
+        ), (
+            'Value "{value}" did not start with prefix "{prefix}"'.format(
+                value=instance['runtime_properties'][property_name],
+                prefix=prefix,
+            )
         )
