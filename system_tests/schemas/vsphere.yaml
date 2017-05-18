@@ -44,3 +44,5 @@ ssh_key_path:
   description: Path to SSH key that allows SSH access to the linux template with the ssh_username.
 cluster:
   description: A cluster which exists on the vsphere platform.
+datastore:
+  description: A datastore which exists on the vsphere platform.
