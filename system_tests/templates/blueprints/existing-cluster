@@ -1,0 +1,71 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - {{cloudify.types_location}}
+  - {{magic.repo_root}}/plugin.yaml
+
+inputs:
+  cluster_name:
+    type: string
+    description: >
+      Name of cluster.
+  cluster_exists:
+    type: boolean
+    default: true
+    description: >
+      Whether the cluster already exists. 
+  vsphere_username:
+    type: string
+    description: >
+      User login for vsphere
+  vsphere_password:
+    type: string
+    default: ''
+    description: >
+      User password for vsphere
+  vsphere_host:
+    description: >
+      vSphere host
+    type: string
+  vsphere_port:
+    description: >
+      vSphere API port
+    default: 443
+    type: string
+  vsphere_datacenter_name:
+    description: >
+      datacenter name
+    default: Datacenter
+    type: string
+  vsphere_resource_pool_name:
+    description: >
+      Resource pool to deploy VMs on
+    default: Resources
+    type: string
+  certificate_path:
+    description: >
+      The path to the vCenter certificate.
+    default: ''
+  allow_insecure:
+    description: >
+      Whether to allow insecure connections.
+    default: true
+
+dsl_definitions:
+  - &connection_configuration
+    username: { get_input: vsphere_username }
+    password: { get_input: vsphere_password }
+    host: { get_input: vsphere_host }
+    port: { get_input: vsphere_port }
+    datacenter_name: { get_input: vsphere_datacenter_name }
+    resource_pool_name: { get_input: vsphere_resource_pool_name }
+    certificate_path: { get_input: certificate_path }
+    allow_insecure: { get_input: allow_insecure }
+
+node_templates:
+  cluster:
+    type: cloudify.vsphere.nodes.Cluster
+    properties:
+      use_existing_resource: { get_input: cluster_exists }
+      name: { get_input: cluster_name }
+      connection_config: *connection_configuration

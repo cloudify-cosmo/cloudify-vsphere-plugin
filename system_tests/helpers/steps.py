@@ -67,7 +67,6 @@ def new_entity_found_with_prefix(num, entity, platform_changes, tester_conf):
     new = get_created_entities(platform_changes)
 
     entities = new[entity + 's']
-    assert entities != {}
 
     prefix = tester_conf['resources_prefix']
     prefixed_entities = [
@@ -200,13 +199,20 @@ def get_power_state_name(state):
     return check_state
 
 
-def get_vm_from_node(node_name, environment, tester_conf):
+def get_instances_with_node_id(node_name, environment):
     deployment_instances = environment.cfy.local.instances()['cfy_instances']
-    vm_name = None
+    instances = []
     for instance in deployment_instances:
         if instance['node_id'] == node_name:
-            vm_name = instance['runtime_properties']['name']
-            break
+            instances.append(instance)
+    return instances
+
+
+def get_vm_from_node(node_name, environment, tester_conf):
+    vm_name = None
+    vms = get_instances_with_node_id(node_name, environment)
+    if vms:
+        vm_name = vms[0]['runtime_properties']['name']
     assert vm_name is not None, 'Instance {name} not found!'.format(
         name=node_name,
     )
@@ -265,3 +271,16 @@ def vm_was_rebooted(node_name, environment, vm_original_boot_time, tester_conf):
     vm = get_vm_from_node(node_name, environment, tester_conf)
 
     assert vm_original_boot_time < vm.obj.summary.runtime.bootTime
+
+
+@then(parsers.cfparse(
+    'local node {node_name} has runtime property {property_name} with value '
+    'starting with {prefix}'
+))
+def runtime_property_of_node_has_prefix(node_name, property_name, prefix,
+                                        environment):
+    instances = get_instances_with_node_id(node_name, environment)
+    for instance in instances:
+        assert instance['runtime_properties'][property_name].startswith(
+            prefix
+        )

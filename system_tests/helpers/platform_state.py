@@ -21,6 +21,11 @@ def get_platform_entities(tester_conf):
         dv_net.name: dv_net.id
         for dv_net in dv_nets
     }
+    clusters = client._get_clusters(use_cache=False)
+    result['clusters'] = {
+        cluster.name: cluster.id
+        for cluster in clusters
+    }
 
     return result
 
@@ -50,6 +55,7 @@ def validate_entity_type(entity_type):
         'vm',
         'standard_network',
         'distributed_network',
+        'cluster',
     ]
 
     assert entity_type in valid_types, \
@@ -61,6 +67,7 @@ def supports_prefix_search(entity_type):
         'vm',
         'standard_network',
         'distributed_network',
+        'cluster',
     ]
 
     assert entity_type in supports_prefix, \
