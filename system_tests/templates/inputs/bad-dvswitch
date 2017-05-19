@@ -1,0 +1,10 @@
+prefix: {{resources_prefix}}
+network_name: bad-dvswitch
+vsphere_username: {{vsphere.username}}
+vsphere_password: {{vsphere.password}}
+vsphere_host: {{vsphere.host}}
+vsphere_port: {{vsphere.port}}
+vsphere_datacenter_name: {{vsphere.datacenter}}
+vlan: {{vsphere.test_vlan}}
+is_network_distributed: true
+vswitch: this-is-a-fake-dvswitch-name

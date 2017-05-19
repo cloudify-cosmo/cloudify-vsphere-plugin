@@ -8,6 +8,10 @@ inputs:
   prefix:
     description: >
       Unique test id to be added as a prefix for resource names.
+  network_name:
+    description: >
+      Name to give the new port group.
+    default: just-network
   is_network_distributed:
     description: >
       Whether the new network is distributed or not.
@@ -70,7 +74,7 @@ node_templates:
     type: cloudify.vsphere.nodes.Network
     properties:
       network:
-        name: { concat: [{ get_input: prefix }, '-just-network'] }
+        name: { concat: [{ get_input: prefix }, '-', { get_input: network_name }] }
         switch_distributed: { get_input: is_network_distributed }
         vlan_id: { get_input: vlan }
         vswitch_name: { get_input: vswitch }
