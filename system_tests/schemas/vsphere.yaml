@@ -28,9 +28,15 @@ linux_template:
 windows_template:
   description: The name of a usable windows template. WinRM must be enabled as detailed in the WinRM documentation.
 standard_network:
-  description: The name of an existing standard network. This network only needs to exist, it does not need DHCP and does not need to be on a routable range.
+  description: >
+    The name of an existing standard network.
+    This network only needs to exist, it does not need DHCP and does not need to be on a routable range.
+    This network should not have the same name as any existing distributed networks.
 distributed_network:
-  description: The name of a usable distributed network. This network is expected to have DHCP and to be reachable via SSH and WinRM from the host on which these tests are being run.
+  description: >
+    The name of a usable distributed network.
+    This network is expected to have DHCP and to be reachable via SSH and WinRM from the host on which these tests are being run.
+    This network should not have the same name as any existing standard networks.
 test_vlan:
   description: The VLAN to use when creating test networks. This does not need any external access but should be different to any other VLANs you are using.
   default: 404
