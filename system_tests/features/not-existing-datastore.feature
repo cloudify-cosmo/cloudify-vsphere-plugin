@@ -10,5 +10,5 @@ Feature: Not existing datastore
     And I fail the local install workflow
     Then I know what has been changed on the platform
     And 0 datastore(s) were created on the platform with resources prefix
-    And install workflow errors include Could not use existing datastore
-    And install workflow errors include no datastore by that name exists
+    And case sensitive install workflow errors include Could not use existing datastore
+    And case sensitive install workflow errors include no datastore by that name exists

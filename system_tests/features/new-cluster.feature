@@ -10,4 +10,4 @@ Feature: Cluster
     And I fail the local install workflow
     Then I know what has been changed on the platform
     And 0 cluster(s) were created on the platform with resources prefix
-    And install workflow errors include Clusters cannot currently be created
+    And case sensitive install workflow errors include Clusters cannot currently be created

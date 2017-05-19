@@ -10,5 +10,5 @@ Feature: Not existing cluster
     And I fail the local install workflow
     Then I know what has been changed on the platform
     And 0 cluster(s) were created on the platform with resources prefix
-    And install workflow errors include Could not use existing cluster
-    And install workflow errors include no cluster by that name exists
+    And case sensitive install workflow errors include Could not use existing cluster
+    And case sensitive install workflow errors include no cluster by that name exists

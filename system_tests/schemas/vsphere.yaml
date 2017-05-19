@@ -27,6 +27,8 @@ linux_template:
     It is expected that all utilities within the test_disk and test_net scripts can be run on the template.
 windows_template:
   description: The name of a usable windows template. WinRM must be enabled as detailed in the WinRM documentation.
+standard_network:
+  description: The name of an existing standard network. This network only needs to exist, it does not need DHCP and does not need to be on a routable range.
 distributed_network:
   description: The name of a usable distributed network. This network is expected to have DHCP and to be reachable via SSH and WinRM from the host on which these tests are being run.
 test_vlan:

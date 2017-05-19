@@ -10,5 +10,5 @@ Feature: Not existing datacenter
     And I fail the local install workflow
     Then I know what has been changed on the platform
     And 0 datacenter(s) were created on the platform with resources prefix
-    And install workflow errors include Could not use existing datacenter
-    And install workflow errors include no datacenter by that name exists
+    And case sensitive install workflow errors include Could not use existing datacenter
+    And case sensitive install workflow errors include no datacenter by that name exists
