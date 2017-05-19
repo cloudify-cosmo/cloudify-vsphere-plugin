@@ -5,16 +5,9 @@ imports:
   - {{magic.repo_root}}/plugin.yaml
 
 inputs:
-  prefix:
-    description: >
-      Unique test id to be added as a prefix for resource names.
   template_name:
     description: >
       Template to clone VMs from
-  server_name:
-    description: >
-      Name to give to server. This will be prefixed by the prefix set above.
-    default: just-windows-vm
   network:
     description: >
       Which network to deploy the VM on
@@ -72,13 +65,11 @@ dsl_definitions:
     allow_insecure: { get_input: allow_insecure }
 
 node_templates:
-  server:
-    type: cloudify.vsphere.nodes.WindowsServer
+  system_tests_naming_no_name:
+    type: cloudify.vsphere.nodes.Server
     properties:
       install_agent: false
-      windows_password: testpass12345
       server:
-        name: { concat: [{ get_input: prefix }, '-', { get_input: server_name }] }
         template: { get_input: template_name }
         cpus: 1
         memory: 2048

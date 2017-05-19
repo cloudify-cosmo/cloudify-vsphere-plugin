@@ -6,7 +6,7 @@ from platform_state import (
     supports_prefix_search,
 )
 
-from pytest_bdd import given, parsers, then, when
+from pytest_bdd import given, parsers, then
 import pytest
 
 import time
@@ -267,7 +267,8 @@ def vm_original_boot_time(node_name, environment, tester_conf):
 @then(parsers.cfparse(
     'local VM {node_name} has been restarted during this test'
 ))
-def vm_was_rebooted(node_name, environment, vm_original_boot_time, tester_conf):
+def vm_was_rebooted(node_name, environment, vm_original_boot_time,
+                    tester_conf):
     vm = get_vm_from_node(node_name, environment, tester_conf)
 
     assert vm_original_boot_time < vm.obj.summary.runtime.bootTime
@@ -289,3 +290,86 @@ def runtime_property_of_node_has_prefix(node_name, property_name, prefix,
                 prefix=prefix,
             )
         )
+
+
+@then(parsers.cfparse(
+    'local {windows_or_other} VM from {node_name} node has correct name'
+))
+def check_name_is_correct_from_node_name(windows_or_other, node_name,
+                                         environment, tester_conf):
+    check_name_is_correct(
+        windows_or_other,
+        node_name,
+        node_name,
+        environment,
+        tester_conf,
+    )
+
+
+@then(parsers.cfparse(
+    'local {windows_or_other} VM called {name} with prefix from {node_name} '
+    'node has correct name'
+))
+def check_name_is_correct_from_prefixed_vm_name(windows_or_other, name,
+                                                node_name, environment,
+                                                tester_conf):
+    prefixed_name = '-'.join([tester_conf['resources_prefix'], name])
+    check_name_is_correct(
+        windows_or_other,
+        node_name,
+        prefixed_name,
+        environment,
+        tester_conf,
+    )
+
+
+def check_name_is_correct(windows_or_other, node_name, vm_base_name,
+                          environment, tester_conf):
+    vm_name = get_vm_from_node(node_name, environment, tester_conf).name
+    instance = get_instances_with_node_id(node_name, environment)[0]
+    runtime_properties = instance['runtime_properties']
+    # Cloudify instance IDs are expected to be:
+    # <node_id>_<instance unique suffix>
+    # We only want the unique suffix
+    suffix = instance['id'][len(node_name) + 1:]
+
+    if windows_or_other.lower() == 'windows':
+        # Available characters is the max length for windows names (14)
+        # - suffix length - the joining hyphen
+        available_characters = 14 - len(suffix) - 1
+        name_prefix = vm_base_name[:available_characters]
+    else:
+        name_prefix = vm_base_name
+
+    # Underscores are illegal for the OS names so we expect the plugin to
+    # replace them
+    name_prefix = name_prefix.replace('_', '-')
+
+    name = vm_name.split('-')
+    assert len(name) > 1, (
+        'Name is expected to have at least one hyphen, before the instance ID'
+    )
+
+    assert '-'.join(name[:-1]) == name_prefix, (
+        'Name {prefix} does not match expected {expected}'.format(
+            prefix='-'.join(name[:-1]),
+            expected=name_prefix,
+        )
+    )
+
+    assert suffix == name[-1], (
+        'VM name suffix was expected to match node ID suffix.'
+    )
+
+
+@then(parsers.cfparse(
+    'VM name for node {node_name} matches runtime property name'
+))
+def check_platform_name_matches_runtime_name(node_name, environment,
+                                             tester_conf):
+    instance = get_instances_with_node_id(node_name, environment)[0]
+    runtime_name = instance['runtime_properties']['name']
+    vm_name = get_vm_from_node(node_name, environment, tester_conf).name
+    assert runtime_name == vm_name, (
+        'Name in runtime properties is expected to match name on platform.'
+    )

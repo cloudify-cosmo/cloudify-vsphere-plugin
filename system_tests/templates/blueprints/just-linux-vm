@@ -11,6 +11,10 @@ inputs:
   template_name:
     description: >
       Template to clone VMs from
+  server_name:
+    description: >
+      Name to give to server. This will be prefixed by the prefix set above.
+    default: just-linux-vm
   network:
     description: >
       Which network to deploy the VM on
@@ -73,7 +77,7 @@ node_templates:
     properties:
       install_agent: false
       server:
-        name: { concat: [{ get_input: prefix }, '-just-linux-vm'] }
+        name: { concat: [{ get_input: prefix }, '-', { get_input: server_name }] }
         template: { get_input: template_name }
         cpus: 1
         memory: 2048

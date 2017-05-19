@@ -3,9 +3,9 @@ Feature: Power workflows
   Scenario: Deploy server for power workflow tests
     Given I have installed cfy
     And I have installed the plugin locally
-    When I have blueprint just-linux-vm.yaml from template blueprints/just-linux-vm
-    And I have inputs just-linux-vm-inputs.yaml from template inputs/just-linux-vm
-    And I locally initialise blueprint just-linux-vm.yaml with inputs just-linux-vm-inputs.yaml
+    When I have blueprint power-vm.yaml from template blueprints/just-linux-vm
+    And I have inputs power-vm-inputs.yaml from template inputs/power-operations
+    And I locally initialise blueprint power-vm.yaml with inputs power-vm-inputs.yaml
     And I run the local install workflow
 
   @local @server @power_operations
