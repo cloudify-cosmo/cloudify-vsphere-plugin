@@ -54,3 +54,5 @@ cluster:
   description: A cluster which exists on the vsphere platform.
 datastore:
   description: A datastore which exists on the vsphere platform.
+hypervisor:
+  description: A hypervisor which exists on the vsphere platform, with the name as it appears in vCenter.

@@ -1,0 +1,6 @@
+vsphere_username: {{vsphere.username}}
+vsphere_password: {{vsphere.password}}
+vsphere_host: {{vsphere.host}}
+vsphere_port: {{vsphere.port}}
+vsphere_datacenter_name: no-datacenter-by-this-name-exists
+vsphere_resource_pool_name: no-resource-pool-by-this-name-exists
