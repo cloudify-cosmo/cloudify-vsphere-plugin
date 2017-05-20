@@ -373,3 +373,26 @@ def check_platform_name_matches_runtime_name(node_name, environment,
     assert runtime_name == vm_name, (
         'Name in runtime properties is expected to match name on platform.'
     )
+
+
+@then(parsers.cfparse('local VM {node_name} has {cpu_count:d} cpus'))
+def check_vm_has_correct_cpu_count(node_name, cpu_count,
+                                   environment, tester_conf):
+    """
+        Confirm that the VM for the given node name has the correct number of
+        CPUs.
+    """
+    vm = get_vm_from_node(node_name, environment, tester_conf)
+    actual_cpus = vm.obj.summary.config.numCpu
+    assert actual_cpus == cpu_count
+
+
+@then(parsers.cfparse('local VM {node_name} has {mem_amount:d}MB RAM'))
+def check_vm_has_correct_cpu_count(node_name, mem_amount,
+                                   environment, tester_conf):
+    """
+        Confirm that the VM for the given node name has the correct MB of RAM.
+    """
+    vm = get_vm_from_node(node_name, environment, tester_conf)
+    actual_mem = vm.obj.summary.config.memorySizeMB
+    assert actual_mem == mem_amount

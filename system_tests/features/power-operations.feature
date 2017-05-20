@@ -1,6 +1,6 @@
-Feature: Power workflows
+Feature: Power operations
   @local @server @power_operations
-  Scenario: Deploy server for power workflow tests
+  Scenario: Deploy server for power operations tests
     Given I have installed cfy
     And I have installed the plugin locally
     When I have blueprint power-vm.yaml from template blueprints/just-linux-vm
