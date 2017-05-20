@@ -1,5 +1,5 @@
 Feature: Test attempt to create Windows VM with both password and custom sysprep
-  @local @server @failure @windows
+  @local @server @failure @windows @custom_sysprep
   Scenario: Fail to create a Windows VM with password and custom sysprep set
     Given I have installed cfy
     And I have installed the plugin locally

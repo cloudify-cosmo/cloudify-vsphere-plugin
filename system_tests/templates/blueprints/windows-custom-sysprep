@@ -1,0 +1,98 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - {{cloudify.types_location}}
+  - {{magic.repo_root}}/plugin.yaml
+
+inputs:
+  prefix:
+    description: >
+      Unique test id to be added as a prefix for resource names.
+  template_name:
+    description: >
+      Template to clone VMs from
+  server_name:
+    description: >
+      Name to give to server. This will be prefixed by the prefix set above.
+    default: custom-sysprep
+  custom_sysprep:
+    description: >
+      Custom sysprep answers data.
+  network:
+    description: >
+      Which network to deploy the VM on
+    default: VM Network
+  is_network_distributed:
+    description: >
+      Whether the network is on a distributed switch
+    default: true
+  windows_org:
+    description: >
+      Windows organization.
+    default: TestOrg
+  vsphere_username:
+    type: string
+    description: >
+      User login for vsphere
+  vsphere_password:
+    type: string
+    default: ''
+    description: >
+      User password for vsphere
+  vsphere_host:
+    description: >
+      vSphere host
+    type: string
+  vsphere_port:
+    description: >
+      vSphere API port
+    default: 443
+    type: string
+  vsphere_datacenter_name:
+    description: >
+      datacenter name
+    default: Datacenter
+    type: string
+  vsphere_resource_pool_name:
+    description: >
+      Resource pool to deploy Vms on
+    default: Resources
+    type: string
+  certificate_path:
+    description: >
+      The path to the vCenter certificate.
+    default: ''
+  allow_insecure:
+    description: >
+      Whether to allow insecure connections.
+    default: true
+
+dsl_definitions:
+  - &connection_configuration
+    username: { get_input: vsphere_username }
+    password: { get_input: vsphere_password }
+    host: { get_input: vsphere_host }
+    port: { get_input: vsphere_port }
+    datacenter_name: { get_input: vsphere_datacenter_name }
+    resource_pool_name: { get_input: vsphere_resource_pool_name }
+    certificate_path: { get_input: certificate_path }
+    allow_insecure: { get_input: allow_insecure }
+
+node_templates:
+  server:
+    type: cloudify.vsphere.nodes.WindowsServer
+    properties:
+      install_agent: false
+      custom_sysprep: { get_input: custom_sysprep }
+      windows_organization: { get_input: windows_org }
+      server:
+        name: { concat: [{ get_input: prefix }, '-', { get_input: server_name }] }
+        template: { get_input: template_name }
+        cpus: 1
+        memory: 2048
+      networking:
+        connect_networks:
+          - name: { get_input: network }
+            switch_distributed: { get_input: is_network_distributed }
+            external: true
+      connection_config: *connection_configuration

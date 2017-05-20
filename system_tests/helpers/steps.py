@@ -5,6 +5,7 @@ from platform_state import (
     validate_entity_type,
     supports_prefix_search,
 )
+from .windows_command_helper import WindowsCommandHelper
 
 from pytest_bdd import given, parsers, then
 import pytest
@@ -396,3 +397,33 @@ def check_vm_has_correct_cpu_count(node_name, mem_amount,
     vm = get_vm_from_node(node_name, environment, tester_conf)
     actual_mem = vm.obj.summary.config.memorySizeMB
     assert actual_mem == mem_amount
+
+
+@then(parsers.cfparse(
+    'Windows VM {node_name} organization setting in registry retrieved with '
+    'username {username} and password {password} is {value}'
+))
+def run_reg_query_on_windows_vm(node_name, username, password, value,
+                                environment, tester_conf):
+    vm_name = get_vm_from_node(node_name, environment, tester_conf).name
+
+    vt = WindowsCommandHelper(
+        environment.logger,
+        tester_conf['vsphere']['host'],
+        tester_conf['vsphere']['username'],
+        tester_conf['vsphere']['password'],
+    )
+
+    result = vt.run_windows_command(
+        vm_name,
+        username,
+        password,
+        'reg query "HKLM\\Software\\Microsoft\\Windows NT\\'
+        'CurrentVersion" /v RegisteredOrganization',
+        # Support very slow test env
+        timeout=4000,
+    )['output']
+
+    result = result.split('REG_SZ')[1].strip()
+
+    assert result == value
