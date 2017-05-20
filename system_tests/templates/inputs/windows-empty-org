@@ -1,0 +1,10 @@
+prefix: {{resources_prefix}}
+template_name: {{vsphere.windows_template}}
+server_name: empty-org-name
+network: {{vsphere.distributed_network}}
+vsphere_username: {{vsphere.username}}
+vsphere_password: {{vsphere.password}}
+vsphere_host: {{vsphere.host}}
+vsphere_port: {{vsphere.port}}
+vsphere_datacenter_name: {{vsphere.datacenter}}
+windows_org: ""
