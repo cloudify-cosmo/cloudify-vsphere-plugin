@@ -1,0 +1,10 @@
+prefix: {{resources_prefix}}
+has_external_net: false
+server_name: no-external-net
+template_name: {{vsphere.linux_template}}
+network: {{vsphere.distributed_network}}
+vsphere_username: {{vsphere.username}}
+vsphere_password: {{vsphere.password}}
+vsphere_host: {{vsphere.host}}
+vsphere_port: {{vsphere.port}}
+vsphere_datacenter_name: {{vsphere.datacenter}}

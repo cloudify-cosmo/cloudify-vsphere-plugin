@@ -11,27 +11,6 @@ inputs:
   template_name:
     description: >
       Template to clone VMs from
-  server_name:
-    description: >
-      Name to give to server. This will be prefixed by the prefix set above.
-    default: just-linux-vm
-  network:
-    description: >
-      Which network to deploy the VM on
-    default: VM Network
-  is_network_distributed:
-    description: >
-      Whether the network is on a distributed switch
-    default: true
-  has_external_net:
-    description: >
-      Whether the attached network is considered the external net.
-      With only one interface this won't have any significant effect.
-    default: true
-  has_management_net:
-    description: >
-      Whether the attached network is considered the management net.
-    default: true
   vsphere_username:
     type: string
     description: >
@@ -86,14 +65,8 @@ node_templates:
     properties:
       install_agent: false
       server:
-        name: { concat: [{ get_input: prefix }, '-', { get_input: server_name }] }
+        name: { concat: [{ get_input: prefix }, '-no-interfaces'] }
         template: { get_input: template_name }
         cpus: 1
-        memory: 2048
-      networking:
-        connect_networks:
-          - name: { get_input: network }
-            switch_distributed: { get_input: is_network_distributed }
-            external: { get_input: has_external_net }
-            management: { get_input: has_management_net }
+        memory: 512
       connection_config: *connection_configuration
