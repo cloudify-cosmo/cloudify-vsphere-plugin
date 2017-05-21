@@ -328,7 +328,6 @@ def check_name_is_correct(windows_or_other, node_name, vm_base_name,
                           environment, tester_conf):
     vm_name = get_vm_from_node(node_name, environment, tester_conf).name
     instance = get_instances_with_node_id(node_name, environment)[0]
-    runtime_properties = instance['runtime_properties']
     # Cloudify instance IDs are expected to be:
     # <node_id>_<instance unique suffix>
     # We only want the unique suffix
@@ -389,8 +388,8 @@ def check_vm_has_correct_cpu_count(node_name, cpu_count,
 
 
 @then(parsers.cfparse('local VM {node_name} has {mem_amount:d}MB RAM'))
-def check_vm_has_correct_cpu_count(node_name, mem_amount,
-                                   environment, tester_conf):
+def check_vm_has_correct_memory_amount(node_name, mem_amount,
+                                       environment, tester_conf):
     """
         Confirm that the VM for the given node name has the correct MB of RAM.
     """
@@ -403,7 +402,41 @@ def check_vm_has_correct_cpu_count(node_name, mem_amount,
     'Windows VM {node_name} organization setting in registry retrieved with '
     'username {username} and password {password} is {value}'
 ))
-def run_reg_query_on_windows_vm(node_name, username, password, value,
+def get_organization_name_from_windows_vm(node_name, username, password,
+                                          value, environment, tester_conf):
+    """
+        Run a command via vSphere on a Windows server to get the organization
+        name from the registry.
+    """
+    query = (
+        '"HKLM\\Software\\Microsoft\\Windows NT\\'
+        'CurrentVersion" /v RegisteredOrganization'
+    )
+    result = run_reg_query_on_windows_vm(query, node_name, username, password,
+                                         value, environment, tester_conf)
+    assert result == value
+
+
+@then(parsers.cfparse(
+    'Windows VM {node_name} time zone in registry retrieved with '
+    'username {username} and password {password} is {value}'
+))
+def get_time_zone_from_windows_vm(node_name, username, password,
+                                  value, environment, tester_conf):
+    """
+        Run a command via vSphere on a Windows server to get the organization
+        name from the registry.
+    """
+    query = (
+        '"HKLM\\SYSTEM\\CurrentControlSet\\Control\\'
+        'TimeZoneInformation" /v TimeZoneKeyName'
+    )
+    result = run_reg_query_on_windows_vm(query, node_name, username, password,
+                                         value, environment, tester_conf)
+    assert result == value
+
+
+def run_reg_query_on_windows_vm(query, node_name, username, password, value,
                                 environment, tester_conf):
     vm_name = get_vm_from_node(node_name, environment, tester_conf).name
 
@@ -418,12 +451,11 @@ def run_reg_query_on_windows_vm(node_name, username, password, value,
         vm_name,
         username,
         password,
-        'reg query "HKLM\\Software\\Microsoft\\Windows NT\\'
-        'CurrentVersion" /v RegisteredOrganization',
+        'reg query {query}'.format(query=query),
         # Support very slow test env
         timeout=4000,
     )['output']
 
     result = result.split('REG_SZ')[1].strip()
 
-    assert result == value
+    return result

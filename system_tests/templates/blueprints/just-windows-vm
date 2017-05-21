@@ -81,6 +81,7 @@ node_templates:
     properties:
       install_agent: false
       windows_password: testpass12345
+      windows_timezone: 10
       windows_organization: { get_input: windows_org }
       server:
         name: { concat: [{ get_input: prefix }, '-', { get_input: server_name }] }

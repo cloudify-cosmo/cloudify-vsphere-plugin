@@ -96,6 +96,7 @@ class WindowsCommandHelper(object):
                 pid = pm.StartProgramInGuest(vm, creds, ps)
                 break
             except (
+                    vim.fault.InvalidState,
                     vim.fault.InvalidGuestLogin,
                     vim.fault.GuestOperationsUnavailable,
             ) as e:

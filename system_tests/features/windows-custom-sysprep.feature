@@ -8,3 +8,4 @@ Feature: Test windows custom sysprep
     And I locally initialise blueprint windows-custom-sysprep.yaml with inputs windows-custom-sysprep-inputs.yaml
     And I run the local install workflow
     Then Windows VM server organization setting in registry retrieved with username user and password pass is Custom sysprep test
+    And Windows VM server time zone in registry retrieved with username user and password pass is Eastern Standard Time
