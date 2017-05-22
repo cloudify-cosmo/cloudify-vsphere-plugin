@@ -32,6 +32,10 @@ inputs:
     description: >
       Whether the attached network is considered the management net.
     default: true
+  custom_attributes:
+    description: >
+      Custom attributes to attach to this server.
+    default: {}
   vsphere_username:
     type: string
     description: >
@@ -85,6 +89,7 @@ node_templates:
     type: cloudify.vsphere.nodes.Server
     properties:
       install_agent: false
+      custom_attributes: { get_input: custom_attributes }
       server:
         name: { concat: [{ get_input: prefix }, '-', { get_input: server_name }] }
         template: { get_input: template_name }

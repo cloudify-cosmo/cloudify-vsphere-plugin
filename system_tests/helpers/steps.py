@@ -7,11 +7,12 @@ from platform_state import (
 )
 from .windows_command_helper import WindowsCommandHelper
 
-from pytest_bdd import given, parsers, then
+from pytest_bdd import given, parsers, then, when
 import pytest
 
 from pyVmomi import vim
 
+import json
 import time
 
 
@@ -506,3 +507,78 @@ def confirm_non_vmxnet3_interfaces_removed(node_name,
     assert not vm_has_non_vmxnet3_nic(vm), (
         'Some template interfaces left attached to VM after deployment.'
     )
+
+
+@when(parsers.cfparse(
+    'the custom attribute field {field_name} is created on the platform '
+    'using credentials from {inputs_file}'
+))
+def create_custom_attribute_field(field_name, inputs_file,
+                                  tester_conf, environment):
+    """
+        Create a custom attribute field and ensure it is cleaned up after the
+        test completes.
+    """
+    client = get_vsphere_client(tester_conf)
+
+    environment.add_cleanup(
+        cleanup_custom_field,
+        args=[field_name, inputs_file, environment]
+    )
+
+    client.si.content.customFieldsManager.AddCustomFieldDef(
+        name=field_name,
+    )
+
+
+@given(parsers.cfparse(
+    'this test will need custom attribute field {field_name} cleaning up '
+    'when the run completes using credentials from {inputs_file}'
+))
+def cleanup_custom_field_after_test(field_name, inputs_file, environment):
+    """
+        Ensure that a custom attribute field created by this test will be
+        removed afterwards.
+    """
+    environment.add_cleanup(
+        cleanup_custom_field,
+        args=[field_name, inputs_file, environment]
+    )
+
+
+def cleanup_custom_field(field_name, inputs_file, environment, fake_run):
+    environment.executor(
+        [
+            'bin/python',
+            'delete_custom_attribute',
+            '-i', inputs_file,
+            '-f', field_name,
+        ],
+        fake=fake_run,
+    )
+
+
+@then(parsers.cfparse(
+    'VM {node_name} has custom attributes from JSON dict: {attributes}'
+))
+def check_custom_attributes(node_name, attributes, environment, tester_conf):
+    """
+        Check that a specified node's VM has the listed custom attributes.
+        These should be given as a JSON dict, e.g.
+        { "attribute1": "yes", "attribute2": "no" }
+    """
+    client = get_vsphere_client(tester_conf)
+    attribute_name_mapping = {
+        item.key: item.name
+        for item in client.si.content.customFieldsManager.field
+    }
+
+    vm = get_vm_from_node(node_name, environment, tester_conf)
+    vm_attributes = {
+        attribute_name_mapping[item.key]: item.value
+        for item in vm.obj.customValue
+    }
+
+    expected_attributes = json.loads(attributes)
+
+    assert vm_attributes == expected_attributes

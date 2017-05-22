@@ -1,0 +1,63 @@
+#! /usr/bin/env python
+import argparse
+from pyVmomi import vim, vmodl
+from pyVim.connect import SmartConnect, Disconnect
+import atexit
+import yaml
+import os
+import sys
+
+
+def remove_custom_attribute(target_field_name, inputs_file):
+    with open(inputs_file) as fh:
+        config = yaml.load(fh)
+    vsphere_host = config['vsphere_host']
+    vsphere_user = config['vsphere_username']
+    vsphere_pass = config['vsphere_password']
+    vsphere_port = config.get('vsphere_port', 443)
+
+    si = SmartConnect(host=vsphere_host,
+                      user=vsphere_user,
+                      pwd=vsphere_pass,
+                      port=int(vsphere_port))
+    atexit.register(Disconnect, si)
+
+    key = None
+    fields = si.content.customFieldsManager.field
+    for field in fields:
+        if field.name == target_field_name:
+            key = field.key
+            break
+    if key is None:
+        sys.stderr.write(
+            'Failed to delete field {field}. '
+            'It may have already been deleted.\n'.format(
+                field=target_field_name,
+            )
+        )
+        sys.exit(1)
+
+    si.content.customFieldsManager.RemoveCustomFieldDef(key=key)
+    print('Successfully deleted field {field}.'.format(
+        field=target_field_name,
+    ))
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description='Delete a custom field reference from vSphere.',
+    )
+    parser.add_argument(
+        '-i', '--inputs-file',
+        help='The inputs file containing the vSphere credentials.',
+        required=True,
+    )
+    parser.add_argument(
+        '-f', '--field-name',
+        help='The name of the custom attribute to be deleted.',
+        required=True,
+    )
+
+    args = parser.parse_args()
+
+    remove_custom_attribute(args.field_name, args.inputs_file)
