@@ -16,7 +16,10 @@ def check_arp(interface, ip):
         hide('warnings', 'running', 'stdout', 'stderr'),
         warn_only=True,
     ):
-        command = 'arping -D -f -w3 -I {interface} {ip}'.format(
+        command = (
+            'arping -s{ip} -D -f -w3 -I {interface} {ip} ||'
+            'arping -D -f -w3 -I {interface} {ip}'
+        ).format(
             interface=interface,
             ip=ip,
         )
@@ -65,9 +68,9 @@ def interface_has_ip(interface, ip):
         )
         result = run(command)
     if result.return_code == 0:
-        return False
-    elif result.return_code == 1:
         return True
+    elif result.return_code == 1:
+        return False
 
 
 def set_ip_address(interface, ip):
@@ -130,7 +133,7 @@ def configure(prefix='172.31.0.'):
 
     for net in relationship.target.instance.runtime_properties['networks']:
         if net['name'] == test_network:
-            if net['ip'] is not None:
+            if net.get('ip') is not None:
                 raise NonRecoverableError(
                     'IP already assigned on test network',
                 )

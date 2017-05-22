@@ -1,0 +1,12 @@
+prefix: {{resources_prefix}}
+linux_template_name: {{vsphere.linux_template}}
+network: {{vsphere.distributed_network}}
+vsphere_username: {{vsphere.username}}
+vsphere_password: {{vsphere.password}}
+vsphere_host: {{vsphere.host}}
+vsphere_port: {{vsphere.port}}
+vsphere_datacenter_name: {{vsphere.datacenter}}
+distvswitch: {{vsphere.distributed_vswitch}}
+vlan: {{vsphere.test_vlan}}
+username: {{vsphere.ssh_username}}
+key_path: {{vsphere.ssh_key_path}}
