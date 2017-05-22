@@ -10,6 +10,8 @@ from .windows_command_helper import WindowsCommandHelper
 from pytest_bdd import given, parsers, then
 import pytest
 
+from pyVmomi import vim
+
 import time
 
 
@@ -217,7 +219,10 @@ def get_vm_from_node(node_name, environment, tester_conf):
     assert vm_name is not None, 'Instance {name} not found!'.format(
         name=node_name,
     )
+    return get_vm_by_name(tester_conf, vm_name)
 
+
+def get_vm_by_name(tester_conf, vm_name):
     client = get_vsphere_client(tester_conf)
     vms = client._get_vms()
     vm = None
@@ -459,3 +464,45 @@ def run_reg_query_on_windows_vm(query, node_name, username, password, value,
     result = result.split('REG_SZ')[1].strip()
 
     return result
+
+
+def vm_has_non_vmxnet3_nic(vm):
+    for dev in vm.config.hardware.device:
+        if hasattr(dev, 'macAddress'):
+            if not isinstance(dev, vim.vm.device.VirtualVmxnet3):
+                return True
+    # If we didn't find one by now, there isn't one
+    return False
+
+
+@given('linux template has at least one non-VMXNet3 interface')
+def linux_template_has_non_vmxnet3(environment, tester_conf):
+    """
+        Confirm that the linux template has a non-VMXNet3 interface.
+    """
+    template_name = tester_conf['vsphere']['linux_template']
+    template_vm = get_vm_by_name(tester_conf, template_name)
+
+    assert vm_has_non_vmxnet3_nic(template_vm), (
+        'Linux template is expected to have at least one non-VMXNet3 network '
+        'device, e.g. E1000.'
+    )
+
+
+@then(parsers.cfparse(
+    'deployed VM {node_name} has no non-VMXNet3 interfaces'
+))
+def confirm_non_vmxnet3_interfaces_removed(node_name,
+                                           environment, tester_conf):
+    """
+        Check deployed VM to confirm that interfaces were removed.
+
+        Currently this only checks that VMXNet3 interfaces were removed as we
+        offer no way to create these, but the expectation is that all
+        interfaces will be removed.
+    """
+    vm = get_vm_from_node(node_name, environment, tester_conf)
+
+    assert not vm_has_non_vmxnet3_nic(vm), (
+        'Some template interfaces left attached to VM after deployment.'
+    )

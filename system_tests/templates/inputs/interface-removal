@@ -1,0 +1,9 @@
+prefix: {{resources_prefix}}
+template_name: {{vsphere.linux_template}}
+server_name: interface-removal
+network: {{vsphere.distributed_network}}
+vsphere_username: {{vsphere.username}}
+vsphere_password: {{vsphere.password}}
+vsphere_host: {{vsphere.host}}
+vsphere_port: {{vsphere.port}}
+vsphere_datacenter_name: {{vsphere.datacenter}}
