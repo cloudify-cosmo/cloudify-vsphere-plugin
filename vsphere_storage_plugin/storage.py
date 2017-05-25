@@ -19,10 +19,10 @@
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
+from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_storage_client,
     remove_runtime_properties,
@@ -38,14 +38,11 @@ from vsphere_server_plugin.server import VSPHERE_SERVER_ID
 from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
-@operation
+@op
 @with_storage_client
-def create(storage_client, **kwargs):
+def create(storage_client, storage):
     ctx.logger.debug("Entering create storage procedure.")
-    storage = {
-        'name': ctx.node.id,
-    }
-    storage.update(ctx.node.properties['storage'])
+    storage.setdefault('name', ctx.node.id)
     # This should be debug, but left as info until CFY-4867 makes logs more
     # visible
     ctx.logger.info(
@@ -108,7 +105,7 @@ def create(storage_client, **kwargs):
     ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
 
 
-@operation
+@op
 @with_storage_client
 def delete(storage_client, **kwargs):
     vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
@@ -131,7 +128,7 @@ def delete(storage_client, **kwargs):
     remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
 
 
-@operation
+@op
 @with_storage_client
 def resize(storage_client, **kwargs):
     vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]

@@ -66,3 +66,4 @@ cloudify_vsphere_plugin.egg-info/
 
 # vim
 *.sw[po]
+system_tests/generated_features

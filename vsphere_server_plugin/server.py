@@ -21,9 +21,10 @@ import string
 # Cloudify imports
 from cloudify import ctx
 from cloudify import exceptions as cfy_exc
-from cloudify.decorators import operation
 
 # This package imports
+from cloudify_vsphere.utils import op
+from cloudify_vsphere.utils.feedback import prepare_for_log
 from vsphere_plugin_common import (
     get_ip_from_vsphere_nic_ips,
     remove_runtime_properties,
@@ -36,7 +37,6 @@ from vsphere_plugin_common.constants import (
     SERVER_RUNTIME_PROPERTIES,
     VSPHERE_SERVER_ID,
 )
-from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
 def validate_connect_network(network):
@@ -85,10 +85,17 @@ def validate_connect_network(network):
     return True
 
 
-def create_new_server(server_client):
-    server = {}
-    server.update(ctx.node.properties['server'])
-    vm_name = get_vm_name(server)
+def create_new_server(
+        vsphere_client,
+        server,
+        networking,
+        allowed_hosts,
+        allowed_clusters,
+        allowed_datastores,
+        # Backwards compatibility- only linux was really working
+        os_family='linux',
+        ):
+    vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Creating new server with name: {name}'
                     .format(name=vm_name))
 
@@ -103,15 +110,11 @@ def create_new_server(server_client):
     networks = []
     domain = None
     dns_servers = None
-    networking = ctx.node.properties.get('networking')
 
-    allowed_hosts = ctx.node.properties.get('allowed_hosts')
     if isinstance(allowed_hosts, basestring):
         allowed_hosts = [allowed_hosts]
-    allowed_clusters = ctx.node.properties.get('allowed_clusters')
     if isinstance(allowed_clusters, basestring):
         allowed_clusters = [allowed_clusters]
-    allowed_datastores = ctx.node.properties.get('allowed_datastores')
     if isinstance(allowed_datastores, basestring):
         allowed_datastores = [allowed_datastores]
 
@@ -167,8 +170,6 @@ def create_new_server(server_client):
     template_name = server['template']
     cpus = server['cpus']
     memory = server['memory']
-    # Backwards compatibility- only linux was really working
-    os_type = ctx.node.properties.get('os_family', 'linux')
 
     # Computer name may only contain A-Z, 0-9, and hyphens
     # May not be entirely digits
@@ -186,27 +187,28 @@ def create_new_server(server_client):
         )
 
     ctx.logger.info('Creating server called {name}'.format(name=vm_name))
-    server = server_client.create_server(auto_placement,
-                                         cpus,
-                                         datacenter_name,
-                                         memory,
-                                         networks,
-                                         resource_pool_name,
-                                         template_name,
-                                         vm_name,
-                                         os_type,
-                                         domain,
-                                         dns_servers,
-                                         allowed_hosts,
-                                         allowed_clusters,
-                                         allowed_datastores)
+    server = server_client.create_server(
+        auto_placement,
+        cpus,
+        datacenter_name,
+        memory,
+        networks,
+        resource_pool_name,
+        template_name,
+        vm_name,
+        os_family,
+        domain,
+        dns_servers,
+        allowed_hosts,
+        allowed_clusters,
+        allowed_datastores)
     ctx.logger.info('Successfully created server called {name}'.format(
                     name=vm_name))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server._moId
     ctx.instance.runtime_properties['name'] = vm_name
 
 
-@operation
+@op
 @with_server_client
 def start(server_client, **kwargs):
     ctx.logger.debug("Checking whether server exists...")
@@ -220,7 +222,7 @@ def start(server_client, **kwargs):
         ctx.logger.info("Server powered on.")
 
 
-@operation
+@op
 @with_server_client
 def shutdown_guest(server_client, **kwargs):
     server = get_server_by_context(server_client)

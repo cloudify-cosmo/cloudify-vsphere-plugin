@@ -36,11 +36,6 @@ class VsphereStorageTest(unittest.TestCase):
             'file name',
             'something'
         )]
-        self.mock_ctx.node.properties = {
-            'storage': {
-                'storage_size': 7,
-            }
-        }
         self.mock_ctx.capabilities.get_all.return_value = {
             'vm_inst_id': {
                 'name': 'Julie',
@@ -48,7 +43,10 @@ class VsphereStorageTest(unittest.TestCase):
             },
         }
 
-        storage.create()
+        storage.create(
+            storage={
+                'storage_size': 7,
+            })
 
         self.mock_ctx.operation.retry.assert_not_called()
         self.mock_ctx.instance.runtime_properties.__setitem__.assert_has_calls(
@@ -64,11 +62,6 @@ class VsphereStorageTest(unittest.TestCase):
     def test_storage_create_race_retry(self, mock_client_get):
         mock_client_get().create_storage.side_effect = NonRecoverableError(
             'vim.fault.FileAlreadyExists')
-        self.mock_ctx.node.properties = {
-            'storage': {
-                'storage_size': 7,
-            }
-        }
         self.mock_ctx.capabilities.get_all.return_value = {
             'vm_inst_id': {
                 'name': 'Julie',
@@ -76,6 +69,9 @@ class VsphereStorageTest(unittest.TestCase):
             },
         }
 
-        storage.create()
+        storage.create(
+            storage={
+                'storage_size': 7,
+            })
 
         self.mock_ctx.operation.retry.assert_called_once()

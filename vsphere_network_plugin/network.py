@@ -20,10 +20,10 @@ import urllib
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
+from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_network_client,
     remove_runtime_properties,
@@ -37,11 +37,10 @@ from vsphere_plugin_common.constants import (
 from cloudify_vsphere.utils.feedback import check_name_for_special_characters
 
 
-@operation
+@op
 @with_network_client
-def create(network_client, **kwargs):
-    network = {}
-    network.update(ctx.node.properties['network'])
+def create(network_client, network, use_existing_resource):
+    network.update(network)
     network['name'] = get_network_name(network)
     check_name_for_special_characters(network['name'])
     port_group_name = network['name']
@@ -57,7 +56,7 @@ def create(network_client, **kwargs):
 
     creating = runtime_properties.get('status', None) == 'creating'
 
-    if ctx.node.properties.get('use_existing_resource', False):
+    if use_existing_resource:
         if not existing_id:
             raise NonRecoverableError(
                 'Could not use existing {distributed}network "{name}" as no '
@@ -111,13 +110,12 @@ def create(network_client, **kwargs):
     ctx.instance.runtime_properties[SWITCH_DISTRIBUTED] = switch_distributed
 
 
-@operation
+@op
 @with_network_client
-def delete(network_client, **kwargs):
-    network = ctx.node.properties['network']
+def delete(network_client, network, use_existing_resource):
     port_group_name = get_network_name(network)
     switch_distributed = network.get('switch_distributed')
-    if ctx.node.properties.get('use_existing_resource', False):
+    if use_existing_resource:
         ctx.logger.info(
             'Not deleting existing {type}: {name}'.format(
                 type=get_network_type(network),

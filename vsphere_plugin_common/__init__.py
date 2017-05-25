@@ -135,6 +135,61 @@ class _ContainerView(object):
         self.view_ref.Destroy()
 
 
+class CustomValues(MutableMapping):
+    """dict interface to ManagedObject customValue"""
+
+    def __init__(self, client, thing):
+        """
+        client: a VsphereClient instance
+        thing: a NamedTuple containing a ManagedObject-derived class as its
+        `obj` attribute: as supplied by `client._get_obj_by_name`
+        """
+        self.client = client
+        self.thing = thing
+
+    def __getitem__(self, key):
+        key_id = self._get_key_id(key)
+        for value in self.thing.obj.customValue:
+            if value.key == key_id:
+                return value.value
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self._get_key_id(key, create=True)
+        return self.thing.obj.setCustomValue(key, value)
+
+    def __delitem__(self, key):
+        raise NonRecoverableError("Unable to unset custom values")
+
+    def __iter__(self):
+        for value in self.thing.obj.customValue:
+            yield self._get_key_name(value.key)
+
+    def __len__(self):
+        return len(self.thing.obj.customValue)
+
+    def _get_key_id(self, k, create=False):
+        for key in self.client._get_custom_keys():
+            if key.name == k:
+                return key.key
+        if create:
+            try:
+                key = (
+                    self.client.si.content.customFieldsManager.
+                    AddCustomFieldDef)(name=k)
+            except vim.fault.DuplicateName:
+                self.client._get_custom_keys(use_cache=False)
+                return self._get_key_id(k, create=create)
+            return key.key
+        raise KeyError(k)
+
+    def _get_key_name(self, k):
+        for key in self.client._get_custom_keys():
+            if key.key == k:
+                return key.name
+        raise ValueError(k)
+
+
 class VsphereClient(object):
 
     def __init__(self):
@@ -1043,60 +1098,6 @@ class VsphereClient(object):
             values.update(attributes)
             logger().debug('Added custom attributes')
 
-
-class CustomValues(MutableMapping):
-    """dict interface to ManagedObject customValue"""
-
-    def __init__(self, client, thing):
-        """
-        client: a VsphereClient instance
-        thing: a NamedTuple containing a ManagedObject-derived class as its
-        `obj` attribute: as supplied by `client._get_obj_by_name`
-        """
-        self.client = client
-        self.thing = thing
-
-    def __getitem__(self, key):
-        key_id = self._get_key_id(key)
-        for value in self.thing.obj.customValue:
-            if value.key == key_id:
-                return value.value
-        raise KeyError(key)
-
-    def __setitem__(self, key, value):
-        self._get_key_id(key, create=True)
-        return self.thing.obj.setCustomValue(key, value)
-
-    def __delitem__(self, key):
-        raise NonRecoverableError("Unable to unset custom values")
-
-    def __iter__(self):
-        for value in self.thing.obj.customValue:
-            yield self._get_key_name(value.key)
-
-    def __len__(self):
-        return len(self.thing.obj.customValue)
-
-    def _get_key_id(self, k, create=False):
-        for key in self.client._get_custom_keys():
-            if key.name == k:
-                return key.key
-        if create:
-            try:
-                key = (
-                    self.client.si.content.customFieldsManager.
-                    AddCustomFieldDef)(name=k)
-            except vim.fault.DuplicateName:
-                self.client._get_custom_keys(use_cache=False)
-                return self._get_key_id(k, create=create)
-            return key.key
-        raise KeyError(k)
-
-    def _get_key_name(self, k):
-        for key in self.client._get_custom_keys():
-            if key.key == k:
-                return key.name
-        raise ValueError(k)
 
 
 class ServerClient(VsphereClient):
@@ -2821,9 +2822,14 @@ def _with_client(client_name, client):
     def decorator(f):
         @wraps(f)
         def wrapper(*args, **kwargs):
-            config = ctx.node.properties.get('connection_config')
-            kwargs[client_name] = client().get(config=config)
+            connection_config = kwargs.get('connection_config')
+            kwargs[client_name] = client().get(config=connection_config)
+            if not hasattr(f, '__wrapped__'):
+                # don't pass connection_config to the real operation
+                del kwargs['connection_config']
+
             return f(*args, **kwargs)
+        wrapper.__wrapped__ = f
         return wrapper
     return decorator
 
@@ -2831,3 +2837,4 @@ def _with_client(client_name, client):
 with_server_client = _with_client('server_client', ServerClient)
 with_network_client = _with_client('network_client', NetworkClient)
 with_storage_client = _with_client('storage_client', StorageClient)
+with_vsphere_client = _with_client('vsphere_client', VsphereClient)
