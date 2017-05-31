@@ -14,12 +14,14 @@
 #  * limitations under the License.
 
 
-from copy import deepcopy
 from functools import wraps
 from inspect import getargspec
 
 from cloudify import ctx
 from cloudify.decorators import operation
+
+
+sentinel = object()
 
 
 def get_args(func):
@@ -41,15 +43,19 @@ def op(func):
     @wraps(func)
     def wrapper(**kwargs):
         kwargs.setdefault('ctx', ctx)
-        kwargs.update(deepcopy(ctx.node.properties))
 
-        requested_inputs = {
-            k: v
-            for k, v
-            in kwargs.items()
-            if k in get_args(func)
-            }
+        requested_inputs = get_args(func)
 
-        return func(**requested_inputs)
+        processed_kwargs = {}
+
+        for key in requested_inputs:
+            if key in kwargs:
+                processed_kwargs[key] = kwargs[key]
+                continue
+            property = ctx.node.properties.get(key, sentinel)
+            if property is not sentinel:
+                processed_kwargs.setdefault(key, property)
+
+        return func(**processed_kwargs)
 
     return wrapper

@@ -1099,7 +1099,6 @@ class VsphereClient(object):
             logger().debug('Added custom attributes')
 
 
-
 class ServerClient(VsphereClient):
 
     def _get_port_group_names(self):
@@ -2821,12 +2820,11 @@ class StorageClient(VsphereClient):
 def _with_client(client_name, client):
     def decorator(f):
         @wraps(f)
-        def wrapper(*args, **kwargs):
-            connection_config = kwargs.get('connection_config')
+        def wrapper(connection_config, *args, **kwargs):
             kwargs[client_name] = client().get(config=connection_config)
             if not hasattr(f, '__wrapped__'):
                 # don't pass connection_config to the real operation
-                del kwargs['connection_config']
+                kwargs.pop('connection_config', None)
 
             return f(*args, **kwargs)
         wrapper.__wrapped__ = f
@@ -2837,4 +2835,3 @@ def _with_client(client_name, client):
 with_server_client = _with_client('server_client', ServerClient)
 with_network_client = _with_client('network_client', NetworkClient)
 with_storage_client = _with_client('storage_client', StorageClient)
-with_vsphere_client = _with_client('vsphere_client', VsphereClient)
