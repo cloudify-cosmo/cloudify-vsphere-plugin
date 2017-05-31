@@ -1,12 +1,5 @@
+mock
+pyfakefs
 pytest
 pytest-bdd
 pytest-cov
-pyfakefs
-mock
-testfixtures
-pytz
-rfc3986
-monotonic
-pyparsing
-positional
-netifaces
