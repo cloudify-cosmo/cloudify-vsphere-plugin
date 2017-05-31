@@ -21,9 +21,6 @@ from cloudify import ctx
 from cloudify.decorators import operation
 
 
-sentinel = object()
-
-
 def get_args(func):
     args = set()
     if hasattr(func, '__wrapped__'):
@@ -38,6 +35,10 @@ def op(func):
     properties as function inputs.
     Any inputs provided directly to the operation will override corresponding
     properties.
+
+    In order for other decorators to cooperate with @op, they must expose the
+    wrapped function object as newfunction.__wrapped__ (this follows the
+    convention started by the `decorator` library).
     """
     @operation
     @wraps(func)
@@ -52,9 +53,7 @@ def op(func):
             if key in kwargs:
                 processed_kwargs[key] = kwargs[key]
                 continue
-            property = ctx.node.properties.get(key, sentinel)
-            if property is not sentinel:
-                processed_kwargs.setdefault(key, property)
+            processed_kwargs[key] = ctx.node.properties.get(key)
 
         return func(**processed_kwargs)
 
