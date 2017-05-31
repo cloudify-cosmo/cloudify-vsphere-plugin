@@ -19,7 +19,7 @@ import string
 # Third party imports
 
 # Cloudify imports
-from cloudify import exceptions as cfy_exc
+from cloudify.exceptions import NonRecoverableError
 
 # This package imports
 from cloudify_vsphere.utils import op
@@ -40,7 +40,7 @@ from vsphere_plugin_common.constants import (
 
 def validate_connect_network(network):
     if 'name' not in network.keys():
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             'All networks connected to a server must have a name specified. '
             'Network details: {}'.format(str(network))
         )
@@ -65,14 +65,14 @@ def validate_connect_network(network):
     for key, value in network.items():
         if key in allowed:
             if not isinstance(value, allowed[key]):
-                raise cfy_exc.NonRecoverableError(
+                raise NonRecoverableError(
                     'network.{key} must be of type {expected_type}'.format(
                         key=key,
                         expected_type=friendly_type_mapping[allowed[key]],
                     )
                 )
         else:
-            raise cfy_exc.NonRecoverableError(
+            raise NonRecoverableError(
                 'Key {key} is not valid in a connect_networks network. '
                 'Network was {name}. Valid keys are: {valid}'.format(
                     key=key,
@@ -133,10 +133,10 @@ def create_new_server(
         err_msg = "No more than one %s network can be specified."
         if len([network for network in connect_networks
                 if network.get('external', False)]) > 1:
-            raise cfy_exc.NonRecoverableError(err_msg % 'external')
+            raise NonRecoverableError(err_msg % 'external')
         if len([network for network in connect_networks
                 if network.get('management', False)]) > 1:
-            raise cfy_exc.NonRecoverableError(err_msg % 'management')
+            raise NonRecoverableError(err_msg % 'management')
 
         for network in connect_networks:
             validate_connect_network(network)
@@ -179,7 +179,7 @@ def create_new_server(
     elif vm_name.strip(string.letters + string.digits + '-') != '':
         valid_name = False
     if not valid_name:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             'Computer name must contain only A-Z, a-z, 0-9, '
             'and hyphens ("-"), and must not consist entirely of '
             'numbers. Underscores will be converted to hyphens. '
@@ -245,7 +245,7 @@ def start(
 def shutdown_guest(ctx, server_client, server, os_family):
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             "Cannot shutdown server guest - server doesn't exist for node: {0}"
             .format(ctx.instance.id))
     vm_name = get_vm_name(ctx, server, os_family)
@@ -261,7 +261,7 @@ def shutdown_guest(ctx, server_client, server, os_family):
 def stop(ctx, server_client, server, os_family):
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             "Cannot stop server - server doesn't exist for node: {0}"
             .format(ctx.instance.id))
     vm_name = get_vm_name(ctx, server, os_family)
@@ -275,7 +275,7 @@ def stop(ctx, server_client, server, os_family):
 def delete(ctx, server_client, server, os_family):
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             "Cannot delete server - server doesn't exist for node: {0}"
             .format(ctx.instance.id))
     vm_name = get_vm_name(ctx, server, os_family)
@@ -291,7 +291,7 @@ def delete(ctx, server_client, server, os_family):
 def get_state(ctx, server_client, server, networking, os_family):
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             "Cannot get info - server doesn't exist for node: {0}".format(
                 ctx.instance.id,
             )
@@ -431,7 +431,7 @@ def resize_server(
 
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             "Cannot resize server - server doesn't exist for node: {0}"
             .format(ctx.instance.id))
 
@@ -458,7 +458,7 @@ def resize(ctx, server_client, server, os_family):
     )
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             "Cannot resize server - server doesn't exist for node: {0}"
             .format(ctx.instance.id))
     vm_name = get_vm_name(ctx, server, os_family)
@@ -481,7 +481,7 @@ def resize(ctx, server_client, server, os_family):
         ctx.logger.info('Succeeded resizing server {name}.'.format(
                         name=vm_name))
     else:
-        raise cfy_exc.NonRecoverableError(
+        raise NonRecoverableError(
             "Server resize parameters should be specified.")
 
 
