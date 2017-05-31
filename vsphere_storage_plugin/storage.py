@@ -28,13 +28,13 @@ from vsphere_plugin_common import (
     remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
+    VSPHERE_SERVER_ID,
     VSPHERE_STORAGE_VM_ID,
     VSPHERE_STORAGE_VM_NAME,
     VSPHERE_STORAGE_SCSI_ID,
     VSPHERE_STORAGE_FILE_NAME,
     VSPHERE_STORAGE_RUNTIME_PROPERTIES,
 )
-from vsphere_server_plugin.server import VSPHERE_SERVER_ID
 from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
