@@ -13,50 +13,57 @@
 #  * See the License for the specific language governing permissions and
 #  * limitations under the License.
 
-from cloudify import ctx
-from cloudify.decorators import operation
 import cloudify.exceptions as cfy_exc
 
+from cloudify_vsphere.utils import op
 from vsphere_plugin_common import with_server_client
 from .server import get_server_by_context
 
 
 @with_server_client
-def _power_operation(operation_name, server_client, kwargs=None):
+def _power_operation(
+        operation_name,
+        ctx,
+        server,
+        server_client,
+        kwargs=None):
     if not kwargs:
         kwargs = {}
-    server = get_server_by_context(server_client)
+    server_obj = get_server_by_context(ctx, server_client, server)
     split = ' '.join(operation_name.split('_'))
     if server is None:
         raise cfy_exc.NonRecoverableError(
             "Cannot {action} - server doesn't exist for node: {name}"
             .format(name=ctx.node.id, action=split))
 
-    return getattr(server_client, operation_name)(server, **kwargs)
+    return getattr(server_client, operation_name)(server_obj, **kwargs)
 
 
-@operation
-def power_on(**kwargs):
-    return _power_operation('start_server')
+@op
+def power_on(ctx, server, connection_config):
+    return _power_operation(connection_config, 'start_server', ctx, server)
 
 
-@operation
-def power_off(**kwargs):
-    return _power_operation('stop_server')
+@op
+def power_off(ctx, server, connection_config):
+    return _power_operation(connection_config, 'stop_server', ctx, server)
 
 
-@operation
-def shut_down(max_wait_time, **kwargs):
-    return _power_operation('shutdown_server_guest', kwargs={
-        'max_wait_time': max_wait_time,
-    })
+@op
+def shut_down(max_wait_time, ctx, server, connection_config):
+    return _power_operation(
+        connection_config, 'shutdown_server_guest',
+        ctx,
+        server,
+        kwargs={'max_wait_time': max_wait_time},
+        )
 
 
-@operation
-def reboot(**kwargs):
-    return _power_operation('reboot_server')
+@op
+def reboot(ctx, server, connection_config):
+    return _power_operation(connection_config, 'reboot_server', ctx, server)
 
 
-@operation
-def reset(**kwargs):
-    return _power_operation('reset_server')
+@op
+def reset(ctx, server, connection_config):
+    return _power_operation(connection_config, 'reset_server', ctx, server)

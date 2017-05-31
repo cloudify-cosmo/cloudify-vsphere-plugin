@@ -513,13 +513,16 @@ def get_vm_name(ctx, server, os_family):
     return vm_name
 
 
-def get_server_by_context(ctx, server_client, server, os_family):
+def get_server_by_context(ctx, server_client, server, os_family=None):
     ctx.logger.info("Performing look-up for server.")
     if VSPHERE_SERVER_ID in ctx.instance.runtime_properties:
         return server_client.get_server_by_id(
             ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
-    else:
+    elif os_family:
         # Try to get server by name. None will be returned if it is not found
         # This may change in future versions of vmomi
         return server_client.get_server_by_name(
             get_vm_name(ctx, server, os_family))
+
+    raise NonRecoverableError(
+        'os_family must be provided if the VM might not exist')
