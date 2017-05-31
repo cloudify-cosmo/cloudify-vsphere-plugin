@@ -1331,21 +1331,23 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise NonRecoverableError(message)
 
-    def create_server(self,
-                      auto_placement,
-                      cpus,
-                      datacenter_name,
-                      memory,
-                      networks,
-                      resource_pool_name,
-                      template_name,
-                      vm_name,
-                      os_type='linux',
-                      domain=None,
-                      dns_servers=None,
-                      allowed_hosts=None,
-                      allowed_clusters=None,
-                      allowed_datastores=None):
+    def create_server(
+            self,
+            auto_placement,
+            cpus,
+            datacenter_name,
+            memory,
+            networks,
+            resource_pool_name,
+            template_name,
+            vm_name,
+            os_type='linux',
+            domain=None,
+            dns_servers=None,
+            allowed_hosts=None,
+            allowed_clusters=None,
+            allowed_datastores=None,
+            ):
         logger().debug(
             "Entering create_server with parameters %s"
             % prepare_for_log(locals()))
