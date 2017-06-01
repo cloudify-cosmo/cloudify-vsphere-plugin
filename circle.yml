@@ -12,7 +12,7 @@ test:
     - mkdir -p "$CIRCLE_TEST_REPORTS/nose"
     - tox -e code-quality
     - tox -e docs
-    - tox -e py27 -- --with-xunit --xunit-file="$CIRCLE_TEST_REPORTS/nose/nose.xml"
+    - tox -e py27 -- --junitxml="$CIRCLE_TEST_REPORTS/pytest/pytest.xml"
     - mv .tox/docs/tmp/html $CIRCLE_ARTIFACTS
 
 deployment:
