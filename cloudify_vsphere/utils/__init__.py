@@ -1,5 +1,5 @@
 #########
-# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+# Copyright (c) 2017 GigaSpaces Technologies Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -22,6 +22,10 @@ from cloudify.decorators import operation
 
 
 def get_args(func):
+    """
+    recursively collect all args from functions wrapped by decorators.
+    """
+
     args = set()
     if hasattr(func, '__wrapped__'):
         args.update(get_args(func.__wrapped__))
@@ -40,6 +44,7 @@ def op(func):
     wrapped function object as newfunction.__wrapped__ (this follows the
     convention started by the `decorator` library).
     """
+
     @operation
     @wraps(func)
     def wrapper(**kwargs):
