@@ -15,6 +15,7 @@
 
 import copy
 import time
+from unittest import SkipTest
 
 import mock
 from pyVim.connect import Disconnect
@@ -1060,9 +1061,17 @@ class VsphereIntegrationTest(TestCase):
                 "Something bad is going on")
 
     def test_maintenance_mode_unsuitable(self):
-        host = self._get_host_uncached(
-            self.env.cloudify_config['temporary_maintenance_host'],
-        )
+        try:
+            host_name = self.env.cloudify_config['temporary_maintenance_host']
+        except KeyError:
+            raise SkipTest(
+                'temporary_maintenance_host not provided.'
+                ' If you want to run this test,'
+                ' provide temporary_maintenance_host,'
+                ' a host which this test may mark as in maintenance mode.'
+                )
+
+        host = self._get_host_uncached(host_name)
         print(host)
 
         self.assertTrue(
