@@ -1,3 +1,5 @@
+TBD:
+  - Allow node properties to be overridden in operation inputs (VSPHERE-92)
 2.3.0:
   - Move default connection config to /etc/cloudify/vsphere_plugin/connection_config.yaml (VSPHERE-1, VSPHERE-17)
   - Add Server power operations (on, off, reboot, reset) (VSPHERE-73)
