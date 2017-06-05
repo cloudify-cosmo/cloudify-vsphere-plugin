@@ -3,8 +3,8 @@
 Examples
 ========
 
-Example I
----------
+Server, Network, and Storage
+----------------------------
 
 ::
 
