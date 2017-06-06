@@ -92,6 +92,12 @@ def create_new_server(
         allowed_hosts,
         allowed_clusters,
         allowed_datastores,
+        windows_password,
+        windows_organization,
+        windows_timezone,
+        agent_config,
+        custom_sysprep,
+        custom_attributes,
         # Backwards compatibility- only linux was really working
         os_family='linux',
         ):
@@ -196,6 +202,12 @@ def create_new_server(
         resource_pool_name,
         template_name,
         vm_name,
+        windows_password,
+        windows_organization,
+        windows_timezone,
+        agent_config,
+        custom_sysprep,
+        custom_attributes,
         os_family,
         domain,
         dns_servers,
@@ -219,6 +231,12 @@ def start(
         allowed_clusters,
         allowed_datastores,
         os_family,
+        windows_password,
+        windows_organization,
+        windows_timezone,
+        agent_config,
+        custom_sysprep,
+        custom_attributes,
         ):
     ctx.logger.debug("Checking whether server exists...")
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
@@ -232,6 +250,12 @@ def start(
             allowed_hosts,
             allowed_clusters,
             allowed_datastores,
+            windows_password,
+            windows_organization,
+            windows_timezone,
+            agent_config,
+            custom_sysprep,
+            custom_attributes,
             os_family=os_family,
             )
     else:

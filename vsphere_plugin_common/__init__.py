@@ -1293,26 +1293,29 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise NonRecoverableError(message)
 
-    def _validate_windows_properties(self, props, password):
+    def _validate_windows_properties(
+            self,
+            custom_sysprep,
+            windows_organization,
+            windows_password,
+            ):
         issues = []
 
-        props_password = props.get('windows_password')
-        if props_password == '':
+        if windows_password == '':
             # Avoid falsey comparison on blank password
-            props_password = True
-        if password == '':
+            windows_password = True
+        if windows_password == '':
             # Avoid falsey comparison on blank password
-            password = True
-        custom_sysprep = props.get('custom_sysprep')
+            windows_password = True
         if custom_sysprep is not None:
-            if props_password:
+            if windows_password:
                 issues.append(
                     'custom_sysprep answers data has been provided, but a '
                     'windows_password was supplied. If using custom sysprep, '
                     'no other windows settings are usable.'
                 )
-        elif not props_password and custom_sysprep is None:
-            if not password:
+        elif not windows_password and custom_sysprep is None:
+            if not windows_password:
                 issues.append(
                     'Windows password must be set when a custom sysprep is '
                     'not being performed. Please supply a windows_password '
@@ -1320,9 +1323,9 @@ class ServerClient(VsphereClient):
                     'properties.agent_config.password'
                 )
 
-        if len(props['windows_organization']) == 0:
+        if len(windows_organization) == 0:
             issues.append('windows_organization property must not be blank')
-        if len(props['windows_organization']) > 64:
+        if len(windows_organization) > 64:
             issues.append(
                 'windows_organization property must be 64 characters or less')
 
@@ -1341,6 +1344,12 @@ class ServerClient(VsphereClient):
             resource_pool_name,
             template_name,
             vm_name,
+            windows_password,
+            windows_organization,
+            windows_timezone,
+            agent_config,
+            custom_sysprep,
+            custom_attributes,
             os_type='linux',
             domain=None,
             dns_servers=None,
@@ -1520,22 +1529,25 @@ class ServerClient(VsphereClient):
                 ident.hostName = vim.vm.customization.FixedName()
                 ident.hostName.name = vm_name
             elif os_type == 'windows':
-                props = ctx.node.properties
-                password = props.get('windows_password')
-                if not password:
-                    agent_config = props.get('agent_config', {})
-                    password = agent_config.get('password')
+                if not windows_password:
+                    if not agent_config:
+                        agent_config = {}
+                    windows_password = agent_config.get('password')
 
-                self._validate_windows_properties(props, password)
+                self._validate_windows_properties(
+                        custom_sysprep,
+                        windows_organization,
+                        windows_password,
+                        )
 
-                custom_sysprep = props.get('custom_sysprep')
                 if custom_sysprep is not None:
                     ident = vim.vm.customization.SysprepText()
                     ident.value = custom_sysprep
                 else:
                     # We use GMT without daylight savings if no timezone is
                     # supplied, as this is as close to UTC as we can do
-                    timezone = props.get('windows_timezone', 90)
+                    if not windows_timezone:
+                        windows_timezone = 90
 
                     ident = vim.vm.customization.Sysprep()
                     ident.userData = vim.vm.customization.UserData()
@@ -1552,7 +1564,7 @@ class ServerClient(VsphereClient):
                     # Without these vars, customization is silently skipped
                     # but deployment 'succeeds'
                     ident.userData.fullName = vm_name
-                    ident.userData.orgName = props.get('windows_organization')
+                    ident.userData.orgName = windows_organization
                     ident.userData.productId = ""
 
                     # Configure guiUnattended
@@ -1561,8 +1573,8 @@ class ServerClient(VsphereClient):
                         vim.vm.customization.Password()
                     )
                     ident.guiUnattended.password.plainText = True
-                    ident.guiUnattended.password.value = password
-                    ident.guiUnattended.timeZone = timezone
+                    ident.guiUnattended.password.value = windows_password
+                    ident.guiUnattended.timeZone = windows_timezone
 
                 # Adding windows options
                 options = vim.vm.customization.WinOptions()
@@ -1608,9 +1620,7 @@ class ServerClient(VsphereClient):
             self.get_vm_networks(vm)
         logger().debug('Updated runtime properties with network information')
 
-        self.add_custom_values(
-            vm,
-            ctx.node.properties.get('custom_attributes', {}))
+        self.add_custom_values(vm, custom_attributes or {})
 
         return task.info.result
 
