@@ -25,7 +25,7 @@ Types
 
     Beware that if properties are overridden in this way
     they must be explicitly overridden for all of the node's operations,
-    otherwise behaviour will be unpredictable.
+    otherwise behavior will be unpredictable.
 
 
 Node Types
