@@ -975,9 +975,19 @@ class VsphereIntegrationTest(TestCase):
 
         while (
             task.info.state == vim.TaskInfo.State.queued or
-            task.info.progress < 30  # it seems to actually clone around 30+
+            (task.info.state == vim.TaskInfo.State.running and
+             task.info.progress < 30  # it seems to actually clone around 30+
+             )
         ):
             time.sleep(0.5)
+
+        self.assertEqual(
+            vim.TaskInfo.State.running,
+            task.info.state,
+            'Cloning task was not running and may have failed for VM {name}. '
+            'error: {error}'
+            .format(name=vm_name, error=task.info.error)
+            )
 
         return task
 
