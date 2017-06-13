@@ -135,6 +135,61 @@ class _ContainerView(object):
         self.view_ref.Destroy()
 
 
+class CustomValues(MutableMapping):
+    """dict interface to ManagedObject customValue"""
+
+    def __init__(self, client, thing):
+        """
+        client: a VsphereClient instance
+        thing: a NamedTuple containing a ManagedObject-derived class as its
+        `obj` attribute: as supplied by `client._get_obj_by_name`
+        """
+        self.client = client
+        self.thing = thing
+
+    def __getitem__(self, key):
+        key_id = self._get_key_id(key)
+        for value in self.thing.obj.customValue:
+            if value.key == key_id:
+                return value.value
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        self._get_key_id(key, create=True)
+        return self.thing.obj.setCustomValue(key, value)
+
+    def __delitem__(self, key):
+        raise NonRecoverableError("Unable to unset custom values")
+
+    def __iter__(self):
+        for value in self.thing.obj.customValue:
+            yield self._get_key_name(value.key)
+
+    def __len__(self):
+        return len(self.thing.obj.customValue)
+
+    def _get_key_id(self, k, create=False):
+        for key in self.client._get_custom_keys():
+            if key.name == k:
+                return key.key
+        if create:
+            try:
+                key = (
+                    self.client.si.content.customFieldsManager.
+                    AddCustomFieldDef)(name=k)
+            except vim.fault.DuplicateName:
+                self.client._get_custom_keys(use_cache=False)
+                return self._get_key_id(k, create=create)
+            return key.key
+        raise KeyError(k)
+
+    def _get_key_name(self, k):
+        for key in self.client._get_custom_keys():
+            if key.key == k:
+                return key.name
+        raise ValueError(k)
+
+
 class VsphereClient(object):
 
     def __init__(self):
@@ -1044,61 +1099,6 @@ class VsphereClient(object):
             logger().debug('Added custom attributes')
 
 
-class CustomValues(MutableMapping):
-    """dict interface to ManagedObject customValue"""
-
-    def __init__(self, client, thing):
-        """
-        client: a VsphereClient instance
-        thing: a NamedTuple containing a ManagedObject-derived class as its
-        `obj` attribute: as supplied by `client._get_obj_by_name`
-        """
-        self.client = client
-        self.thing = thing
-
-    def __getitem__(self, key):
-        key_id = self._get_key_id(key)
-        for value in self.thing.obj.customValue:
-            if value.key == key_id:
-                return value.value
-        raise KeyError(key)
-
-    def __setitem__(self, key, value):
-        self._get_key_id(key, create=True)
-        return self.thing.obj.setCustomValue(key, value)
-
-    def __delitem__(self, key):
-        raise NonRecoverableError("Unable to unset custom values")
-
-    def __iter__(self):
-        for value in self.thing.obj.customValue:
-            yield self._get_key_name(value.key)
-
-    def __len__(self):
-        return len(self.thing.obj.customValue)
-
-    def _get_key_id(self, k, create=False):
-        for key in self.client._get_custom_keys():
-            if key.name == k:
-                return key.key
-        if create:
-            try:
-                key = (
-                    self.client.si.content.customFieldsManager.
-                    AddCustomFieldDef)(name=k)
-            except vim.fault.DuplicateName:
-                self.client._get_custom_keys(use_cache=False)
-                return self._get_key_id(k, create=create)
-            return key.key
-        raise KeyError(k)
-
-    def _get_key_name(self, k):
-        for key in self.client._get_custom_keys():
-            if key.key == k:
-                return key.name
-        raise ValueError(k)
-
-
 class ServerClient(VsphereClient):
 
     def _get_port_group_names(self):
@@ -1293,26 +1293,29 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise NonRecoverableError(message)
 
-    def _validate_windows_properties(self, props, password):
+    def _validate_windows_properties(
+            self,
+            custom_sysprep,
+            windows_organization,
+            windows_password,
+            ):
         issues = []
 
-        props_password = props.get('windows_password')
-        if props_password == '':
+        if windows_password == '':
             # Avoid falsey comparison on blank password
-            props_password = True
-        if password == '':
+            windows_password = True
+        if windows_password == '':
             # Avoid falsey comparison on blank password
-            password = True
-        custom_sysprep = props.get('custom_sysprep')
+            windows_password = True
         if custom_sysprep is not None:
-            if props_password:
+            if windows_password:
                 issues.append(
                     'custom_sysprep answers data has been provided, but a '
                     'windows_password was supplied. If using custom sysprep, '
                     'no other windows settings are usable.'
                 )
-        elif not props_password and custom_sysprep is None:
-            if not password:
+        elif not windows_password and custom_sysprep is None:
+            if not windows_password:
                 issues.append(
                     'Windows password must be set when a custom sysprep is '
                     'not being performed. Please supply a windows_password '
@@ -1320,9 +1323,9 @@ class ServerClient(VsphereClient):
                     'properties.agent_config.password'
                 )
 
-        if len(props['windows_organization']) == 0:
+        if len(windows_organization) == 0:
             issues.append('windows_organization property must not be blank')
-        if len(props['windows_organization']) > 64:
+        if len(windows_organization) > 64:
             issues.append(
                 'windows_organization property must be 64 characters or less')
 
@@ -1331,21 +1334,29 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise NonRecoverableError(message)
 
-    def create_server(self,
-                      auto_placement,
-                      cpus,
-                      datacenter_name,
-                      memory,
-                      networks,
-                      resource_pool_name,
-                      template_name,
-                      vm_name,
-                      os_type='linux',
-                      domain=None,
-                      dns_servers=None,
-                      allowed_hosts=None,
-                      allowed_clusters=None,
-                      allowed_datastores=None):
+    def create_server(
+            self,
+            auto_placement,
+            cpus,
+            datacenter_name,
+            memory,
+            networks,
+            resource_pool_name,
+            template_name,
+            vm_name,
+            windows_password,
+            windows_organization,
+            windows_timezone,
+            agent_config,
+            custom_sysprep,
+            custom_attributes,
+            os_type='linux',
+            domain=None,
+            dns_servers=None,
+            allowed_hosts=None,
+            allowed_clusters=None,
+            allowed_datastores=None,
+            ):
         logger().debug(
             "Entering create_server with parameters %s"
             % prepare_for_log(locals()))
@@ -1518,22 +1529,25 @@ class ServerClient(VsphereClient):
                 ident.hostName = vim.vm.customization.FixedName()
                 ident.hostName.name = vm_name
             elif os_type == 'windows':
-                props = ctx.node.properties
-                password = props.get('windows_password')
-                if not password:
-                    agent_config = props.get('agent_config', {})
-                    password = agent_config.get('password')
+                if not windows_password:
+                    if not agent_config:
+                        agent_config = {}
+                    windows_password = agent_config.get('password')
 
-                self._validate_windows_properties(props, password)
+                self._validate_windows_properties(
+                        custom_sysprep,
+                        windows_organization,
+                        windows_password,
+                        )
 
-                custom_sysprep = props.get('custom_sysprep')
                 if custom_sysprep is not None:
                     ident = vim.vm.customization.SysprepText()
                     ident.value = custom_sysprep
                 else:
                     # We use GMT without daylight savings if no timezone is
                     # supplied, as this is as close to UTC as we can do
-                    timezone = props.get('windows_timezone', 90)
+                    if not windows_timezone:
+                        windows_timezone = 90
 
                     ident = vim.vm.customization.Sysprep()
                     ident.userData = vim.vm.customization.UserData()
@@ -1550,7 +1564,7 @@ class ServerClient(VsphereClient):
                     # Without these vars, customization is silently skipped
                     # but deployment 'succeeds'
                     ident.userData.fullName = vm_name
-                    ident.userData.orgName = props.get('windows_organization')
+                    ident.userData.orgName = windows_organization
                     ident.userData.productId = ""
 
                     # Configure guiUnattended
@@ -1559,8 +1573,8 @@ class ServerClient(VsphereClient):
                         vim.vm.customization.Password()
                     )
                     ident.guiUnattended.password.plainText = True
-                    ident.guiUnattended.password.value = password
-                    ident.guiUnattended.timeZone = timezone
+                    ident.guiUnattended.password.value = windows_password
+                    ident.guiUnattended.timeZone = windows_timezone
 
                 # Adding windows options
                 options = vim.vm.customization.WinOptions()
@@ -1606,9 +1620,7 @@ class ServerClient(VsphereClient):
             self.get_vm_networks(vm)
         logger().debug('Updated runtime properties with network information')
 
-        self.add_custom_values(
-            vm,
-            ctx.node.properties.get('custom_attributes', {}))
+        self.add_custom_values(vm, custom_attributes or {})
 
         return task.info.result
 
@@ -2820,10 +2832,14 @@ class StorageClient(VsphereClient):
 def _with_client(client_name, client):
     def decorator(f):
         @wraps(f)
-        def wrapper(*args, **kwargs):
-            config = ctx.node.properties.get('connection_config')
-            kwargs[client_name] = client().get(config=config)
+        def wrapper(connection_config, *args, **kwargs):
+            kwargs[client_name] = client().get(config=connection_config)
+            if not hasattr(f, '__wrapped__'):
+                # don't pass connection_config to the real operation
+                kwargs.pop('connection_config', None)
+
             return f(*args, **kwargs)
+        wrapper.__wrapped__ = f
         return wrapper
     return decorator
 

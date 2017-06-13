@@ -15,6 +15,7 @@
 
 import copy
 import time
+from unittest import SkipTest
 
 import mock
 from pyVim.connect import Disconnect
@@ -974,9 +975,19 @@ class VsphereIntegrationTest(TestCase):
 
         while (
             task.info.state == vim.TaskInfo.State.queued or
-            task.info.progress < 30  # it seems to actually clone around 30+
+            (task.info.state == vim.TaskInfo.State.running and
+             task.info.progress < 30  # it seems to actually clone around 30+
+             )
         ):
             time.sleep(0.5)
+
+        self.assertEqual(
+            vim.TaskInfo.State.running,
+            task.info.state,
+            'Cloning task was not running and may have failed for VM {name}. '
+            'error: {error}'
+            .format(name=vm_name, error=task.info.error)
+            )
 
         return task
 
@@ -1060,9 +1071,17 @@ class VsphereIntegrationTest(TestCase):
                 "Something bad is going on")
 
     def test_maintenance_mode_unsuitable(self):
-        host = self._get_host_uncached(
-            self.env.cloudify_config['temporary_maintenance_host'],
-        )
+        try:
+            host_name = self.env.cloudify_config['temporary_maintenance_host']
+        except KeyError:
+            raise SkipTest(
+                'temporary_maintenance_host not provided.'
+                ' If you want to run this test,'
+                ' provide temporary_maintenance_host,'
+                ' a host which this test may mark as in maintenance mode.'
+                )
+
+        host = self._get_host_uncached(host_name)
         print(host)
 
         self.assertTrue(

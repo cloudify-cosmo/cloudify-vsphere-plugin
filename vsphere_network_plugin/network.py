@@ -19,11 +19,10 @@ import urllib
 # Third party imports
 
 # Cloudify imports
-from cloudify import ctx
-from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
+from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_network_client,
     remove_runtime_properties,
@@ -37,12 +36,11 @@ from vsphere_plugin_common.constants import (
 from cloudify_vsphere.utils.feedback import check_name_for_special_characters
 
 
-@operation
+@op
 @with_network_client
-def create(network_client, **kwargs):
-    network = {}
-    network.update(ctx.node.properties['network'])
-    network['name'] = get_network_name(network)
+def create(ctx, network_client, network, use_existing_resource):
+    network.update(network)
+    network['name'] = get_network_name(ctx, network)
     check_name_for_special_characters(network['name'])
     port_group_name = network['name']
     switch_distributed = network['switch_distributed']
@@ -57,7 +55,7 @@ def create(network_client, **kwargs):
 
     creating = runtime_properties.get('status', None) == 'creating'
 
-    if ctx.node.properties.get('use_existing_resource', False):
+    if use_existing_resource:
         if not existing_id:
             raise NonRecoverableError(
                 'Could not use existing {distributed}network "{name}" as no '
@@ -82,7 +80,7 @@ def create(network_client, **kwargs):
         ctx.logger.info(
             'Creating {type} called {name} and VLAN {vlan} on '
             '{vswitch}'.format(
-                type=get_network_type(network),
+                type=get_network_type(ctx, network),
                 name=network['name'],
                 vlan=network['vlan_id'],
                 vswitch=network['vswitch_name'],
@@ -97,7 +95,7 @@ def create(network_client, **kwargs):
                                              vlan_id,
                                              vswitch_name)
         ctx.logger.info('Successfully created {type}: {name}'.format(
-                        type=get_network_type(network),
+                        type=get_network_type(ctx, network),
                         name=network['name']))
         network_id = _get_network_ids(
             name=port_group_name,
@@ -111,39 +109,38 @@ def create(network_client, **kwargs):
     ctx.instance.runtime_properties[SWITCH_DISTRIBUTED] = switch_distributed
 
 
-@operation
+@op
 @with_network_client
-def delete(network_client, **kwargs):
-    network = ctx.node.properties['network']
-    port_group_name = get_network_name(network)
+def delete(ctx, network_client, network, use_existing_resource):
+    port_group_name = get_network_name(ctx, network)
     switch_distributed = network.get('switch_distributed')
-    if ctx.node.properties.get('use_existing_resource', False):
+    if use_existing_resource:
         ctx.logger.info(
             'Not deleting existing {type}: {name}'.format(
-                type=get_network_type(network),
+                type=get_network_type(ctx, network),
                 name=network['name'],
             )
         )
     else:
         ctx.logger.info('Deleting {type}: {name}'.format(
-                        type=get_network_type(network),
+                        type=get_network_type(ctx, network),
                         name=network['name']))
         if switch_distributed:
             network_client.delete_dv_port_group(port_group_name)
         else:
             network_client.delete_port_group(port_group_name)
         ctx.logger.info('Successfully deleted {type}: {name}'.format(
-                        type=get_network_type(network),
+                        type=get_network_type(ctx, network),
                         name=network['name']))
     remove_runtime_properties(NETWORK_RUNTIME_PROPERTIES, ctx)
 
 
-def get_network_type(network):
+def get_network_type(ctx, network):
     return ('distributed port group' if network['switch_distributed']
             else 'port group')
 
 
-def get_network_name(network):
+def get_network_name(ctx, network):
     if 'name' in network:
         net_name = network['name']
     else:

@@ -2,6 +2,32 @@
 Types
 =====
 
+
+.. admonition:: New in <TODO: new version number>
+    :class: note
+
+    All node properties may optionally be passed directly to operations as inputs.
+    e.g.::
+
+        node_templates:
+          server:
+            type:
+              cloudify.vsphere.nodes.Server
+            properties:
+              name: server1
+            interfaces:
+              cloudify.interfaces.lifecycle.start:
+                inputs:
+                  name: different_name
+
+    Here ``different_name`` from the ``start`` operation inputs
+    will override ``server1`` from the properties.
+
+    Beware that if properties are overridden in this way
+    they must be explicitly overridden for all of the node's operations,
+    otherwise behavior will be unpredictable.
+
+
 Node Types
 ----------
 
