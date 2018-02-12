@@ -1582,9 +1582,10 @@ class ServerClient(VsphereClient):
                 options.deleteAccounts = False
                 customspec.options = options
             else:
-                raise NonRecoverableError(
+                logger().info(
                     'os_type {os_type} was specified, but only "windows" and '
-                    '"linux" are supported.'.format(os_type=os_type)
+                    '"linux" are supported. Customization is unsupported.'
+                    .format(os_type=os_type)
                 )
 
             customspec.identity = ident
