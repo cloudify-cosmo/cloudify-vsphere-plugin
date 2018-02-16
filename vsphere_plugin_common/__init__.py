@@ -1582,19 +1582,22 @@ class ServerClient(VsphereClient):
                 options.deleteAccounts = False
                 customspec.options = options
             else:
-                raise NonRecoverableError(
+                ident = None
+                logger().info(
                     'os_type {os_type} was specified, but only "windows" and '
-                    '"linux" are supported.'.format(os_type=os_type)
+                    '"linux" are supported. Customization is unsupported.'
+                    .format(os_type=os_type)
                 )
 
-            customspec.identity = ident
+            if ident:
+                customspec.identity = ident
 
-            globalip = vim.vm.customization.GlobalIPSettings()
-            if dns_servers:
-                globalip.dnsServerList = dns_servers
-            customspec.globalIPSettings = globalip
+                globalip = vim.vm.customization.GlobalIPSettings()
+                if dns_servers:
+                    globalip.dnsServerList = dns_servers
+                customspec.globalIPSettings = globalip
 
-            clonespec.customization = customspec
+                clonespec.customization = customspec
         logger().info(
             'Cloning {server} from {template}.'.format(
                 server=vm_name, template=template_name))
