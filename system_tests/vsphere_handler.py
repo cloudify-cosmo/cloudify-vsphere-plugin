@@ -17,6 +17,7 @@ import atexit
 import pyVmomi
 import random
 import time
+import ssl
 
 from pyVim.connect import SmartConnect, Disconnect
 
@@ -127,6 +128,9 @@ class VsphereHandler(handlers.BaseHandler):
         self.env = env
 
     def client_creds(self):
+        ssl._create_default_https_context = (
+             ssl._create_unverified_context
+        )
         return {
             'host': self.env.vsphere_host,
             'user': self.env.vsphere_username,

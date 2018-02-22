@@ -18,7 +18,7 @@ import setuptools
 setuptools.setup(
     zip_safe=True,
     name='cloudify-vsphere-plugin',
-    version='2.3.0',
+    version='2.4.0',
     packages=[
         'vsphere_plugin_common',
         'vsphere_server_plugin',
