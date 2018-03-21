@@ -6,8 +6,8 @@ plugins:
     vsphere:
         executor: central_deployment_agent
         package_name: cloudify-vsphere-plugin
-        package_version: '2.4.0'
-        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.4.0.zip
+        package_version: '2.4.0.1'
+        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/SCSIController.zip
 
 data_types:
     cloudify.datatypes.vsphere.Config:
@@ -278,7 +278,32 @@ node_types:
                 description: |
                   key-value storage disk configuration. ::
 
+                    parent_key: Device key from controller, negative mean
+                      that can be used any
+
                     storage_size: disk size in GB.
+
+                    thin_provision: Flag to indicate to the underlying
+                      filesystem, whether the virtual disk backing file should
+                      be allocated lazily (using thin provisioning). This flag
+                      is only used for file systems that support configuring
+                      the provisioning policy on a per file basis, such as VMFS3.
+                      Default: false
+
+                    mode: The disk persistence mode. Valid modes are:
+
+                      * persistent
+
+                      * independent_persistent
+
+                      * independent_nonpersistent
+
+                      * nonpersistent
+
+                      * undoable
+
+                      * append
+
             connection_config:
                 default: {}
                 type: cloudify.datatypes.vsphere.Config
@@ -363,6 +388,140 @@ node_types:
                     implementation: vsphere.cloudify_vsphere.cluster.delete
                     inputs: {}
 
+    cloudify.vsphere.nodes.NIC:
+        derived_from: cloudify.nodes.Root
+        properties:
+            name:
+                description: >
+                    Network name for connect
+            switch_distributed:
+                description: >
+                    determines if this is connected to a distributed port group
+                default: false
+            adapter_type:
+                description: >
+                    Possible: Vmxnet3, Vmxnet2, Sriov, E1000, E1000e
+                default: Vmxnet3
+            start_connected:
+                description: >
+                    Specifies whether or not to connect the device when the virtual
+                    machine starts.
+                default: true
+            allow_guest_control:
+                description: >
+                    Enables guest control over whether the connectable device is
+                    connected.
+                default: true
+            network_connected:
+                description: >
+                    Indicates whether the device is currently connected.
+                    Valid only while the virtual machine is running.
+                default: true
+            wake_on_lan_enabled:
+                description: >
+                    Indicates whether wake-on-LAN is enabled on this virtual network
+                    adapter. Clients can set this property to selectively enable or
+                    disable wake-on-LAN.
+                default: true
+            address_type:
+                description: >
+                    MAC address type. Valid values for address type are:
+                    ManualStatically assigned MAC address.
+                    GeneratedAutomatically generated MAC address.
+                    AssignedMAC address assigned by VirtualCenter.
+                default: assigned
+            mac_address:
+                description: >
+                    MAC address assigned to the virtual network adapter. Clients can
+                    set this property to any of the allowed address types. The server
+                    might override the specified value for "Generated" or "Assigned"
+                    if it does not fall in the right ranges or is determined to be
+                    a duplicate.
+                default: ""
+            connection_config:
+                type: cloudify.datatypes.vsphere.Config
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create:
+                    implementation: vsphere.cloudify_vsphere.devices.create_contoller
+                    inputs:
+                        name:
+                            default: { get_attribute: [ SELF, name ] }
+                        switch_distributed:
+                            default: { get_attribute: [ SELF, switch_distributed ] }
+                        adapter_type:
+                            default: { get_attribute: [ SELF, adapter_type ] }
+                        start_connected:
+                            default: { get_attribute: [ SELF, start_connected ] }
+                        allow_guest_control:
+                            default: { get_attribute: [ SELF, allow_guest_control ] }
+                        network_connected:
+                            default: { get_attribute: [ SELF, network_connected ] }
+                        wake_on_lan_enabled:
+                            default: { get_attribute: [ SELF, wake_on_lan_enabled ] }
+                        address_type:
+                            default: { get_attribute: [ SELF, address_type ] }
+                        mac_address:
+                            default: { get_attribute: [ SELF, mac_address ] }
+                delete:
+                    implementation: vsphere.cloudify_vsphere.devices.delete_contoller
+
+    cloudify.vsphere.nodes.SCSIController:
+        derived_from: cloudify.nodes.Root
+        properties:
+            busNumber:
+                description: >
+                    Bus number associated with this controller.
+                default: 0
+            label:
+                description: >
+                    Label for SCSI contoller
+                default: SCSIContoller
+            adapterType:
+                description: >
+                    Possible: paravirtual, lsilogic_sas, lsilogic
+                default: paravirtual
+            hotAddRemove:
+                description: >
+                    All SCSI controllers support hot adding and removing of devices.
+                    This support can't be toggled in the current implementation.
+                    Therefore, this option is ignored when reconfiguring a SCSI
+                    controller and is always set to "true" when reading an existing
+                    configuration.
+                default: true
+            sharedBus:
+                description: >
+                    Mode for sharing the SCSI bus. The modes are physicalSharing,
+                    virtualSharing, and noSharing.
+                default: noSharing
+            scsiCtlrUnitNumber:
+                description: >
+                    The unit number of the SCSI controller. The SCSI controller
+                    sits on its own bus, so this field defines which slot the
+                    controller is using.
+                default: -1
+            connection_config:
+                type: cloudify.datatypes.vsphere.Config
+        interfaces:
+            cloudify.interfaces.lifecycle:
+                create:
+                    implementation: vsphere.cloudify_vsphere.devices.create_contoller
+                    inputs:
+                        busNumber:
+                            default: { get_attribute: [ SELF, busNumber ] }
+                        hotAddRemove:
+                            default: { get_attribute: [ SELF, hotAddRemove ] }
+                        sharedBus:
+                            default: { get_attribute: [ SELF, sharedBus ] }
+                        scsiCtlrUnitNumber:
+                            default: { get_attribute: [ SELF, scsiCtlrUnitNumber ] }
+                        adapterType:
+                            default: { get_attribute: [ SELF, adapterType ] }
+                        label:
+                            default: { get_attribute: [ SELF, label ] }
+                delete:
+                    implementation: vsphere.cloudify_vsphere.devices.delete_contoller
+
 relationships:
     cloudify.vsphere.port_connected_to_network:
         derived_from: cloudify.relationships.connected_to
@@ -372,3 +531,21 @@ relationships:
 
     cloudify.vsphere.storage_connected_to_server:
         derived_from: cloudify.relationships.connected_to
+
+    cloudify.vsphere.nic_connected_to_server:
+        derived_from: cloudify.relationships.contained_in
+        source_interfaces:
+            cloudify.interfaces.relationship_lifecycle:
+                preconfigure:
+                    implementation: vsphere.cloudify_vsphere.devices.attach_ethernet_card
+                unlink:
+                    implementation: vsphere.cloudify_vsphere.devices.detach_contoller
+
+    cloudify.vsphere.controller_connected_to_vm:
+        derived_from: cloudify.relationships.contained_in
+        source_interfaces:
+            cloudify.interfaces.relationship_lifecycle:
+                preconfigure:
+                    implementation: vsphere.cloudify_vsphere.devices.attach_scsi_contoller
+                unlink:
+                    implementation: vsphere.cloudify_vsphere.devices.detach_contoller

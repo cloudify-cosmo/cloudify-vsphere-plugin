@@ -1,0 +1,152 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/SCSIController/plugin.yaml
+  - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
+
+inputs:
+
+  vcenter_user:
+    type: string
+
+  vcenter_password:
+    type: string
+
+  vcenter_ip:
+    type: string
+
+  vcenter_port:
+    type: string
+    default: 443
+
+  vcenter_datacenter:
+    type: string
+    description: >
+       vcenter datacenter
+    default: Datacenter
+
+  vcenter_resource_pool:
+    description: >
+      Resource pool name
+    default: Resources
+
+  vsphere_auto_placement:
+    type: string
+    default: true
+
+  template_name:
+    type: string
+    description: >
+      "CentOS 7 template name"
+    default: "CentOS-7.2-x86_64-1511-tmpl"
+
+  vcenter_network:
+    type: string
+    description: >
+      vcenter network
+    default: Internal
+
+  vcenter_datastore:
+    type: string
+    description: >
+      vcenter datastore
+    default: datastore1
+
+  agent_user:
+    default: root
+    type: string
+
+  agent_group:
+    default: root
+
+  manager_network:
+    default: default
+
+  install_method:
+    default: remote
+
+###############################################################################
+#  DSL section
+###############################################################################
+dsl_definitions:
+
+  connection_config: &connection_config
+    username: { get_input: vcenter_user }
+    password: {get_input: vcenter_password }
+    host: { get_input: vcenter_ip }
+    port: { get_input: vcenter_port }
+    datacenter_name: {get_input: vcenter_datacenter }
+    resource_pool_name: { get_input: vcenter_resource_pool }
+    auto_placement: { get_input: vsphere_auto_placement }
+    allow_insecure: true
+
+node_types:
+
+  host:
+    derived_from: cloudify.vsphere.nodes.Server
+    properties:
+      connection_config:
+        default: *connection_config
+      os_family:
+        default: other
+      server:
+        default:
+          name: other_vm
+          template: { get_input: template_name }
+          cpus: 1
+          memory: 1024
+      agent_config:
+        default:
+          install_method: none
+      networking:
+        default:
+          dns_servers:
+            - '8.8.8.8'
+          connect_networks:
+            - name: Internal
+
+node_templates:
+###############################################################################
+# vsphere section
+###############################################################################
+  vm_instance:
+    type: host
+
+  scsi_controller:
+    type: cloudify.vsphere.nodes.SCSIController
+    properties:
+      connection_config: *connection_config
+    relationships:
+      - target: vm_instance
+        type: cloudify.vsphere.controller_connected_to_vm
+
+  vm_volume:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      storage: {}
+      connection_config: *connection_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            storage:
+              parent_key: { get_attribute: [ scsi_controller, busKey ] }
+              storage_size: 10
+              mode: independent_persistent
+    relationships:
+      - target: vm_instance
+        type: cloudify.vsphere.storage_connected_to_server
+      - target: scsi_controller
+        type: cloudify.relationships.depends_on
+
+  vm_nic:
+    type: cloudify.vsphere.nodes.NIC
+    properties:
+      name: External
+      mac_address: 00:50:56:85:18:da
+      connection_config: *connection_config
+    relationships:
+      - target: vm_instance
+        type: cloudify.vsphere.nic_connected_to_server
+      - target: scsi_controller
+        type: cloudify.relationships.depends_on
