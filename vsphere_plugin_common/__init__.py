@@ -1582,19 +1582,22 @@ class ServerClient(VsphereClient):
                 options.deleteAccounts = False
                 customspec.options = options
             else:
-                raise NonRecoverableError(
+                ident = None
+                logger().info(
                     'os_type {os_type} was specified, but only "windows" and '
-                    '"linux" are supported.'.format(os_type=os_type)
+                    '"linux" are supported. Customization is unsupported.'
+                    .format(os_type=os_type)
                 )
 
-            customspec.identity = ident
+            if ident:
+                customspec.identity = ident
 
-            globalip = vim.vm.customization.GlobalIPSettings()
-            if dns_servers:
-                globalip.dnsServerList = dns_servers
-            customspec.globalIPSettings = globalip
+                globalip = vim.vm.customization.GlobalIPSettings()
+                if dns_servers:
+                    globalip.dnsServerList = dns_servers
+                customspec.globalIPSettings = globalip
 
-            clonespec.customization = customspec
+                clonespec.customization = customspec
         logger().info(
             'Cloning {server} from {template}.'.format(
                 server=vm_name, template=template_name))
@@ -2594,7 +2597,8 @@ class NetworkClient(VsphereClient):
 
 class StorageClient(VsphereClient):
 
-    def create_storage(self, vm_id, storage_size):
+    def create_storage(self, vm_id, storage_size, parent_key, mode,
+                       thin_provision=False):
         logger().debug("Entering create storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
@@ -2617,7 +2621,9 @@ class StorageClient(VsphereClient):
             storage_size * 1024 * 1024 * 1024
         virtual_device_spec.device.backing =\
             vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
-        virtual_device_spec.device.backing.diskMode = 'Persistent'
+
+        virtual_device_spec.device.backing.diskMode = mode
+        virtual_device_spec.device.backing.thinProvisioned = thin_provision
         virtual_device_spec.device.backing.datastore = vm.datastore[0].obj
 
         vm_devices = vm.config.hardware.device
@@ -2666,8 +2672,14 @@ class StorageClient(VsphereClient):
             vim.vm.device.ParaVirtualSCSIController)
         for vm_device in vm_devices:
             if isinstance(vm_device, controller_types):
-                num_controller += 1
-                controller = vm_device
+                if parent_key < 0:
+                    num_controller += 1
+                    controller = vm_device
+                else:
+                    if parent_key == vm_device.key:
+                        num_controller = 1
+                        controller = vm_device
+                        break
         if num_controller != 1:
             raise NonRecoverableError(
                 'Error during trying to create storage: '
@@ -2827,6 +2839,197 @@ class StorageClient(VsphereClient):
         logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
         self._wait_for_task(task)
         logger().debug("Storage resized to a new size %s." % storage_size)
+
+
+class ContollerClient(VsphereClient):
+
+    def detach_contoller(self, vm_id, bus_key):
+        if not vm_id:
+            raise NonRecoverableError("VM is not defined")
+        if not bus_key:
+            raise NonRecoverableError("Device Key is not defined")
+
+        vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
+
+        config_spec = vim.vm.device.VirtualDeviceSpec()
+        config_spec.operation =\
+            vim.vm.device.VirtualDeviceSpec.Operation.remove
+
+        for dev in vm.config.hardware.device:
+            if hasattr(dev, "key"):
+                if dev.key == bus_key:
+                    config_spec.device = dev
+                    break
+        else:
+            logger().debug("Contoller is not defined {}".format(bus_key))
+            return
+
+        spec = vim.vm.ConfigSpec()
+        spec.deviceChange = [config_spec]
+        task = vm.obj.ReconfigVM_Task(spec=spec)
+        self._wait_for_task(task)
+
+    def attach_controller(self, vm_id, dev_spec, controller_type):
+        if not vm_id:
+            raise NonRecoverableError("VM is not defined")
+
+        vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
+        known_keys = []
+        for dev in vm.config.hardware.device:
+            if isinstance(dev, controller_type):
+                known_keys.append(dev.key)
+
+        spec = vim.vm.ConfigSpec()
+        spec.deviceChange = [dev_spec]
+        task = vm.obj.ReconfigVM_Task(spec=spec)
+        self._wait_for_task(task)
+        vm = self._get_obj_by_id(vim.VirtualMachine, vm_id, use_cache=False)
+
+        controller_properties = {}
+        for dev in vm.config.hardware.device:
+            if isinstance(dev, controller_type):
+                if dev.key not in known_keys:
+                    if hasattr(dev, "busNumber"):
+                        controller_properties['busNumber'] = dev.busNumber
+                    controller_properties['busKey'] = dev.key
+                    break
+        else:
+            raise NonRecoverableError(
+                'Have not found key for new added device')
+        return controller_properties
+
+    def generate_scsi_card(self, scsi_properties, vm_id):
+        if not vm_id:
+            raise NonRecoverableError("VM is not defined")
+
+        vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
+
+        bus_number = scsi_properties.get("busNumber", 0)
+        adapter_type = scsi_properties.get('adapterType')
+        scsi_controller_label = scsi_properties['label']
+        unitNumber = scsi_properties.get("scsiCtlrUnitNumber", -1)
+        sharedBus = scsi_properties.get("sharedBus")
+
+        scsi_spec = vim.vm.device.VirtualDeviceSpec()
+
+        if adapter_type == "lsilogic":
+            summary = "LSI Logic"
+            controller_type = vim.vm.device.VirtualLsiLogicController
+        elif adapter_type == "lsilogic_sas":
+            summary = "LSI Logic Sas"
+            controller_type = vim.vm.device.VirtualLsiLogicSASController
+        else:
+            summary = "VMware paravirtual SCSI"
+            controller_type = vim.vm.device.ParaVirtualSCSIController
+
+        for dev in vm.config.hardware.device:
+            if hasattr(dev, "busNumber"):
+                if bus_number < dev.busNumber:
+                    bus_number = dev.busNumber
+
+        scsi_spec.device = controller_type()
+        scsi_spec.operation = vim.vm.device.VirtualDeviceSpec.Operation.add
+
+        scsi_spec.device.busNumber = bus_number
+        scsi_spec.device.deviceInfo = vim.Description()
+        scsi_spec.device.deviceInfo.label = scsi_controller_label
+        scsi_spec.device.deviceInfo.summary = summary
+
+        if int(unitNumber) >= 0:
+            scsi_spec.device.scsiCtlrUnitNumber = int(unitNumber)
+        if 'hotAddRemove' in scsi_properties:
+            scsi_spec.device.hotAddRemove = scsi_properties['hotAddRemove']
+
+        sharingType = vim.vm.device.VirtualSCSIController.Sharing
+        if sharedBus == "virtualSharing":
+            # Virtual disks can be shared between virtual machines on the
+            # same server
+            scsi_spec.device.sharedBus = sharingType.virtualSharing
+        elif sharedBus == "physicalSharing":
+            # Virtual disks can be shared between virtual machines on
+            # any server
+            scsi_spec.device.sharedBus = sharingType.physicalSharing
+        else:
+            # Virtual disks cannot be shared between virtual machines
+            scsi_spec.device.sharedBus = sharingType.noSharing
+        return scsi_spec, controller_type
+
+    def generate_ethernet_card(self, ethernet_card_properties):
+        network_name = ethernet_card_properties['name']
+        switch_distributed = ethernet_card_properties.get('switch_distributed')
+        adapter_type = ethernet_card_properties.get('adapter_type', "Vmxnet3")
+        start_connected = ethernet_card_properties.get('start_connected', True)
+        allow_guest_control = ethernet_card_properties.get(
+            'allow_guest_control', True)
+        network_connected = ethernet_card_properties.get(
+            'network_connected', True)
+        wake_on_lan_enabled = ethernet_card_properties.get(
+            'wake_on_lan_enabled', True)
+        address_type = ethernet_card_properties.get('address_type', 'assigned')
+        mac_address = ethernet_card_properties.get('mac_address')
+        if not network_connected and start_connected:
+            logger().debug(
+                "Network created unconnected so disable start_connected")
+            start_connected = False
+
+        if switch_distributed:
+            network_obj = self._get_obj_by_name(
+                vim.dvs.DistributedVirtualPortgroup,
+                network_name,
+            )
+        else:
+            network_obj = self._get_obj_by_name(
+                vim.Network,
+                network_name,
+            )
+        if network_obj is None:
+            raise NonRecoverableError(
+                'Network {0} could not be found'.format(network_name))
+        nicspec = vim.vm.device.VirtualDeviceSpec()
+        # Info level as this is something that was requested in the
+        # blueprint
+        ctx.logger.info('Adding network interface on {name}'
+                        .format(name=network_name))
+        nicspec.operation = \
+            vim.vm.device.VirtualDeviceSpec.Operation.add
+
+        if adapter_type == "E1000e":
+            controller_type = vim.vm.device.VirtualE1000e
+        if adapter_type == "E1000":
+            controller_type = vim.vm.device.VirtualE1000
+        if adapter_type == "Sriov":
+            controller_type = vim.vm.device.VirtualSriovEthernetCard
+        if adapter_type == "Vmxnet2":
+            controller_type = vim.vm.device.VirtualVmxnet2
+        else:
+            controller_type = vim.vm.device.VirtualVmxnet3
+
+        nicspec.device = controller_type()
+        if switch_distributed:
+            info = vim.vm.device.VirtualEthernetCard\
+                .DistributedVirtualPortBackingInfo()
+            nicspec.device.backing = info
+            nicspec.device.backing.port =\
+                vim.dvs.PortConnection()
+            nicspec.device.backing.port.switchUuid =\
+                network_obj.config.distributedVirtualSwitch.uuid
+            nicspec.device.backing.port.portgroupKey =\
+                network_obj.key
+        else:
+            nicspec.device.backing = \
+                vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
+            nicspec.device.backing.network = network_obj.obj
+            nicspec.device.backing.deviceName = network_name
+
+        nicspec.device.connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+        nicspec.device.connectable.startConnected = start_connected
+        nicspec.device.connectable.allowGuestControl = allow_guest_control
+        nicspec.device.connectable.connected = network_connected
+        nicspec.device.wakeOnLanEnabled = wake_on_lan_enabled
+        nicspec.device.addressType = address_type
+        if mac_address:
+            nicspec.device.macAddress = mac_address
+        return nicspec, controller_type
 
 
 def _with_client(client_name, client):

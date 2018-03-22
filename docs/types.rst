@@ -63,6 +63,21 @@ Node Types
   * ``ip`` The IP address assigned to the NIC on this network, or None if there is no IP
 
 
+.. cfy:node:: cloudify.vsphere.nodes.SCSIController
+
+.. rubric:: Runtime properties
+
+* ``busKey`` vSphere device key for attached device
+* ``busNumber`` vSphere device bus number for attached device
+
+
+.. cfy:node:: cloudify.vsphere.nodes.NIC
+
+.. rubric:: Runtime properties
+
+* ``busKey`` vSphere device key for attached device
+
+
 .. cfy:node:: cloudify.vsphere.nodes.Storage
 
 .. rubric:: Runtime properties
@@ -101,6 +116,10 @@ Relationships
 .. cfy:rel:: cloudify.vsphere.port_connected_to_server
 
 .. cfy:rel:: cloudify.vsphere.storage_connected_to_server
+
+.. cfy:rel:: cloudify.vsphere.nic_connected_to_server
+
+.. cfy:rel:: cloudify.vsphere.controller_connected_to_vm
 
 
 Data Types

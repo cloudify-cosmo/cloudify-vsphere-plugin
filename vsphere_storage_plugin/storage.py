@@ -51,6 +51,10 @@ def create(storage_client, storage):
         )
     )
     storage_size = storage['storage_size']
+    parent_key = storage.get('parent_key', -1)
+    mode = storage.get('mode', "persistent")
+    thin_provision = storage.get('thin_provision', False)
+
     capabilities = ctx.capabilities.get_all().values()
     if not capabilities:
         raise NonRecoverableError(
@@ -71,7 +75,7 @@ def create(storage_client, storage):
         "{size}".format(
             vm=vm_name,
             name=storage['name'],
-            size=storage['storage_size']
+            size=storage_size
         )
     )
 
@@ -79,6 +83,9 @@ def create(storage_client, storage):
         storage_file_name, scsi_id = storage_client.create_storage(
             vm_id,
             storage_size,
+            parent_key,
+            mode,
+            thin_provision,
         )
     except NonRecoverableError as e:
         # If more than one storage is attached to the same VM, there is a race
