@@ -1,3 +1,5 @@
+2.5.0:
+  - Add support for SCSI/Ethernet attach to preexisted vm.
 2.4.0:
   - Support for os_family=other
   - Allow node properties to be overridden in operation inputs (VSPHERE-92)

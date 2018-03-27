@@ -6,8 +6,8 @@ plugins:
     vsphere:
         executor: central_deployment_agent
         package_name: cloudify-vsphere-plugin
-        package_version: '2.4.0.1'
-        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/SCSIController.zip
+        package_version: '2.5.0'
+        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.5.0.zip
 
 data_types:
     cloudify.datatypes.vsphere.Config:
