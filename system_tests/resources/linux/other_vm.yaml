@@ -1,7 +1,7 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/SCSIController/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.5.0/plugin.yaml
   - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
 
 inputs:
@@ -109,8 +109,27 @@ node_templates:
 ###############################################################################
 # vsphere section
 ###############################################################################
-  vm_instance:
+  vm_base:
     type: host
+
+  vm_instance:
+    type: cloudify.nodes.Compute
+    properties:
+      agent_config:
+        install_method: none
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: scripts/set_vsphere_server_id.py
+          executor: central_deployment_agent
+          inputs:
+            # need to set vsphere_server_id in runtime for attach contollers
+            vsphere_server_id: { get_attribute: [vm_base, vsphere_server_id] }
+            # need to set name in runtime for name volume
+            name: { get_attribute: [vm_base, name] }
+    relationships:
+      - target: vm_base
+        type: cloudify.relationships.depends_on
 
   scsi_controller:
     type: cloudify.vsphere.nodes.SCSIController
@@ -150,3 +169,17 @@ node_templates:
         type: cloudify.vsphere.nic_connected_to_server
       - target: scsi_controller
         type: cloudify.relationships.depends_on
+
+  vm_nic_distributed:
+    type: cloudify.vsphere.nodes.NIC
+    properties:
+      name: Management
+      switch_distributed: true
+      mac_address: 00:50:56:85:18:01
+      connection_config: *connection_config
+    relationships:
+      - target: vm_instance
+        type: cloudify.vsphere.nic_connected_to_server
+      - target: vm_nic
+        type: cloudify.relationships.depends_on
+
