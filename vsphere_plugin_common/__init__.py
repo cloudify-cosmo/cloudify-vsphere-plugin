@@ -29,7 +29,7 @@ from functools import wraps
 # Third party imports
 import yaml
 from netaddr import IPNetwork
-from pyVim.connect import SmartConnect, Disconnect
+from pyVim.connect import SmartConnect, SmartConnectNoSSL, Disconnect
 from pyVmomi import vim, vmodl
 
 # Cloudify imports
@@ -214,6 +214,7 @@ class VsphereClient(object):
         # Until the next major release this will have limited effect, but is
         # in place to allow a clear path to the next release for users
         allow_insecure = cfg.get('allow_insecure', False)
+        ssl_context = None
 
         if certificate_path and allow_insecure:
             raise NonRecoverableError(
@@ -268,25 +269,7 @@ class VsphereClient(object):
                     )
                 else:
                     raise
-
-            def get_ssl_context(*args, **kwargs):
-                return ssl_context
-            ssl._create_default_https_context = get_ssl_context
-        elif allow_insecure and hasattr(ssl, '_create_default_https_context'):
-                # This will disable verification for any other python
-                # libraries imported in the same process that use the
-                # default ssl context.
-                # This cannot be fixed until pyvmomi is updated.
-                logger().warn(
-                    'SSL verification disabled for all legacy code. '
-                    'Please note that this may result in other code '
-                    'from the same blueprint running with reduced '
-                    'security.'
-                )
-                ssl._create_default_https_context = (
-                    ssl._create_unverified_context
-                )
-        else:
+        elif not allow_insecure:
             logger().warn(
                 'DEPRECATED: certificate_path was not supplied. '
                 'A certificate will be required in the next major '
@@ -295,10 +278,17 @@ class VsphereClient(object):
             )
 
         try:
-            self.si = SmartConnect(host=host,
-                                   user=username,
-                                   pwd=password,
-                                   port=int(port))
+            if allow_insecure:
+                self.si = SmartConnectNoSSL(host=host,
+                                            user=username,
+                                            pwd=password,
+                                            port=int(port))
+            else:
+                self.si = SmartConnect(host=host,
+                                       user=username,
+                                       pwd=password,
+                                       port=int(port),
+                                       sslContext=ssl_context)
             atexit.register(Disconnect, self.si)
             return self
         except vim.fault.InvalidLogin:

@@ -17,9 +17,8 @@ import atexit
 import pyVmomi
 import random
 import time
-import ssl
 
-from pyVim.connect import SmartConnect, Disconnect
+from pyVim.connect import SmartConnectNoSSL, Disconnect
 
 from cosmo_tester.framework import handlers
 
@@ -128,9 +127,6 @@ class VsphereHandler(handlers.BaseHandler):
         self.env = env
 
     def client_creds(self):
-        ssl._create_default_https_context = (
-             ssl._create_unverified_context
-        )
         return {
             'host': self.env.vsphere_host,
             'user': self.env.vsphere_username,
@@ -141,7 +137,7 @@ class VsphereHandler(handlers.BaseHandler):
     def vsphere_client(self):
         if not self._vsphere_client or self._vsphere_client_time < time.time():
             creds = self.client_creds()
-            self._vsphere_client = SmartConnect(**creds)
+            self._vsphere_client = SmartConnectNoSSL(**creds)
             atexit.register(Disconnect, self._vsphere_client)
             # 5 minutes valid
             self._vsphere_client_time = time.time() + 300
