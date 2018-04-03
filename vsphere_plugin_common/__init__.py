@@ -279,6 +279,12 @@ class VsphereClient(object):
 
         try:
             if allow_insecure:
+                logger().warn(
+                    'SSL verification disabled for all legacy code. '
+                    'Please note that this may result in other code '
+                    'from the same blueprint running with reduced '
+                    'security.'
+                )
                 self.si = SmartConnectNoSSL(host=host,
                                             user=username,
                                             pwd=password,
