@@ -237,9 +237,27 @@ def start(
         agent_config,
         custom_sysprep,
         custom_attributes,
+        use_existing_resource,
         ):
     ctx.logger.debug("Checking whether server exists...")
-    server_obj = get_server_by_context(ctx, server_client, server, os_family)
+
+    server_obj = None
+    if use_existing_resource and "name" in server:
+        server_obj = server_client.get_server_by_name(server.get("name"))
+        if server_obj is None:
+            raise NonRecoverableError('Have not found preexisting vm')
+        ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
+        ctx.instance.runtime_properties['name'] = server_obj.name
+        ctx.instance.runtime_properties[NETWORKS] = \
+            server_client.get_vm_networks(server_obj)
+        ctx.instance.runtime_properties['use_existing_resource'] = True
+    else:
+        for key in ["cpus", "memory", "template"]:
+            if not server.get(key):
+                raise NonRecoverableError('{} is not provided.'.format(key))
+    if server_obj is None:
+        server_obj = get_server_by_context(ctx, server_client,
+                                           server, os_family)
     if server_obj is None:
         ctx.logger.info("Server does not exist, creating from scratch.")
         create_new_server(
@@ -283,6 +301,9 @@ def shutdown_guest(ctx, server_client, server, os_family):
 @op
 @with_server_client
 def stop(ctx, server_client, server, os_family):
+    if ctx.instance.runtime_properties.get('use_existing_resource'):
+        ctx.logger.info('Used existing resource.')
+        return
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
@@ -297,6 +318,9 @@ def stop(ctx, server_client, server, os_family):
 @op
 @with_server_client
 def delete(ctx, server_client, server, os_family):
+    if ctx.instance.runtime_properties.get('use_existing_resource'):
+        ctx.logger.info('Used existing resource.')
+        return
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
