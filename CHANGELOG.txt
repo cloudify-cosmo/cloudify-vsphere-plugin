@@ -1,3 +1,5 @@
+2.4.1:
+  - Repack wagons
 2.4.0:
   - Support for os_family=other
   - Allow node properties to be overridden in operation inputs (VSPHERE-92)
