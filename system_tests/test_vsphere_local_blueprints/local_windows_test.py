@@ -314,8 +314,8 @@ class VsphereLocalWindowsTest(TestCase):
                     task_retries=50,
                     task_retry_interval=3,
                 )
-            except:
-                raise
+            except Exception as e:
+                raise e
             else:
                 self.validation_env.execute(
                     'uninstall',
@@ -351,8 +351,8 @@ class VsphereLocalWindowsTest(TestCase):
                     task_retries=50,
                     task_retry_interval=3,
                 )
-            except:
-                raise
+            except Exception as e:
+                raise e
             else:
                 self.validation_env.execute(
                     'uninstall',
@@ -388,8 +388,8 @@ class VsphereLocalWindowsTest(TestCase):
                     task_retries=50,
                     task_retry_interval=3,
                 )
-            except:
-                raise
+            except Exception as e:
+                raise e
             else:
                 self.custom_sysprep_and_password_env.execute(
                     'uninstall',

@@ -2115,14 +2115,14 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for component in expected_nre_message_contents:
                 assert component in str(err).lower(), (
                     '{comp} not found in "{err}", but should be!'.format(
-                        comp=component,
+                        comp=repr(component),
                         err=str(err)
                     )
                 )
             for component in unexpected_nre_message_contents:
                 assert component not in str(err).lower(), (
                     '{comp} found in "{err}", but should not be!'.format(
-                        comp=component,
+                        comp=repr(component),
                         err=str(err)
                     )
                 )

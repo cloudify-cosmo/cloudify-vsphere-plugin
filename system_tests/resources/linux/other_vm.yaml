@@ -1,7 +1,7 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.5.0/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.6.0/plugin.yaml
   - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
 
 inputs:
@@ -113,20 +113,18 @@ node_templates:
     type: host
 
   vm_instance:
-    type: cloudify.nodes.Compute
+    type: cloudify.vsphere.nodes.Server
     properties:
+      use_existing_resource: true
+      connection_config: *connection_config
       agent_config:
         install_method: none
     interfaces:
       cloudify.interfaces.lifecycle:
-        create:
-          implementation: scripts/set_vsphere_server_id.py
-          executor: central_deployment_agent
+        start:
           inputs:
-            # need to set vsphere_server_id in runtime for attach contollers
-            vsphere_server_id: { get_attribute: [vm_base, vsphere_server_id] }
-            # need to set name in runtime for name volume
-            name: { get_attribute: [vm_base, name] }
+            server:
+              name: { get_attribute: [vm_base, name] }
     relationships:
       - target: vm_base
         type: cloudify.relationships.depends_on

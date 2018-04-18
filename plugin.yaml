@@ -6,8 +6,8 @@ plugins:
     vsphere:
         executor: central_deployment_agent
         package_name: cloudify-vsphere-plugin
-        package_version: '2.5.0'
-        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.5.0.zip
+        package_version: '2.6.0'
+        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.6.0.zip
 
 data_types:
     cloudify.datatypes.vsphere.Config:
@@ -73,18 +73,18 @@ data_types:
                 description: >
                     Amount of RAM, in MB.
                 type: integer
-                required: true
+                required: false
             cpus:
                 description: >
                     Number of CPUs.
                 type: integer
-                required: true
+                required: false
             template:
                 description: >
                     Virtual machine template from which server will be spawned.
                     See full documentation at docs.getcloudify.org for requirements.
                 type: string
-                required: true
+                required: false
             name:
                 description: >
                     Server name.
@@ -127,6 +127,10 @@ node_types:
     cloudify.vsphere.nodes.Server:
         derived_from: cloudify.nodes.Compute
         properties:
+            use_existing_resource:
+                description: >
+                    Whether to use a vm that already exists on vSphere.
+                default: False
             allowed_hosts:
                 description: >
                     Which ESX host(s) this server is allowed to be deployed on.

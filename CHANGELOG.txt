@@ -1,3 +1,5 @@
+2.6.0:
+  - Add "use_existing_resource" support for cloudify.vsphere.nodes.Server.
 2.5.0:
   - Add support for SCSI/Ethernet attach to preexisted vm.
 2.4.0:
