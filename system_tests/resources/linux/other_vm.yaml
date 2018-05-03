@@ -1,7 +1,7 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.6.0/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.6.1/plugin.yaml
   - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
 
 inputs:
@@ -65,6 +65,15 @@ inputs:
   install_method:
     default: remote
 
+  allowed_hosts:
+    default: []
+
+  allowed_clusters:
+    default: []
+
+  allowed_datastores:
+    default: []
+
 ###############################################################################
 #  DSL section
 ###############################################################################
@@ -89,6 +98,12 @@ node_types:
         default: *connection_config
       os_family:
         default: other
+      allowed_hosts:
+        default: { get_input: allowed_hosts }
+      allowed_clusters:
+        default: { get_input: allowed_clusters }
+      allowed_datastores:
+        default: { get_input: allowed_datastores }
       server:
         default:
           name: other_vm
