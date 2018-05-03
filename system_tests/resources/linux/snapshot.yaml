@@ -1,0 +1,115 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.2.2/plugin.yaml
+  - http://www.getcloudify.org/spec/cloudify/3.4/types.yaml
+
+inputs:
+
+  vcenter_user:
+    type: string
+
+  vcenter_password:
+    type: string
+
+  vcenter_ip:
+    type: string
+
+  vcenter_port:
+    type: string
+    default: 443
+
+  vcenter_datacenter:
+    type: string
+    description: >
+       vcenter datacenter
+    default: Datacenter
+
+  vcenter_resource_pool:
+    description: >
+      Resource pool name
+    default: Resources
+
+  vsphere_auto_placement:
+    type: string
+    default: true
+
+  template_name:
+    type: string
+    description: >
+      "CentOS 7 template name"
+    default: "CentOS-7.2-x86_64-1511-tmpl"
+
+  vcenter_network:
+    type: string
+    description: >
+      vcenter network
+    default: Internal
+
+  vcenter_datastore:
+    type: string
+    description: >
+      vcenter datastore
+    default: datastore1
+
+  agent_user:
+    default: root
+    type: string
+
+  agent_group:
+    default: root
+
+  manager_network:
+    default: default
+
+  install_method:
+    default: remote
+
+  allowed_hosts:
+    default: []
+
+  allowed_clusters:
+    default: []
+
+  allowed_datastores:
+    default: []
+
+###############################################################################
+#  DSL section
+###############################################################################
+dsl_definitions:
+
+  connection_config: &connection_config
+    username: { get_input: vcenter_user }
+    password: {get_input: vcenter_password }
+    host: { get_input: vcenter_ip }
+    port: { get_input: vcenter_port }
+    datacenter_name: {get_input: vcenter_datacenter }
+    resource_pool_name: { get_input: vcenter_resource_pool }
+    auto_placement: { get_input: vsphere_auto_placement }
+    # allow_insecure: true
+
+node_templates:
+###############################################################################
+# vsphere section
+###############################################################################
+  vm_base:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      connection_config: *connection_config
+      os_family: linux
+      allowed_hosts: { get_input: allowed_hosts }
+      allowed_clusters: { get_input: allowed_clusters }
+      allowed_datastores: { get_input: allowed_datastores }
+      server:
+        name: other_vm
+        template: { get_input: template_name }
+        cpus: 1
+        memory: 1024
+      agent_config:
+        install_method: none
+      networking:
+        dns_servers:
+          - '8.8.8.8'
+        connect_networks:
+          - name: Internal

@@ -1365,7 +1365,7 @@ class ServerClient(VsphereClient):
             hosts = [host for host in hosts if host.name in allowed_hosts]
             ctx.logger.debug(
                 'Filtered list of hosts to be considered: {hosts}'.format(
-                    hosts=', '.join(host_names),
+                    hosts=', '.join([host.name for host in hosts]),
                 )
             )
 
