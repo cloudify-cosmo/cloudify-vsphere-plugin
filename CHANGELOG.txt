@@ -1,3 +1,6 @@
+2.7.0:
+  - Add backup/restore workflow with snapshot support.
+  - Add suspend/resume workflow support.
 2.6.1:
   - Fix debug info about selected hosts.
 2.6.0:
