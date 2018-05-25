@@ -317,6 +317,124 @@ def stop(ctx, server_client, server, os_family):
 
 @op
 @with_server_client
+def freeze_suspend(ctx, server_client, server, os_family):
+    if ctx.instance.runtime_properties.get('use_existing_resource'):
+        ctx.logger.info('Used existing resource.')
+        return
+    server_obj = get_server_by_context(ctx, server_client, server, os_family)
+    if server_obj is None:
+        raise NonRecoverableError(
+            "Cannot suspend server - server doesn't exist for node: {0}"
+            .format(ctx.instance.id))
+    vm_name = get_vm_name(ctx, server, os_family)
+    ctx.logger.info('Preparing to suspend server {name}'.format(name=vm_name))
+    server_client.suspend_server(server_obj)
+    ctx.logger.info('Succeessfully suspend server {name}'.format(name=vm_name))
+
+
+@op
+@with_server_client
+def freeze_resume(ctx, server_client, server, os_family):
+    if ctx.instance.runtime_properties.get('use_existing_resource'):
+        ctx.logger.info('Used existing resource.')
+        return
+    server_obj = get_server_by_context(ctx, server_client, server, os_family)
+    if server_obj is None:
+        raise NonRecoverableError(
+            "Cannot resume server - server doesn't exist for node: {0}"
+            .format(ctx.instance.id))
+    vm_name = get_vm_name(ctx, server, os_family)
+    ctx.logger.info('Preparing to resume server {name}'.format(name=vm_name))
+    server_client.start_server(server_obj)
+    ctx.logger.info('Succeessfully resume server {name}'.format(name=vm_name))
+
+
+@op
+@with_server_client
+def snapshot_create(ctx, server_client, server, os_family, snapshot_name,
+                    snapshot_incremental):
+    if ctx.instance.runtime_properties.get('use_existing_resource'):
+        ctx.logger.info('Used existing resource.')
+        return
+    if not snapshot_name:
+        raise NonRecoverableError(
+            'Backup name must be provided.'
+        )
+    if not snapshot_incremental:
+        ctx.logger.info("Create backup for VM is unsupported.")
+        return
+
+    server_obj = get_server_by_context(ctx, server_client, server, os_family)
+    if server_obj is None:
+        raise NonRecoverableError(
+            "Cannot backup server - server doesn't exist for node: {0}"
+            .format(ctx.instance.id))
+    vm_name = get_vm_name(ctx, server, os_family)
+    ctx.logger.info('Preparing to backup {snapshot_name} for server {name}'
+                    .format(snapshot_name=snapshot_name, name=vm_name))
+    server_client.backup_server(server_obj, snapshot_name)
+    ctx.logger.info('Succeessfully backuped server {name}'
+                    .format(name=vm_name))
+
+
+@op
+@with_server_client
+def snapshot_apply(ctx, server_client, server, os_family, snapshot_name,
+                   snapshot_incremental):
+    if ctx.instance.runtime_properties.get('use_existing_resource'):
+        ctx.logger.info('Used existing resource.')
+        return
+    if not snapshot_name:
+        raise NonRecoverableError(
+            'Backup name must be provided.'
+        )
+    if not snapshot_incremental:
+        ctx.logger.info("Restore from backup for VM is unsupported.")
+        return
+
+    server_obj = get_server_by_context(ctx, server_client, server, os_family)
+    if server_obj is None:
+        raise NonRecoverableError(
+            "Cannot restore server - server doesn't exist for node: {0}"
+            .format(ctx.instance.id))
+    vm_name = get_vm_name(ctx, server, os_family)
+    ctx.logger.info('Preparing to restore {snapshot_name} for server {name}'
+                    .format(snapshot_name=snapshot_name, name=vm_name))
+    server_client.restore_server(server_obj, snapshot_name)
+    ctx.logger.info('Succeessfully restored server {name}'
+                    .format(name=vm_name))
+
+
+@op
+@with_server_client
+def snapshot_delete(ctx, server_client, server, os_family, snapshot_name,
+                    snapshot_incremental):
+    if ctx.instance.runtime_properties.get('use_existing_resource'):
+        ctx.logger.info('Used existing resource.')
+        return
+    if not snapshot_name:
+        raise NonRecoverableError(
+            'Backup name must be provided.'
+        )
+    if not snapshot_incremental:
+        ctx.logger.info("Delete backup for VM is unsupported.")
+        return
+
+    server_obj = get_server_by_context(ctx, server_client, server, os_family)
+    if server_obj is None:
+        raise NonRecoverableError(
+            "Cannot remove backup for server - server doesn't exist for "
+            "node: {0}".format(ctx.instance.id))
+    vm_name = get_vm_name(ctx, server, os_family)
+    ctx.logger.info('Preparing to remove backup {snapshot_name} for server '
+                    '{name}'.format(snapshot_name=snapshot_name, name=vm_name))
+    server_client.remove_backup(server_obj, snapshot_name)
+    ctx.logger.info('Succeessfully removed backup from server {name}'
+                    .format(name=vm_name))
+
+
+@op
+@with_server_client
 def delete(ctx, server_client, server, os_family):
     if ctx.instance.runtime_properties.get('use_existing_resource'):
         ctx.logger.info('Used existing resource.')

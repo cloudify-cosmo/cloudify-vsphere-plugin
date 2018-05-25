@@ -1623,6 +1623,18 @@ class ServerClient(VsphereClient):
 
         return task.info.result
 
+    def suspend_server(self, server):
+        if self.is_server_suspended(server.obj):
+            logger().info("Server '{}' already suspend".format(server.name))
+            return
+        if self.is_server_poweredoff(server):
+            logger().info("Server '{}' already stopped".format(server.name))
+            return
+        logger().debug("Entering server suspend procedure.")
+        task = server.obj.Suspend()
+        self._wait_for_task(task)
+        logger().debug("Server is suspended.")
+
     def start_server(self, server):
         if self.is_server_poweredon(server):
             logger().info("Server '{}' already running".format(server.name))
@@ -1661,6 +1673,57 @@ class ServerClient(VsphereClient):
         task = server.obj.PowerOff()
         self._wait_for_task(task)
         logger().debug("Server is now stopped.")
+
+    def backup_server(self, server, snapshot_name):
+        if server.obj.snapshot:
+            snapshot = self.get_snapshot_by_name(
+                server.obj.snapshot.rootSnapshotList, snapshot_name)
+            if snapshot:
+                raise NonRecoverableError(
+                    "Snapshot {snapshot_name} already exists."
+                    .format(snapshot_name=snapshot_name,))
+
+        task = server.obj.CreateSnapshot(
+            snapshot_name, description="Backup created by vsphere plugin.",
+            memory=False, quiesce=False)
+        self._wait_for_task(task)
+
+    def get_snapshot_by_name(self, snapshots, snapshot_name):
+        for snapshot in snapshots:
+            if snapshot.name == snapshot_name:
+                return snapshot
+            else:
+                return self.get_snapshot_by_name(snapshot.childSnapshotList,
+                                                 snapshot_name)
+        return False
+
+    def restore_server(self, server, snapshot_name):
+        if server.obj.snapshot:
+            snapshot = self.get_snapshot_by_name(
+                server.obj.snapshot.rootSnapshotList, snapshot_name)
+        else:
+            snapshot = None
+        if not snapshot:
+            raise NonRecoverableError(
+                "No snapshots found with name: {snapshot_name}."
+                .format(snapshot_name=snapshot_name,))
+
+        task = snapshot.snapshot.RevertToSnapshot_Task()
+        self._wait_for_task(task)
+
+    def remove_backup(self, server, snapshot_name):
+        if server.obj.snapshot:
+            snapshot = self.get_snapshot_by_name(
+                server.obj.snapshot.rootSnapshotList, snapshot_name)
+        else:
+            snapshot = None
+        if not snapshot:
+            raise NonRecoverableError(
+                "No snapshots found with name: {snapshot_name}."
+                .format(snapshot_name=snapshot_name,))
+
+        task = snapshot.snapshot.RemoveSnapshot_Task(True)
+        self._wait_for_task(task)
 
     def reset_server(self, server):
         if self.is_server_poweredoff(server):
