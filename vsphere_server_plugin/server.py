@@ -329,7 +329,7 @@ def freeze_suspend(ctx, server_client, server, os_family):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to suspend server {name}'.format(name=vm_name))
     server_client.suspend_server(server_obj)
-    ctx.logger.info('Succeessfully suspend server {name}'.format(name=vm_name))
+    ctx.logger.info('Succeessfully suspended server {name}'.format(name=vm_name))
 
 
 @op
@@ -346,7 +346,7 @@ def freeze_resume(ctx, server_client, server, os_family):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to resume server {name}'.format(name=vm_name))
     server_client.start_server(server_obj)
-    ctx.logger.info('Succeessfully resume server {name}'.format(name=vm_name))
+    ctx.logger.info('Succeessfully resumed server {name}'.format(name=vm_name))
 
 
 @op
@@ -361,6 +361,8 @@ def snapshot_create(ctx, server_client, server, os_family, snapshot_name,
             'Backup name must be provided.'
         )
     if not snapshot_incremental:
+        # we need to support such flag for interoperability with the
+        # utilities plugin
         ctx.logger.info("Create backup for VM is unsupported.")
         return
 
@@ -389,6 +391,8 @@ def snapshot_apply(ctx, server_client, server, os_family, snapshot_name,
             'Backup name must be provided.'
         )
     if not snapshot_incremental:
+        # we need to support such flag for interoperability with the
+        # utilities plugin
         ctx.logger.info("Restore from backup for VM is unsupported.")
         return
 
@@ -417,6 +421,8 @@ def snapshot_delete(ctx, server_client, server, os_family, snapshot_name,
             'Backup name must be provided.'
         )
     if not snapshot_incremental:
+        # we need to support such flag for interoperability with the
+        # utilities plugin
         ctx.logger.info("Delete backup for VM is unsupported.")
         return
 

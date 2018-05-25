@@ -1625,10 +1625,11 @@ class ServerClient(VsphereClient):
 
     def suspend_server(self, server):
         if self.is_server_suspended(server.obj):
-            logger().info("Server '{}' already suspend".format(server.name))
+            logger().info("Server '{}' already suspended.".format(server.name))
             return
         if self.is_server_poweredoff(server):
-            logger().info("Server '{}' already stopped".format(server.name))
+            logger().info("Server '{}' is powered off so will not be suspended."
+                          .format(server.name))
             return
         logger().debug("Entering server suspend procedure.")
         task = server.obj.Suspend()
