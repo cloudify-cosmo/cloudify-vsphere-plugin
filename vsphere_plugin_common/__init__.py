@@ -1628,8 +1628,8 @@ class ServerClient(VsphereClient):
             logger().info("Server '{}' already suspended.".format(server.name))
             return
         if self.is_server_poweredoff(server):
-            logger().info("Server '{}' is powered off so will not be suspended."
-                          .format(server.name))
+            logger().info("Server '{}' is powered off so will not be "
+                          "suspended.".format(server.name))
             return
         logger().debug("Entering server suspend procedure.")
         task = server.obj.Suspend()
@@ -1694,8 +1694,10 @@ class ServerClient(VsphereClient):
             if snapshot.name == snapshot_name:
                 return snapshot
             else:
-                return self.get_snapshot_by_name(snapshot.childSnapshotList,
-                                                 snapshot_name)
+                subsnapshot = self.get_snapshot_by_name(
+                    snapshot.childSnapshotList, snapshot_name)
+                if subsnapshot:
+                    return subsnapshot
         return False
 
     def restore_server(self, server, snapshot_name):
@@ -1722,6 +1724,14 @@ class ServerClient(VsphereClient):
             raise NonRecoverableError(
                 "No snapshots found with name: {snapshot_name}."
                 .format(snapshot_name=snapshot_name,))
+
+        if snapshot.childSnapshotList:
+            subsnapshots = [snap.name for snap in snapshot.childSnapshotList]
+            raise NonRecoverableError(
+                "Sub snapshots {subsnapshots} found for {snapshot_name}. "
+                "You should remove subsnaphots before remove current."
+                .format(snapshot_name=snapshot_name,
+                        subsnapshots=repr(subsnapshots)))
 
         task = snapshot.snapshot.RemoveSnapshot_Task(True)
         self._wait_for_task(task)
