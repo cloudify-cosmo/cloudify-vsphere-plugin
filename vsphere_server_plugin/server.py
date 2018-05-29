@@ -329,7 +329,8 @@ def freeze_suspend(ctx, server_client, server, os_family):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to suspend server {name}'.format(name=vm_name))
     server_client.suspend_server(server_obj)
-    ctx.logger.info('Succeessfully suspended server {name}'.format(name=vm_name))
+    ctx.logger.info('Succeessfully suspended server {name}'
+                    .format(name=vm_name))
 
 
 @op

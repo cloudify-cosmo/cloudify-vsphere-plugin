@@ -138,6 +138,7 @@ class BackupServerTest(unittest.TestCase):
         vm = mock.Mock()
         snapshot = mock.Mock()
         snapshot.name = "snapshot"
+        snapshot.childSnapshotList = []
         vm.obj.snapshot = mock.Mock()
         vm.obj.snapshot.rootSnapshotList = [snapshot]
         vm.obj.CreateSnapshot = mock.Mock(return_value=task)
@@ -222,6 +223,7 @@ class BackupServerTest(unittest.TestCase):
         # remove snapshot
         snapshot = mock.Mock()
         snapshot.name = "snapshot"
+        snapshot.childSnapshotList = []
         snapshot.snapshot.RevertToSnapshot_Task = mock.Mock(return_value=task)
         vm.obj.snapshot = mock.Mock()
         vm.obj.snapshot.rootSnapshotList = [snapshot]
@@ -303,6 +305,7 @@ class BackupServerTest(unittest.TestCase):
         # remove snapshot
         snapshot = mock.Mock()
         snapshot.name = "snapshot"
+        snapshot.childSnapshotList = []
         snapshot.snapshot.RemoveSnapshot_Task = mock.Mock(return_value=task)
         vm.obj.snapshot = mock.Mock()
         vm.obj.snapshot.rootSnapshotList = [snapshot]
@@ -319,6 +322,7 @@ class BackupServerTest(unittest.TestCase):
         # remove sub snapshot
         snapshot = mock.Mock()
         snapshot.name = "snapshot"
+        snapshot.childSnapshotList = []
         snapshotparent = mock.Mock()
         snapshotparent.name = "snapshotparent"
         snapshotparent.childSnapshotList = [snapshot]
@@ -334,6 +338,30 @@ class BackupServerTest(unittest.TestCase):
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
         snapshot.snapshot.RemoveSnapshot_Task.assert_called_with(True)
+
+        # can't remove snapshot with child
+        snapshot = mock.Mock()
+        snapshot.name = "snapshot"
+        snapshot.childSnapshotList = []
+        snapshotparent = mock.Mock()
+        snapshotparent.name = "snapshotparent"
+        snapshotparent.childSnapshotList = [snapshot]
+        snapshot.snapshot.RemoveSnapshot_Task = mock.Mock(return_value=task)
+        vm.obj.snapshot = mock.Mock()
+        vm.obj.snapshot.rootSnapshotList = [snapshotparent]
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            mock.Mock(return_value=vm)
+        ):
+            with self.assertRaisesRegexp(
+                NonRecoverableError,
+                "Sub snapshots \[\'snapshot\'\] found for snapshotparent. You "
+                "should remove subsnaphots before remove current."
+            ):
+                server.snapshot_delete(server={"name": "server_name"},
+                                       os_family="other_os",
+                                       snapshot_name="snapshotparent",
+                                       snapshot_incremental=True)
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
     @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
