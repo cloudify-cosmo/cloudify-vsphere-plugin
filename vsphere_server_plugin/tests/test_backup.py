@@ -116,8 +116,7 @@ class BackupServerTest(unittest.TestCase):
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
         vm.obj.CreateSnapshot.assert_called_with(
-            'snapshot', description='Backup created by vsphere plugin.',
-            memory=False, quiesce=False)
+            'snapshot', description=None, memory=False, quiesce=False)
 
         # no snapshots
         vm.obj.snapshot = None
@@ -131,8 +130,7 @@ class BackupServerTest(unittest.TestCase):
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
         vm.obj.CreateSnapshot.assert_called_with(
-            'snapshot', description='Backup created by vsphere plugin.',
-            memory=False, quiesce=False)
+            'snapshot', description=None, memory=False, quiesce=False)
 
         # with some vm, prexisted snapshots
         vm = mock.Mock()
