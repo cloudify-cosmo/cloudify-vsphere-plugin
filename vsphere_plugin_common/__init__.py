@@ -1675,7 +1675,7 @@ class ServerClient(VsphereClient):
         self._wait_for_task(task)
         logger().debug("Server is now stopped.")
 
-    def backup_server(self, server, snapshot_name):
+    def backup_server(self, server, snapshot_name, description):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -1685,7 +1685,7 @@ class ServerClient(VsphereClient):
                     .format(snapshot_name=snapshot_name,))
 
         task = server.obj.CreateSnapshot(
-            snapshot_name, description="Backup created by vsphere plugin.",
+            snapshot_name, description=description,
             memory=False, quiesce=False)
         self._wait_for_task(task)
 

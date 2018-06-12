@@ -7,7 +7,7 @@ plugins:
         executor: central_deployment_agent
         package_name: cloudify-vsphere-plugin
         package_version: '2.7.0'
-        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.7.0.zip
+        source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/backup_workflow.zip
 
 data_types:
     cloudify.datatypes.vsphere.Config:
@@ -297,6 +297,10 @@ node_types:
     cloudify.vsphere.nodes.Storage:
         derived_from: cloudify.nodes.Volume
         properties:
+            use_existing_resource:
+                description: >
+                    Whether to use a volume that already exists on vSphere.
+                default: False
             storage:
                 description: |
                   key-value storage disk configuration. ::
