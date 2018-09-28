@@ -2172,7 +2172,8 @@ class ServerClient(VsphereClient):
         used_memory = 0
         for vm in host.vm:
             if not vm.summary.config.template:
-                used_memory += vm.summary.config.memorySizeMB
+                if isinstance(vm.summary.config.memorySizeMB, (int, long, float, complex)):
+                    used_memory += vm.summary.config.memorySizeMB
         return total_memory - used_memory
 
     def host_cpu_thread_usage_ratio(self, host, vm_cpus):
@@ -2192,7 +2193,8 @@ class ServerClient(VsphereClient):
 
         total_assigned = vm_cpus
         for vm in host.vm:
-            total_assigned += vm.summary.config.numCpu
+            if isinstance(vm.summary.config.numCpu, (int, long, float, complex)):
+                total_assigned += vm.summary.config.numCpu
 
         return total_threads / total_assigned
 
