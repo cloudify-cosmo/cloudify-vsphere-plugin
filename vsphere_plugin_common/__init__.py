@@ -2174,7 +2174,7 @@ class ServerClient(VsphereClient):
             if not vm.summary.config.template:
                 try:
                     used_memory += int(vm.summary.config.memorySizeMB)
-                except ValueError:
+                except StandardError:
                     logger().warning("Incorrect value for memorySizeMB. It is "
                                      "{0} but integer value is expected".format(vm.summary.config.memorySizeMB))
         return total_memory - used_memory
@@ -2197,10 +2197,10 @@ class ServerClient(VsphereClient):
         total_assigned = vm_cpus
         for vm in host.vm:
             try:
-                total_assigned += int(vm.summary.config.numCp)
-            except ValueError:
+                total_assigned += int(vm.summary.config.numCpu)
+            except StandardError:
                 logger().warning("Incorrect value for numCpu. It is "
-                                 "{0} but integer value is expected".format(vm.summary.config.numCp))
+                                 "{0} but integer value is expected".format(vm.summary.config.numCpu))
         return total_threads / total_assigned
 
     def host_memory_usage_ratio(self, host, new_mem):
