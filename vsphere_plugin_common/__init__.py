@@ -2173,8 +2173,7 @@ class ServerClient(VsphereClient):
         for vm in host.vm:
             if not vm.summary.config.template:
                 try:
-                    int(vm.summary.config.memorySizeMB)
-                    used_memory += vm.summary.config.memorySizeMB
+                    used_memory += int(vm.summary.config.memorySizeMB)
                 except ValueError:
                     logger().warning("Incorrect value for memorySizeMB. It is "
                                      "{0} but integer value is expected".format(vm.summary.config.memorySizeMB))
@@ -2198,8 +2197,7 @@ class ServerClient(VsphereClient):
         total_assigned = vm_cpus
         for vm in host.vm:
             try:
-                int(vm.summary.config.numCp)
-                total_assigned += vm.summary.config.numCpu
+                total_assigned += int(vm.summary.config.numCp)
             except ValueError:
                 logger().warning("Incorrect value for numCpu. It is "
                                  "{0} but integer value is expected".format(vm.summary.config.numCp))
