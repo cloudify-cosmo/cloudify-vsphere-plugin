@@ -1,0 +1,85 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.1.1/types.yaml
+  - http://cloudify.co/spec/vsphere-plugin/2.7.0/plugin.yaml
+
+inputs:
+
+  # CLIENT CONFIGURATION
+  username:
+    type: string
+
+  password:
+    type: string
+
+  host:
+    type: string
+
+  port:
+    type: string
+
+  datacenter_name:
+    type: string
+
+  resource_pool_name:
+    type: string
+
+  auto_placement:
+    type: string
+
+  allow_insecure:
+    type: string
+
+  # NIC CONFIGURATION
+  switch_distributed:
+    type: boolean
+    default: false
+
+  # NETWORK CONFIGURATION
+  network_name:
+    type: string
+    default: example_network
+
+  vlan_id:
+    type: string
+    default: 1
+
+  vswitch_name:
+    type: string
+    default: vSwitch0
+
+dsl_definitions:
+
+  connection_config: &connection_config
+    username: { get_input: username }
+    password: { get_input: password }
+    host: { get_input: host }
+    port: { get_input: port }
+    datacenter_name: { get_input: datacenter_name }
+    resource_pool_name: { get_input: resource_pool_name }
+    auto_placement: { get_input: auto_placement }
+    allow_insecure: { get_input: allow_insecure }
+
+node_templates:
+
+  nic:
+    type: cloudify.vsphere.nodes.NIC
+    properties:
+      connection_config: *connection_config
+      name: { get_property: [ net, network, name ] }
+      switch_distributed: false
+      adapter_type: E1000
+    relationships:
+      - type: cloudify.vsphere.port_connected_to_network
+        target: net
+
+  net:
+    type: cloudify.vsphere.nodes.Network
+    properties:
+      connection_config: *connection_config
+      network:
+        name: { get_input: network_name }
+        vlan_id: { get_input: vlan_id }
+        vswitch_name: { get_input: vswitch_name }
+        switch_distributed: { get_input: switch_distributed }

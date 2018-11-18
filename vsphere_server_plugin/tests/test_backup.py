@@ -116,8 +116,7 @@ class BackupServerTest(unittest.TestCase):
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
         vm.obj.CreateSnapshot.assert_called_with(
-            'snapshot', description='Backup created by vsphere plugin.',
-            memory=False, quiesce=False)
+            'snapshot', description=None, memory=False, quiesce=False)
 
         # no snapshots
         vm.obj.snapshot = None
@@ -131,8 +130,7 @@ class BackupServerTest(unittest.TestCase):
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
         vm.obj.CreateSnapshot.assert_called_with(
-            'snapshot', description='Backup created by vsphere plugin.',
-            memory=False, quiesce=False)
+            'snapshot', description=None, memory=False, quiesce=False)
 
         # with some vm, prexisted snapshots
         vm = mock.Mock()
@@ -355,8 +353,8 @@ class BackupServerTest(unittest.TestCase):
         ):
             with self.assertRaisesRegexp(
                 NonRecoverableError,
-                "Sub snapshots \[\'snapshot\'\] found for snapshotparent. You "
-                "should remove subsnaphots before remove current."
+                "Sub snapshots \\[\'snapshot\'\\] found for snapshotparent. "
+                "You should remove subsnaphots before remove current."
             ):
                 server.snapshot_delete(server={"name": "server_name"},
                                        os_family="other_os",

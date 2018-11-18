@@ -1,0 +1,87 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.1.1/types.yaml
+  - http://cloudify.co/spec/vsphere-plugin/2.7.0/plugin.yaml
+
+inputs:
+
+  # CLIENT CONFIGURATION
+  username:
+    type: string
+
+  password:
+    type: string
+
+  host:
+    type: string
+
+  port:
+    type: string
+
+  datacenter_name:
+    type: string
+
+  resource_pool_name:
+    type: string
+
+  auto_placement:
+    type: string
+
+  allow_insecure:
+    type: string
+
+  # SERVER CONFIGURATION
+  server_name:
+    type: string
+    default: meta_vm
+
+  template_name:
+    type: string
+    default: CentOS-7.4-x86-64-1708-tmpl #CentOS-7.4-x86_64-1708
+
+  network_name:
+    type: string
+    default: Internal
+
+  switch_distributed:
+    type: boolean
+    default: false
+
+dsl_definitions:
+
+  connection_config: &connection_config
+    username: { get_input: username }
+    password: { get_input: password }
+    host: { get_input: host }
+    port: { get_input: port }
+    datacenter_name: { get_input: datacenter_name }
+    resource_pool_name: { get_input: resource_pool_name }
+    auto_placement: { get_input: auto_placement }
+    allow_insecure: { get_input: allow_insecure }
+
+node_templates:
+
+  vm:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      connection_config: *connection_config
+      agent_config:
+        install_method: none
+      server:
+        name: { get_input: server_name }
+        template: { get_input: template_name }
+        cpus: 1
+        memory: 1024
+      networking:
+        connect_networks:
+          - name: { get_input: network_name }
+            management: true
+            external: true
+            switch_distributed: false
+            use_dhcp: false
+            network: 172.16.168.0/24
+            gateway: 172.16.168.1
+            ip: 172.16.168.201
+      custom_attributes:
+        username: { get_input: username }
