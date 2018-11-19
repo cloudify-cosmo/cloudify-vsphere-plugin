@@ -4,7 +4,9 @@ machine:
 
 dependencies:
   override:
-    - pip install tox
+    - pip install --upgrade setuptools
+    # tox indirectly depends to setuptools
+    - pip install --upgrade tox
 
 test:
   override:
