@@ -20,10 +20,13 @@ jobs:
       - checkout
       - run:
           name: Install tox
-          command: pip install tox
+          command: pip install --upgrade setuptools
+      - run:
+          name: Install tox
+          command: pip install --upgrade tox
       - run:
           name: Install virtualenv
-          command: pip install virtualenv
+          command: pip install --upgrade virtualenv
       - run:
           name: Test code quality
           command: tox -e code-quality
