@@ -1,7 +1,7 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.7.0/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/backup_workflow/plugin.yaml
   - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.7.0/plugin.yaml
   - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
 
@@ -195,4 +195,26 @@ node_templates:
       - target: vm_instance
         type: cloudify.vsphere.nic_connected_to_server
       - target: vm_nic
+        type: cloudify.relationships.depends_on
+
+  vm_volume_resize:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      use_existing_resource: true
+      storage: {}
+      connection_config: *connection_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            storage:
+              datastore_file_name: { get_attribute: [vm_volume, datastore_file_name] }
+              scsi_id: { get_attribute: [vm_volume, scsi_id] }
+              storage_size: 30
+        start:
+          implementation: vsphere.vsphere_storage_plugin.storage.resize
+    relationships:
+      - target: vm_instance
+        type: cloudify.vsphere.storage_connected_to_server
+      - target: vm_nic_distributed
         type: cloudify.relationships.depends_on

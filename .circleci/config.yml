@@ -1,0 +1,41 @@
+version: 2
+
+checkout:
+  post:
+    - >
+      if [ -n "$CI_PULL_REQUEST" ]; then
+        PR_ID=${CI_PULL_REQUEST##*/}
+        git fetch origin +refs/pull/$PR_ID/merge:
+        git checkout -qf FETCH_HEAD
+      fi
+
+jobs:
+
+  unittests:
+    machine:
+      enabled: true
+      python:
+        version: pypy-2.2.1
+    steps:
+      - checkout
+      - run:
+          name: Install tox
+          command: pip install --upgrade setuptools
+      - run:
+          name: Install tox
+          command: pip install --upgrade tox
+      - run:
+          name: Install virtualenv
+          command: pip install --upgrade virtualenv
+      - run:
+          name: Test code quality
+          command: tox -e code-quality
+      - run:
+          name: Test python
+          command: tox -e py27
+
+workflows:
+  version: 2
+  tests:
+    jobs:
+      - unittests

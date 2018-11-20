@@ -1675,7 +1675,7 @@ class ServerClient(VsphereClient):
         self._wait_for_task(task)
         logger().debug("Server is now stopped.")
 
-    def backup_server(self, server, snapshot_name):
+    def backup_server(self, server, snapshot_name, description):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -1685,7 +1685,7 @@ class ServerClient(VsphereClient):
                     .format(snapshot_name=snapshot_name,))
 
         task = server.obj.CreateSnapshot(
-            snapshot_name, description="Backup created by vsphere plugin.",
+            snapshot_name, description=description,
             memory=False, quiesce=False)
         self._wait_for_task(task)
 
@@ -2706,11 +2706,11 @@ class StorageClient(VsphereClient):
             if isinstance(vm_device, vim.vm.device.VirtualDisk):
                 # Generate filename (add increment to VMDK base name)
                 vm_disk_filename_cur = vm_device.backing.fileName
-                p = re.compile('^(\[.*\]\s+.*\/.*)\.vmdk$')
+                p = re.compile('^(\\[.*\\]\\s+.*\\/.*)\\.vmdk$')
                 m = p.match(vm_disk_filename_cur)
                 if vm_disk_filename is None:
                     vm_disk_filename = m.group(1)
-                p = re.compile('^(.*)_([0-9]+)\.vmdk$')
+                p = re.compile('^(.*)_([0-9]+)\\.vmdk$')
                 m = p.match(vm_disk_filename_cur)
                 if m:
                     if m.group(2) is not None:

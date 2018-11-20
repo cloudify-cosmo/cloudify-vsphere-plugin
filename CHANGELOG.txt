@@ -1,3 +1,6 @@
+2.8.0:
+  - Support use_external_resource in cloudify.vsphere.nodes.Storage.
+  - CY-807: Stabilize tests.
 2.7.0:
   - Add backup/restore workflow with snapshot support.
   - Add suspend/resume workflow support.

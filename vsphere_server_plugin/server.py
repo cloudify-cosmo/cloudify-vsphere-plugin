@@ -353,7 +353,7 @@ def freeze_resume(ctx, server_client, server, os_family):
 @op
 @with_server_client
 def snapshot_create(ctx, server_client, server, os_family, snapshot_name,
-                    snapshot_incremental):
+                    snapshot_incremental, snapshot_type):
     if ctx.instance.runtime_properties.get('use_existing_resource'):
         ctx.logger.info('Used existing resource.')
         return
@@ -375,7 +375,7 @@ def snapshot_create(ctx, server_client, server, os_family, snapshot_name,
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to backup {snapshot_name} for server {name}'
                     .format(snapshot_name=snapshot_name, name=vm_name))
-    server_client.backup_server(server_obj, snapshot_name)
+    server_client.backup_server(server_obj, snapshot_name, snapshot_type)
     ctx.logger.info('Succeessfully backuped server {name}'
                     .format(name=vm_name))
 
