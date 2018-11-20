@@ -2706,11 +2706,11 @@ class StorageClient(VsphereClient):
             if isinstance(vm_device, vim.vm.device.VirtualDisk):
                 # Generate filename (add increment to VMDK base name)
                 vm_disk_filename_cur = vm_device.backing.fileName
-                p = re.compile('^(\[.*\]\s+.*\/.*)\.vmdk$')
+                p = re.compile('^(\\[.*\\]\\s+.*\\/.*)\\.vmdk$')
                 m = p.match(vm_disk_filename_cur)
                 if vm_disk_filename is None:
                     vm_disk_filename = m.group(1)
-                p = re.compile('^(.*)_([0-9]+)\.vmdk$')
+                p = re.compile('^(.*)_([0-9]+)\\.vmdk$')
                 m = p.match(vm_disk_filename_cur)
                 if m:
                     if m.group(2) is not None:

@@ -353,8 +353,8 @@ class BackupServerTest(unittest.TestCase):
         ):
             with self.assertRaisesRegexp(
                 NonRecoverableError,
-                "Sub snapshots \[\'snapshot\'\] found for snapshotparent. You "
-                "should remove subsnaphots before remove current."
+                "Sub snapshots \\[\'snapshot\'\\] found for snapshotparent. "
+                "You should remove subsnaphots before remove current."
             ):
                 server.snapshot_delete(server={"name": "server_name"},
                                        os_family="other_os",
