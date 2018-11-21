@@ -213,18 +213,18 @@ node_types:
           implementation: vsphere.vsphere_server_plugin.power.reboot
           inputs:
             max_wait_time:
-            type: integer
-            default: 300
-            description: >
-              How long to wait for the operation to complete.
+              type: integer
+              default: 300
+              description: >
+                How long to wait for the operation to complete.
         shut_down:
           implementation: vsphere.vsphere_server_plugin.power.shut_down
           inputs:
             max_wait_time:
-            type: integer
-            default: 300
-            description: >
-              How long to wait for the operation to complete.
+              type: integer
+              default: 300
+              description: >
+                How long to wait for the operation to complete.
 
   cloudify.vsphere.nodes.WindowsServer:
     derived_from: cloudify.vsphere.nodes.Server
