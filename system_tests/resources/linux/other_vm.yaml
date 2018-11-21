@@ -1,9 +1,9 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/backup_workflow/plugin.yaml
+  - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
   - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.7.0/plugin.yaml
-  - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.8.0/plugin.yaml
 
 inputs:
 
@@ -46,6 +46,18 @@ inputs:
     description: >
       vcenter network
     default: Internal
+
+  management_name:
+    type: string
+    description: >
+      Management network
+    default: Management
+
+  management_distributed:
+    type: boolean
+    description: >
+      Management distributed
+    default: true
 
   vcenter_datastore:
     type: string
@@ -187,8 +199,8 @@ node_templates:
   vm_nic_distributed:
     type: cloudify.vsphere.nodes.NIC
     properties:
-      name: Management
-      switch_distributed: true
+      name: { get_input: management_name }
+      switch_distributed: { get_input: management_distributed }
       mac_address: 00:50:56:85:18:01
       connection_config: *connection_config
     relationships:
