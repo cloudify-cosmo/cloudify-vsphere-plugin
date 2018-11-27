@@ -22,7 +22,7 @@ import string
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
-from cloudify_vsphere.utils import op
+from cloudify_vsphere.utils import op, find_rels_by_type
 from cloudify_vsphere.utils.feedback import prepare_for_log
 from vsphere_plugin_common import (
     get_ip_from_vsphere_nic_ips,
@@ -36,6 +36,62 @@ from vsphere_plugin_common.constants import (
     SERVER_RUNTIME_PROPERTIES,
     VSPHERE_SERVER_ID,
 )
+
+RELATIONSHIP_VM_TO_NIC = \
+    'cloudify.relationships.vsphere.server_connected_to_nic'
+
+
+def get_connected_networks(node_instance, nics_from_props):
+    """ Create a list of dictionaries that merges nics specified
+    in the VM node properties and those created via relationships.
+
+    :param _ctx: The VMs current context.
+    :param nics_from_props: A list of networks
+        defined under connect_networks in _networking.
+    :return: A list of networks
+        defined under connect_networks in _networking.
+    """
+
+    # get all relationship contexts of related nics
+    nics_from_rels = find_rels_by_type(
+        node_instance, RELATIONSHIP_VM_TO_NIC)
+
+    for rel_nic in nics_from_rels:
+
+        # try to get the connect_network property from the nic.
+        try:
+            _connect_network = \
+                rel_nic.target.instance.runtime_properties['connect_network']
+        except KeyError:
+            # If it wasn't provided it's an invalid nic.
+            raise NonRecoverableError(
+                'No "connect_network" specification for nic {0}.'.format(
+                    rel_nic.target.instance.id))
+
+        if not _connect_network.get('name'):
+            _connect_network['name'] = \
+                rel_nic.target.instance.runtime_properties.get('name')
+
+        # If it wasn't provided it's not a valid nic.
+        if not _connect_network['name']:
+            raise NonRecoverableError(
+                'No network name specified for nic {0}.'.format(
+                    rel_nic.target.instance.id))
+
+        for prop_nic in nics_from_props:
+            # If there is a nic from props that is supposed
+            # to use a nic from relationships do so.
+            if _connect_network['name'] == prop_nic['name'] and \
+                    prop_nic.get('from_relationship', False):
+                # Merge them.
+                prop_nic.update(_connect_network)
+                # We can move on to the next nic in the list.
+                continue
+
+        # Otherwise go head and add it to the list.
+        nics_from_props.append(_connect_network)
+
+    return nics_from_props
 
 
 def validate_connect_network(network):
@@ -131,11 +187,14 @@ def create_new_server(
             properties=prepare_for_log(networking),
         )
     )
-    if networking:
-        domain = networking.get('domain')
-        dns_servers = networking.get('dns_servers')
-        connect_networks = networking.get('connect_networks', [])
 
+    domain = networking.get('domain')
+    dns_servers = networking.get('dns_servers')
+    connect_networks = get_connected_networks(
+        ctx.instance,
+        networking.get('connect_networks', []))
+
+    if connect_networks:
         err_msg = "No more than one %s network can be specified."
         if len([network for network in connect_networks
                 if network.get('external', False)]) > 1:
