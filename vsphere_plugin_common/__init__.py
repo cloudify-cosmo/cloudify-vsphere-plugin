@@ -47,9 +47,10 @@ from cloudify_vsphere.vendored.collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
 
 
-def get_ip_from_vsphere_nic_ips(nic):
+def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
     for ip in nic.ipAddress:
-        if ip.startswith('169.254.') or ip.lower().startswith('fe80::'):
+        if (ip.startswith('169.254.') or ip.lower().startswith('fe80::')) \
+                and ignore_local:
             # This is a locally assigned IPv4 or IPv6 address and thus we
             # will assume it is not routable
             logger().debug(
@@ -2359,7 +2360,7 @@ class ServerClient(VsphereClient):
             "Server '%s' resized with new number of "
             "CPUs: %s and RAM: %s." % (server.name, cpus, memory))
 
-    def get_server_ip(self, vm, network_name):
+    def get_server_ip(self, vm, network_name, ignore_local=True):
         logger().debug(
             'Getting server IP from {network}.'.format(
                 network=network_name,
@@ -2381,7 +2382,7 @@ class ServerClient(VsphereClient):
                     network.network.lower()) and
                 len(network.ipAddress) > 0
             ):
-                ip_address = get_ip_from_vsphere_nic_ips(network)
+                ip_address = get_ip_from_vsphere_nic_ips(network, ignore_local)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
                 logger().info(
