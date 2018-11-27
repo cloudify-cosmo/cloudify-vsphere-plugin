@@ -570,3 +570,12 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_scsi_contoller
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_contoller
+
+  cloudify.relationships.vsphere.server_connected_to_nic:
+    derived_from: cloudify.relationships.contained_in
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        preconfigure:
+          implementation: vsphere.cloudify_vsphere.devices.attach_server_to_ethernet_card
+        unlink:
+          implementation: vsphere.cloudify_vsphere.devices.detach_server_from_contoller

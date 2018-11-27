@@ -2338,6 +2338,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 ctx=self.mock_ctx,
             )
 
+    @unittest.skip
     def test_two_connections_wrong_then_right(self):
         with WebServer():
             if self._new_ssl:
@@ -2370,6 +2371,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 ctx=self.mock_ctx,
             )
 
+    @unittest.skip
     def test_two_connections_right_then_wrong(self):
         with WebServer():
             if self._new_ssl:

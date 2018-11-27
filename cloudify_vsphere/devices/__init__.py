@@ -50,31 +50,50 @@ def attach_scsi_contoller(ctx, **kwargs):
 
 @operation
 def attach_ethernet_card(ctx, **kwargs):
-    ethernet_card_properties = ctx.source.instance.runtime_properties
-    hostvm_properties = ctx.target.instance.runtime_properties
-    ctx.logger.debug("Source {}".format(repr(ethernet_card_properties)))
-    ctx.logger.debug("Target {}".format(repr(hostvm_properties)))
+    attachment = _attach_ethernet_card(
+        ctx.source.node.properties.get("connection_config"),
+        ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        ctx.source.instance.runtime_properties)
+    ctx.source.instance.runtime_properties.update(attachment)
 
-    cl = ContollerClient()
-    cl.get(config=ctx.source.node.properties.get("connection_config"))
 
-    nicspec, controller_type = cl.generate_ethernet_card(
-        ethernet_card_properties)
-
-    ethernet_card_properties.update(cl.attach_controller(
-        hostvm_properties.get(VSPHERE_SERVER_ID), nicspec, controller_type))
+@operation
+def attach_server_to_ethernet_card(ctx, **kwargs):
+    attachment = _attach_ethernet_card(
+        ctx.target.node.properties.get("connection_config"),
+        ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        ctx.target.instance.runtime_properties)
+    ctx.target.instance.runtime_properties.update(attachment)
 
 
 @operation
 def detach_contoller(ctx, **kwargs):
-    controller_properties = ctx.source.instance.runtime_properties
-    hostvm_properties = ctx.target.instance.runtime_properties
-    ctx.logger.debug("Source {}".format(repr(controller_properties)))
-    ctx.logger.debug("Target {}".format(repr(hostvm_properties)))
+    _detach_controller(
+        ctx.source.node.properties.get("connection_config"),
+        ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        ctx.source.instance.runtime_properties.get('busKey'))
+    del ctx.source.instance.runtime_properties['busKey']
 
+
+@operation
+def detach_server_from_contoller(ctx, **kwargs):
+    _detach_controller(
+        ctx.target.node.properties.get("connection_config"),
+        ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        ctx.target.instance.runtime_properties.get('busKey'))
+    del ctx.target.instance.runtime_properties['busKey']
+
+
+def _attach_ethernet_card(client_config, server_id, ethernet_card_properties):
     cl = ContollerClient()
-    cl.get(config=ctx.source.node.properties.get("connection_config"))
-    cl.detach_contoller(hostvm_properties.get(VSPHERE_SERVER_ID),
-                        controller_properties.get('busKey'))
+    cl.get(config=client_config)
 
-    del controller_properties['busKey']
+    nicspec, controller_type = cl.generate_ethernet_card(
+        ethernet_card_properties)
+    return cl.attach_controller(server_id, nicspec, controller_type)
+
+
+def _detach_controller(client_config, server_id, bus_key):
+    cl = ContollerClient()
+    cl.get(config=client_config)
+    cl.detach_contoller(server_id, bus_key)
