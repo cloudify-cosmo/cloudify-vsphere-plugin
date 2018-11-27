@@ -2,9 +2,19 @@ tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.1.1/types.yaml
-  - http://cloudify.co/spec/vsphere-plugin/2.7.0/plugin.yaml
+  - plugin.yaml
+#  - http://cloudify.co/spec/vsphere-plugin/2.7.0/plugin.yaml
 
 inputs:
+
+  # Meta
+  prefix:
+    type: string
+    default: "ex_"
+
+  suffix:
+    type: string
+    default: "_0"
 
   # CLIENT CONFIGURATION
   username:
@@ -34,7 +44,7 @@ inputs:
   # SERVER CONFIGURATION
   server_name:
     type: string
-    default: example_server
+    default: { concat: [ { get_input: prefix }, server, { get_input: suffix } ] }
 
   template_name:
     type: string
@@ -48,7 +58,7 @@ inputs:
   # NETWORK CONFIGURATION
   network_name:
     type: string
-    default: example_network
+    default: { concat: [ { get_input: prefix }, network, { get_input: suffix } ] }
 
   vlan_id:
     type: string
@@ -72,19 +82,6 @@ dsl_definitions:
 
 node_templates:
 
-  nic:
-    type: cloudify.vsphere.nodes.NIC
-    properties:
-      connection_config: *connection_config
-      name: { get_property: [ net, network, name ] }
-      switch_distributed: false
-      adapter_type: E1000
-    relationships:
-      - type: cloudify.vsphere.port_connected_to_network
-        target: net
-      - type: cloudify.vsphere.nic_connected_to_server
-        target: vm
-
   vm:
     type: cloudify.vsphere.nodes.Server
     properties:
@@ -96,20 +93,33 @@ node_templates:
         template: { get_input: template_name }
         cpus: 1
         memory: 1024
-#      networking:
-#        connect_networks:
-#          - name: { get_input: network_name }
-#            management: true
-#            external: true
-#            switch_distributed: false
-#            use_dhcp: false
-#            network: 172.16.168.0/24
-#            gateway: 172.16.168.1
-#            ip: 172.16.168.201
       custom_attributes:
         username: { get_input: username }
+    relationships:
+      - type: cloudify.relationships.vsphere.server_connected_to_nic
+        target: nic0
 
-  net:
+  nic0:
+    type: cloudify.vsphere.nodes.NIC
+    properties:
+      connection_config: *connection_config
+      name: { get_property: [ net0, network, name ] }
+      switch_distributed: false
+      adapter_type: E1000e
+      address_type: assigned
+      connect_network:
+        external: true
+        use_dhcp: false
+        network: 172.16.168.0/24
+        gateway: 172.16.168.1
+        ip: 172.16.168.201
+    relationships:
+      - type: cloudify.vsphere.port_connected_to_network
+        target: net0
+#      - type: cloudify.vsphere.nic_connected_to_server
+#        target: vm
+
+  net0:
     type: cloudify.vsphere.nodes.Network
     properties:
       connection_config: *connection_config
@@ -118,3 +128,4 @@ node_templates:
         vlan_id: { get_input: vlan_id }
         vswitch_name: { get_input: vswitch_name }
         switch_distributed: { get_input: switch_distributed }
+

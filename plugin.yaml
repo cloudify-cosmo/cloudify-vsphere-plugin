@@ -213,18 +213,18 @@ node_types:
           implementation: vsphere.vsphere_server_plugin.power.reboot
           inputs:
             max_wait_time:
-            type: integer
-            default: 300
-            description: >
-              How long to wait for the operation to complete.
+              type: integer
+              default: 300
+              description: >
+                How long to wait for the operation to complete.
         shut_down:
           implementation: vsphere.vsphere_server_plugin.power.shut_down
           inputs:
             max_wait_time:
-            type: integer
-            default: 300
-            description: >
-              How long to wait for the operation to complete.
+              type: integer
+              default: 300
+              description: >
+                How long to wait for the operation to complete.
 
   cloudify.vsphere.nodes.WindowsServer:
     derived_from: cloudify.vsphere.nodes.Server
@@ -458,6 +458,10 @@ node_types:
           if it does not fall in the right ranges or is determined to be
           a duplicate.
         default: ""
+      connect_network:
+        description: Network interface definition according to cloudify.datatypes.vsphere.NetworkingProperties connect_networks specification.
+        default:
+          name: { get_property: [ SELF, name ] }
       connection_config:
         type: cloudify.datatypes.vsphere.Config
     interfaces:
@@ -483,6 +487,8 @@ node_types:
               default: { get_attribute: [ SELF, address_type ] }
             mac_address:
               default: { get_attribute: [ SELF, mac_address ] }
+            connect_network:
+              default: { get_attribute: [ SELF, connect_network ] }
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_contoller
 
@@ -570,3 +576,13 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_scsi_contoller
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_contoller
+
+  # Swap directions.
+  cloudify.relationships.vsphere.server_connected_to_nic:
+    derived_from: cloudify.relationships.connected_to
+#    source_interfaces:
+#      cloudify.interfaces.relationship_lifecycle:
+#        establish:
+#          implementation: vsphere.cloudify_vsphere.devices.connect_server_to_port
+#        unlink:
+#          implementation: vsphere.cloudify_vsphere.devices.detach_server_from_port

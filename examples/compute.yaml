@@ -38,7 +38,7 @@ inputs:
 
   template_name:
     type: string
-    default: CentOS-7.4-x86-64-1708-tmpl #CentOS-7.4-x86_64-1708
+    default: CentOS-7.4_with_ssh_key #CentOS-7.4-x86_64-1708
 
   network_name:
     type: string
