@@ -458,6 +458,17 @@ node_types:
           if it does not fall in the right ranges or is determined to be
           a duplicate.
         default: ""
+      network_configuration:
+        description: >
+          Only valid with a relationship cloudify.relationships.vsphere.nic_connected_to_network to a network.
+          Dictionary with following keys:
+            'from_relationship': (bool, False),
+            'external': (bool, False),
+            'management': (bool, False),
+            'use_dhcp': (bool, True),
+            'network': (basestring, None),
+            'gateway': (basestring, None),
+            'ip': (basestring, None)
       connection_config:
         type: cloudify.datatypes.vsphere.Config
     interfaces:
@@ -483,6 +494,8 @@ node_types:
               default: { get_attribute: [ SELF, address_type ] }
             mac_address:
               default: { get_attribute: [ SELF, mac_address ] }
+            network_configuration:
+              default: { get_attribute: [ SELF, network_configuration ] }
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_contoller
 
@@ -571,11 +584,14 @@ relationships:
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_contoller
 
+  cloudify.relationships.vsphere.nic_connected_to_network:
+    derived_from: cloudify.relationships.contained_in
+
   cloudify.relationships.vsphere.server_connected_to_nic:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
-        preconfigure:
+        establish:
           implementation: vsphere.cloudify_vsphere.devices.attach_server_to_ethernet_card
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_server_from_contoller
