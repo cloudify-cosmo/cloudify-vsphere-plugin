@@ -12,17 +12,71 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from cloudify.decorators import operation
 
-from vsphere_plugin_common.constants import VSPHERE_SERVER_ID
-from vsphere_plugin_common import ContollerClient
+from copy import deepcopy
+from cloudify.decorators import operation
+from cloudify.exceptions import NonRecoverableError
+from cloudify_vsphere.utils import find_rels_by_type
+from vsphere_plugin_common.constants import (
+    VSPHERE_SERVER_ID,
+    NETWORK_NAME,
+    SWITCH_DISTRIBUTED)
+from vsphere_plugin_common import ContollerClient, ServerClient
+
+RELATIONSHIP_NIC_TO_NETWORK = \
+    'cloudify.relationships.vsphere.nic_connected_to_network'
+
+
+def add_connected_network(node_instance, nic_properties=None):
+    connected_network = None
+    nets_from_rels = find_rels_by_type(
+        node_instance, RELATIONSHIP_NIC_TO_NETWORK)
+    if len(nets_from_rels) > 1:
+        raise NonRecoverableError(
+            'Currently only one relationship of type {0} '
+            'is supported per node.'.format(
+                RELATIONSHIP_NIC_TO_NETWORK))
+    elif len(nets_from_rels) < 1:
+        return
+    net_from_rel = nets_from_rels[0]
+    network_name = \
+        net_from_rel.target.instance.runtime_properties.get(
+            NETWORK_NAME, nic_properties.get('name'))
+    switch_distributed = \
+        net_from_rel.target.instance.runtime_properties.get(
+            SWITCH_DISTRIBUTED)
+    if network_name:
+        connected_network = {
+            'name': network_name,
+            'switch_distributed': switch_distributed
+        }
+    if not connected_network:
+        return
+    nic_configuration = nic_properties.get('network_configuration')
+    if nic_configuration:
+        connected_network.update(nic_configuration)
+    node_instance.runtime_properties['connected_network'] = \
+        connected_network
+
+
+def controller_without_connected_networks(runtime_properties):
+    controller_properties = deepcopy(runtime_properties)
+
+    try:
+        del controller_properties['connected_networks']
+        del controller_properties['connected']
+    except KeyError:
+        pass
+
+    return controller_properties
 
 
 @operation
 def create_contoller(ctx, **kwargs):
     controller_properties = ctx.instance.runtime_properties
     controller_properties.update(kwargs)
-    ctx.logger.info("Properties {}".format(repr(controller_properties)))
+    ctx.logger.info("Properties {0}".format(repr(controller_properties)))
+    add_connected_network(ctx.instance, controller_properties)
 
 
 @operation
@@ -33,10 +87,11 @@ def delete_contoller(ctx, **kwargs):
 
 @operation
 def attach_scsi_contoller(ctx, **kwargs):
-    scsi_properties = ctx.source.instance.runtime_properties
+    scsi_properties = controller_without_connected_networks(
+        ctx.source.instance.runtime_properties)
     hostvm_properties = ctx.target.instance.runtime_properties
-    ctx.logger.debug("Source {}".format(repr(scsi_properties)))
-    ctx.logger.debug("Target {}".format(repr(hostvm_properties)))
+    ctx.logger.debug("Source {0}".format(repr(scsi_properties)))
+    ctx.logger.debug("Target {0}".format(repr(hostvm_properties)))
 
     cl = ContollerClient()
     cl.get(config=ctx.source.node.properties.get("connection_config"))
@@ -44,37 +99,82 @@ def attach_scsi_contoller(ctx, **kwargs):
     scsi_spec, controller_type = cl.generate_scsi_card(
         scsi_properties, hostvm_properties.get(VSPHERE_SERVER_ID))
 
-    scsi_properties.update(cl.attach_controller(
-        hostvm_properties.get(VSPHERE_SERVER_ID), scsi_spec, controller_type))
+    ctx.source.instance.runtime_properties.update(cl.attach_controller(
+        hostvm_properties.get(VSPHERE_SERVER_ID),
+        scsi_spec, controller_type))
 
 
 @operation
 def attach_ethernet_card(ctx, **kwargs):
-    ethernet_card_properties = ctx.source.instance.runtime_properties
-    hostvm_properties = ctx.target.instance.runtime_properties
-    ctx.logger.debug("Source {}".format(repr(ethernet_card_properties)))
-    ctx.logger.debug("Target {}".format(repr(hostvm_properties)))
+    attachment = _attach_ethernet_card(
+        ctx.source.node.properties.get("connection_config"),
+        ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        controller_without_connected_networks(
+            ctx.source.instance.runtime_properties))
+    ctx.source.instance.runtime_properties.update(attachment)
 
-    cl = ContollerClient()
-    cl.get(config=ctx.source.node.properties.get("connection_config"))
 
-    nicspec, controller_type = cl.generate_ethernet_card(
-        ethernet_card_properties)
-
-    ethernet_card_properties.update(cl.attach_controller(
-        hostvm_properties.get(VSPHERE_SERVER_ID), nicspec, controller_type))
+@operation
+def attach_server_to_ethernet_card(ctx, **kwargs):
+    if ctx.target.instance.id not in \
+            ctx.source.instance.runtime_properties.get('connected_nics',
+                                                       []):
+        attachment = _attach_ethernet_card(
+            ctx.target.node.properties.get("connection_config"),
+            ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+            controller_without_connected_networks(
+                ctx.target.instance.runtime_properties))
+        ctx.target.instance.runtime_properties.update(attachment)
+    ip = _get_card_ip(
+        ctx.source.node.properties.get("connection_config"),
+        ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        ctx.target.instance.runtime_properties.get('name'))
+    ctx.source.instance.runtime_properties['ip'] = ip
 
 
 @operation
 def detach_contoller(ctx, **kwargs):
-    controller_properties = ctx.source.instance.runtime_properties
-    hostvm_properties = ctx.target.instance.runtime_properties
-    ctx.logger.debug("Source {}".format(repr(controller_properties)))
-    ctx.logger.debug("Target {}".format(repr(hostvm_properties)))
+    if ctx.target.instance.id not in \
+            ctx.source.instance.runtime_properties.get('connected_nics',
+                                                       []):
+        _detach_controller(
+            ctx.source.node.properties.get("connection_config"),
+            ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+            ctx.source.instance.runtime_properties.get('busKey'))
+        del ctx.source.instance.runtime_properties['busKey']
+        controller_without_connected_networks(
+                ctx.source.instance.runtime_properties)
 
+
+@operation
+def detach_server_from_contoller(ctx, **kwargs):
+    _detach_controller(
+        ctx.target.node.properties.get("connection_config"),
+        ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        ctx.target.instance.runtime_properties.get('busKey'))
+    del ctx.target.instance.runtime_properties['busKey']
+    ctx.target.instance.runtime_properties = \
+        controller_without_connected_networks(
+            ctx.target.instance.runtime_properties)
+
+
+def _attach_ethernet_card(client_config, server_id, ethernet_card_properties):
     cl = ContollerClient()
-    cl.get(config=ctx.source.node.properties.get("connection_config"))
-    cl.detach_contoller(hostvm_properties.get(VSPHERE_SERVER_ID),
-                        controller_properties.get('busKey'))
+    cl.get(config=client_config)
 
-    del controller_properties['busKey']
+    nicspec, controller_type = cl.generate_ethernet_card(
+        ethernet_card_properties)
+    return cl.attach_controller(server_id, nicspec, controller_type)
+
+
+def _detach_controller(client_config, server_id, bus_key):
+    cl = ContollerClient()
+    cl.get(config=client_config)
+    cl.detach_contoller(server_id, bus_key)
+
+
+def _get_card_ip(client_config, server_id, nic_name):
+    server_client = ServerClient()
+    server_client.get(config=client_config)
+    vm = server_client.get_server_by_id(server_id)
+    return server_client.get_server_ip(vm, nic_name, ignore_local=False)

@@ -22,7 +22,7 @@ import string
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
-from cloudify_vsphere.utils import op
+from cloudify_vsphere.utils import op, find_rels_by_type
 from cloudify_vsphere.utils.feedback import prepare_for_log
 from vsphere_plugin_common import (
     get_ip_from_vsphere_nic_ips,
@@ -37,51 +37,137 @@ from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
 )
 
+RELATIONSHIP_VM_TO_NIC = \
+    'cloudify.relationships.vsphere.server_connected_to_nic'
 
-def validate_connect_network(network):
-    if 'name' not in network.keys():
-        raise NonRecoverableError(
-            'All networks connected to a server must have a name specified. '
-            'Network details: {}'.format(str(network))
-        )
 
-    allowed = {
-        'name': basestring,
-        'from_relationship': bool,
-        'management': bool,
-        'external': bool,
-        'switch_distributed': bool,
-        'use_dhcp': bool,
-        'network': basestring,
-        'gateway': basestring,
-        'ip': basestring,
-    }
+def get_connected_networks(node_instance, nics_from_props):
+    """ Create a list of dictionaries that merges nics specified
+    in the VM node properties and those created via relationships.
+    :param _ctx: The VMs current context.
+    :param nics_from_props: A list of networks
+        defined under connect_networks in _networking.
+    :return: A list of networks
+        defined under connect_networks in _networking.
+    """
 
-    friendly_type_mapping = {
-        basestring: 'string',
-        bool: 'boolean',
-    }
+    if 'connected_nics' not in \
+            node_instance.runtime_properties:
+        node_instance.runtime_properties['connected_nics'] = \
+            []
 
-    for key, value in network.items():
-        if key in allowed:
-            if not isinstance(value, allowed[key]):
-                raise NonRecoverableError(
-                    'network.{key} must be of type {expected_type}'.format(
-                        key=key,
-                        expected_type=friendly_type_mapping[allowed[key]],
-                    )
-                )
-        else:
+    # get all relationship contexts of related nics
+    nics_from_rels = find_rels_by_type(
+        node_instance, RELATIONSHIP_VM_TO_NIC)
+
+    for rel_nic in nics_from_rels:
+
+        # try to get the connect_network property from the nic.
+        try:
+            _connect_network = \
+                rel_nic.target.instance.runtime_properties[
+                    'connected_network']
+        except KeyError:
+            # If it wasn't provided it's an invalid nic.
             raise NonRecoverableError(
-                'Key {key} is not valid in a connect_networks network. '
-                'Network was {name}. Valid keys are: {valid}'.format(
-                    key=key,
-                    name=network['name'],
-                    valid=','.join(allowed.keys()),
-                )
-            )
+                'No "connect_network" specification for nic {0}.'.format(
+                    rel_nic.target.instance.id))
 
-    return True
+        if not _connect_network.get('name'):
+            _connect_network['name'] = \
+                rel_nic.target.instance.runtime_properties.get('name')
+
+        # If it wasn't provided it's not a valid nic.
+        if not _connect_network['name']:
+            raise NonRecoverableError(
+                'No network name specified for nic {0}.'.format(
+                    rel_nic.target.instance.id))
+
+        for prop_nic in nics_from_props:
+            # If there is a nic from props that is supposed
+            # to use a nic from relationships do so.
+            if _connect_network['name'] == prop_nic['name'] and \
+                    prop_nic.get('from_relationship'):
+                # Merge them.
+                prop_nic.update(_connect_network)
+                # We can move on to the next nic in the list.
+                continue
+
+        # Otherwise go head and add it to the list.
+        nics_from_props.append(_connect_network)
+        node_instance.runtime_properties[
+            'connected_nics'].append(
+            rel_nic.target.instance.id)
+
+    return nics_from_props
+
+
+def validate_connect_network(_network):
+    """Judges a connected network.
+
+    :param _network: a defendant.
+    :return: a valid connected network dictionary.
+    """
+
+    # The charges.
+    network_validations = {
+        'name': (basestring, None),
+        'from_relationship': (bool, False),
+        'external': (bool, False),
+        'management': (bool, False),
+        'switch_distributed': (bool, False),
+        'use_dhcp': (bool, True),
+        'network': (basestring, None),
+        'gateway': (basestring, None),
+        'ip': (basestring, None)
+    }
+
+    # Assumed innocent until proven guilty.
+    validation_error = False
+    # As proper bureaucrats, we always prepare lists.
+    validation_error_messages = ['Network failed validation: ']
+
+    if not _network.get('name'):
+        # John/Jane Doe.
+        validation_error = True
+        validation_error_messages.append(
+            'All networks connected to a server must have a name specified.')
+        del network_validations['name']
+
+    # We review each charge as a distinct offense.
+    for key, value in _network.items():
+
+        try:
+            # We check if the defendant has an alibi.
+            expected_type, default_value = network_validations.pop(key)
+        except KeyError:
+            # The defendant is lying.
+            validation_error = True
+            validation_error_messages.append(
+                'Network has unsupported key: {0}. Value: {1}'.format(
+                    key, value))
+            continue
+
+        # The defendant was not even at the scene of the crime.
+        if not value:
+            _network[key] = default_value
+            continue
+
+        elif not isinstance(_network[key], expected_type):
+            # Guilty as charged!
+            validation_error = True
+            validation_error_messages.append(
+                'Network Key {0} has unsupported type: {1}. Value: {2}'.format(
+                    key, expected_type, _network[key]))
+
+    if validation_error:
+        raise NonRecoverableError(str(validation_error_messages))
+
+    # We return the citizen its rights.
+    for validation_key, (_, default_value) in network_validations.items():
+        _network[validation_key] = default_value
+
+    return _network
 
 
 def create_new_server(
@@ -113,10 +199,6 @@ def create_new_server(
         )
     )
 
-    networks = []
-    domain = None
-    dns_servers = None
-
     if isinstance(allowed_hosts, basestring):
         allowed_hosts = [allowed_hosts]
     if isinstance(allowed_clusters, basestring):
@@ -124,18 +206,22 @@ def create_new_server(
     if isinstance(allowed_datastores, basestring):
         allowed_datastores = [allowed_datastores]
 
+    domain = networking.get('domain')
+    dns_servers = networking.get('dns_servers')
+    connect_networks = get_connected_networks(
+        ctx.instance,
+        networking.get('connect_networks', []))
+
     # This should be debug, but left as info until CFY-4867 makes logs more
     # visible
     ctx.logger.info(
-        'Network properties: {properties}'.format(
+        'Network properties: {properties} {connect_networks}'.format(
             properties=prepare_for_log(networking),
+            connect_networks=connect_networks
         )
     )
-    if networking:
-        domain = networking.get('domain')
-        dns_servers = networking.get('dns_servers')
-        connect_networks = networking.get('connect_networks', [])
 
+    if connect_networks:
         err_msg = "No more than one %s network can be specified."
         if len([network for network in connect_networks
                 if network.get('external', False)]) > 1:
@@ -144,28 +230,15 @@ def create_new_server(
                 if network.get('management', False)]) > 1:
             raise NonRecoverableError(err_msg % 'management')
 
-        for network in connect_networks:
+        for network_index in range(0, len(connect_networks)):
+            network = connect_networks.pop(network_index)
+            ctx.logger.info('connected_network: {0}'.format(network))
             validate_connect_network(network)
-            net = {
-                'name': network['name'],
-                'from_relationship': network.get('from_relationship', False),
-                'external': network.get('external', False),
-                'switch_distributed': network.get('switch_distributed',
-                                                  False),
-                'use_dhcp': network.get('use_dhcp', True),
-                'network': network.get('network'),
-                'gateway': network.get('gateway'),
-                'ip': network.get('ip'),
-            }
-            if net['external']:
-                networks.insert(
-                    0,
-                    net,
-                )
+            if network['external']:
+                connect_networks.insert(0, network)
             else:
-                networks.append(
-                    net,
-                )
+                connect_networks.append(network)
+        del network_index
 
     connection_config = server_client.cfg
     datacenter_name = connection_config['datacenter_name']
@@ -198,7 +271,7 @@ def create_new_server(
         cpus,
         datacenter_name,
         memory,
-        networks,
+        connect_networks,
         resource_pool_name,
         template_name,
         vm_name,

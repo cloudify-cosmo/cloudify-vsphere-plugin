@@ -69,6 +69,16 @@ class VsphereControllerTest(unittest.TestCase):
             "auto_placement": "vsphere_auto_placement",
             "allow_insecure": True
         }
+        _ctx._target.node.properties["connection_config"] = {
+            "username": "vcenter_user",
+            "password": "vcenter_password",
+            "host": "vcenter_ip",
+            "port": 443,
+            "datacenter_name": "vcenter_datacenter",
+            "resource_pool_name": "vcenter_resource_pool",
+            "auto_placement": "vsphere_auto_placement",
+            "allow_insecure": True
+        }
         current_ctx.set(_ctx)
         return _ctx
 
@@ -277,3 +287,95 @@ class VsphereControllerTest(unittest.TestCase):
            'hotAddRemove': True
         }]:
             self.check_attach_scsi_contoller(settings)
+
+    def check_attach_server_ethernet_card(self, settings):
+        _ctx = self._gen_relation_ctx()
+        conn_mock = Mock()
+        smart_connect = MagicMock(return_value=conn_mock)
+        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
+            with patch("vsphere_plugin_common.Disconnect", Mock()):
+                # use unexisted network
+                _ctx.target.instance.runtime_properties.update(settings)
+                network = None
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                    MagicMock(return_value=network)
+                ):
+                    with self.assertRaises(NonRecoverableError) as e:
+                        devices.attach_server_to_ethernet_card(ctx=_ctx)
+                    self.assertEqual(e.exception.message,
+                                     "Network Cloudify could not be found")
+
+                # without vm-id / distributed
+                _ctx.target.instance.runtime_properties[
+                    'switch_distributed'
+                ] = True
+                network = Mock()
+                network.obj = network
+                network.config.distributedVirtualSwitch.uuid = "aa-bb-vv"
+                network.key = "121"
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                    MagicMock(return_value=network)
+                ):
+                    with self.assertRaises(NonRecoverableError) as e:
+                        devices.attach_server_to_ethernet_card(ctx=_ctx)
+                    self.assertEqual(e.exception.message,
+                                     "VM is not defined")
+
+                # without vm-id / simple network
+                _ctx.target.instance.runtime_properties[
+                    'switch_distributed'
+                ] = False
+                network = vim.Network("Cloudify")
+                network.obj = network
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                    MagicMock(return_value=network)
+                ):
+                    with self.assertRaises(NonRecoverableError) as e:
+                        devices.attach_server_to_ethernet_card(ctx=_ctx)
+                    self.assertEqual(e.exception.message,
+                                     "VM is not defined")
+
+                # issues with add device
+                _ctx.source.instance.runtime_properties[
+                    'vsphere_server_id'
+                ] = "vm-101"
+                network = vim.Network("Cloudify")
+                network.obj = network
+                vm = self._get_vm()
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    with patch(
+                        "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                        MagicMock(return_value=network)
+                    ):
+                        with self.assertRaises(NonRecoverableError) as e:
+                            devices.attach_server_to_ethernet_card(ctx=_ctx)
+                        self.assertEqual(
+                            e.exception.message,
+                            "Have not found key for new added device")
+
+    def test_attach_server_ethernet_card(self):
+        for settings in [{
+            'adapter_type': None,
+            'name': "Cloudify"
+        }, {
+            'adapter_type': "E1000e",
+            'name': "Cloudify"
+        }, {
+            'adapter_type': "E1000",
+            'name': "Cloudify"
+        }, {
+            'adapter_type': "Sriov",
+            'name': "Cloudify",
+            'mac_address': "aa:bb:cc:dd"
+        }, {
+            'adapter_type': "Vmxnet2",
+            'name': "Cloudify",
+            'network_connected': False
+        }]:
+            self.check_attach_server_ethernet_card(settings)
