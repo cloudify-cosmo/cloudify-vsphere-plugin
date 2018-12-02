@@ -199,7 +199,7 @@ class VsphereLocalNetworkTest(TestCase):
             assert inputs['test_network_name'] in err.message
             assert 'no network by that name exists' in err.message
             self.logger.info('Use non-existing network with '
-                             'use_existing_resource has correct error.')
+                             'use_external_resource has correct error.')
 
     def test_distributed_network(self):
         blueprint = os.path.join(
@@ -350,7 +350,7 @@ class VsphereLocalNetworkTest(TestCase):
             assert inputs['test_network_name'] in err.message
             assert 'no distributed network by that name exists' in err.message
             self.logger.info('Use non-existing distributed network with '
-                             'use_existing_resource has correct error.')
+                             'use_external_resource has correct error.')
 
     def test_network_bad_vswitch(self):
         blueprint = os.path.join(

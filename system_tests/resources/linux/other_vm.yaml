@@ -143,7 +143,7 @@ node_templates:
   vm_instance:
     type: cloudify.vsphere.nodes.Server
     properties:
-      use_existing_resource: true
+      use_external_resource: true
       connection_config: *connection_config
       agent_config:
         install_method: none
@@ -212,7 +212,7 @@ node_templates:
   vm_volume_resize:
     type: cloudify.vsphere.nodes.Storage
     properties:
-      use_existing_resource: true
+      use_external_resource: true
       storage: {}
       connection_config: *connection_config
     interfaces:

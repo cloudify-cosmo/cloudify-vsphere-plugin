@@ -46,7 +46,7 @@ class VsphereStorageTest(unittest.TestCase):
         storage.create(
             storage={
                 'storage_size': 7,
-            }, use_existing_resource=False)
+            }, use_external_resource=False)
 
         self.mock_ctx.operation.retry.assert_not_called()
         self.mock_ctx.instance.runtime_properties.__setitem__.assert_has_calls(
@@ -73,6 +73,6 @@ class VsphereStorageTest(unittest.TestCase):
         storage.create(
             storage={
                 'storage_size': 7,
-            }, use_existing_resource=False)
+            }, use_external_resource=False)
 
         self.mock_ctx.operation.retry.assert_called_once()

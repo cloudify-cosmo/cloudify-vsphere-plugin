@@ -134,6 +134,10 @@ node_types:
         description: >
           Whether to use a vm that already exists on vSphere.
         default: False
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
       allowed_hosts:
         description: >
           Which ESX host(s) this server is allowed to be deployed on.
@@ -277,6 +281,10 @@ node_types:
         description: >
           Whether to use a network that already exists on vSphere.
         default: False
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
       network:
         description: |
           key-value network configuration. ::
@@ -302,6 +310,10 @@ node_types:
         description: >
           Whether to use a volume that already exists on vSphere.
         default: False
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
       storage:
         description: |
           key-value storage disk configuration. ::
@@ -348,6 +360,10 @@ node_types:
           Currently, datacenters cannot be created or deleted,
           and this node type exists only for compatibility with the NSX plugin.
         default: True
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -372,6 +388,10 @@ node_types:
           Currently, datastores cannot be created or deleted,
           and this node type exists only for compatibility with the NSX plugin.
         default: True
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -396,6 +416,10 @@ node_types:
           Currently, clusters cannot be created or deleted,
           and this node type exists only for compatibility with the NSX plugin.
         default: True
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config

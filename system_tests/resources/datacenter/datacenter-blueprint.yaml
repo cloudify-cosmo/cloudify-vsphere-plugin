@@ -65,7 +65,7 @@ node_templates:
   datacenter:
     type: cloudify.vsphere.nodes.Datacenter
     properties:
-      use_existing_resource: false
+      use_external_resource: false
       name: { get_input: test_datacenter_name }
       connection_config: { get_property: [connection_configuration, connection_config] }
 

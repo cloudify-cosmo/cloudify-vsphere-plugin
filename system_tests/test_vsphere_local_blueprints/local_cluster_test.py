@@ -136,7 +136,7 @@ class VsphereLocalClusterTest(TestCase):
             assert inputs['test_cluster_name'] in err.message
             assert 'no cluster by that name exists' in err.message
             self.logger.info('Use non-existing cluster with '
-                             'use_existing_resource has correct error.')
+                             'use_external_resource has correct error.')
 
     def test_cluster(self):
         blueprint = os.path.join(

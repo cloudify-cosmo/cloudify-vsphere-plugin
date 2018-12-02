@@ -132,7 +132,7 @@ class VsphereLocalDatastoreTest(TestCase):
             assert inputs['test_datastore_name'] in err.message
             assert 'no datastore by that name exists' in err.message
             self.logger.info('Use non-existing datastore with '
-                             'use_existing_resource has correct error.')
+                             'use_external_resource has correct error.')
 
     def test_datastore(self):
         blueprint = os.path.join(
