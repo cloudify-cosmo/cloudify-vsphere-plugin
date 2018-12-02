@@ -15,6 +15,7 @@
 
 from copy import deepcopy
 from cloudify.decorators import operation
+from cloudify.exceptions import NonRecoverableError
 from cloudify_vsphere.utils import find_rels_by_type
 from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
@@ -30,18 +31,25 @@ def add_connected_network(node_instance, nic_properties=None):
     connected_network = None
     nets_from_rels = find_rels_by_type(
         node_instance, RELATIONSHIP_NIC_TO_NETWORK)
-    for net_from_rel in nets_from_rels:
-        network_name = \
-            net_from_rel.target.instance.runtime_properties.get(
-                NETWORK_NAME, nic_properties.get('name'))
-        switch_distributed = \
-            net_from_rel.target.instance.runtime_properties.get(
-                SWITCH_DISTRIBUTED)
-        if network_name:
-            connected_network = {
-                'name': network_name,
-                'switch_distributed': switch_distributed
-            }
+    if len(nets_from_rels) > 1:
+        raise NonRecoverableError(
+            'Currently only one relationship of type {0} '
+            'is supported per node.'.format(
+                RELATIONSHIP_NIC_TO_NETWORK))
+    elif len(nets_from_rels) < 1:
+        return
+    net_from_rel = nets_from_rels[0]
+    network_name = \
+        net_from_rel.target.instance.runtime_properties.get(
+            NETWORK_NAME, nic_properties.get('name'))
+    switch_distributed = \
+        net_from_rel.target.instance.runtime_properties.get(
+            SWITCH_DISTRIBUTED)
+    if network_name:
+        connected_network = {
+            'name': network_name,
+            'switch_distributed': switch_distributed
+        }
     if not connected_network:
         return
     nic_configuration = nic_properties.get('network_configuration')
