@@ -1,3 +1,6 @@
+2.9.0:
+  - Support Server - Nic relationship.
+  - Start moving from use_existing_resource to use_external_resource.
 2.8.0:
   - Support use_external_resource in cloudify.vsphere.nodes.Storage.
   - CY-807: Stabilize tests.

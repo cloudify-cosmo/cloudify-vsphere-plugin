@@ -134,25 +134,25 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
 
 @operation
 def detach_contoller(ctx, **kwargs):
-    if ctx.target.instance.id not in \
-            ctx.source.instance.runtime_properties.get('connected_nics',
-                                                       []):
-        _detach_controller(
-            ctx.source.node.properties.get("connection_config"),
-            ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
-            ctx.source.instance.runtime_properties.get('busKey'))
-        del ctx.source.instance.runtime_properties['busKey']
-        controller_without_connected_networks(
-                ctx.source.instance.runtime_properties)
+    _detach_controller(
+        ctx.source.node.properties.get("connection_config"),
+        ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        ctx.source.instance.runtime_properties.get('busKey'))
+    del ctx.source.instance.runtime_properties['busKey']
+    controller_without_connected_networks(
+            ctx.source.instance.runtime_properties)
 
 
 @operation
 def detach_server_from_contoller(ctx, **kwargs):
-    _detach_controller(
-        ctx.target.node.properties.get("connection_config"),
-        ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
-        ctx.target.instance.runtime_properties.get('busKey'))
-    del ctx.target.instance.runtime_properties['busKey']
+    if ctx.target.instance.id not in \
+            ctx.source.instance.runtime_properties.get('connected_nics',
+                                                       []):
+        _detach_controller(
+            ctx.target.node.properties.get("connection_config"),
+            ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+            ctx.target.instance.runtime_properties.get('busKey'))
+        del ctx.target.instance.runtime_properties['busKey']
     ctx.target.instance.runtime_properties = \
         controller_without_connected_networks(
             ctx.target.instance.runtime_properties)

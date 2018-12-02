@@ -40,7 +40,7 @@ from cloudify_vsphere.utils.feedback import prepare_for_log
 
 @op
 @with_storage_client
-def create(storage_client, storage, use_existing_resource=False):
+def create(storage_client, storage, use_external_resource=False):
     ctx.logger.debug("Entering create storage procedure.")
     storage.setdefault('name', ctx.node.id)
     # This should be debug, but left as info until CFY-4867 makes logs more
@@ -70,7 +70,7 @@ def create(storage_client, storage, use_existing_resource=False):
 
     vm_id = connected_vms[0][VSPHERE_SERVER_ID]
     vm_name = connected_vms[0]['name']
-    if use_existing_resource:
+    if use_external_resource:
         for fname in [
             VSPHERE_STORAGE_SCSI_ID, VSPHERE_STORAGE_FILE_NAME, 'storage_size'
         ]:
@@ -131,7 +131,7 @@ def create(storage_client, storage, use_existing_resource=False):
 @op
 @with_storage_client
 def delete(storage_client, **kwargs):
-    if ctx.instance.runtime_properties.get('use_existing_resource'):
+    if ctx.instance.runtime_properties.get('use_external_resource'):
         ctx.logger.info('Used existing resource.')
         return
 

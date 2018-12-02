@@ -65,7 +65,7 @@ node_templates:
   datastore:
     type: cloudify.vsphere.nodes.Datastore
     properties:
-      use_existing_resource: true
+      use_external_resource: true
       name: { get_input: test_datastore_name }
       connection_config: { get_property: [connection_configuration, connection_config] }
 

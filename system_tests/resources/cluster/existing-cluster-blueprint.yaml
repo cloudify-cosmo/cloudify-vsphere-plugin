@@ -65,7 +65,7 @@ node_templates:
   cluster:
     type: cloudify.vsphere.nodes.Cluster
     properties:
-      use_existing_resource: true
+      use_external_resource: true
       name: { get_input: test_cluster_name }
       connection_config: { get_property: [connection_configuration, connection_config] }
 

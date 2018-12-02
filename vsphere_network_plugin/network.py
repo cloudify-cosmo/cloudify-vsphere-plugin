@@ -38,7 +38,7 @@ from cloudify_vsphere.utils.feedback import check_name_for_special_characters
 
 @op
 @with_network_client
-def create(ctx, network_client, network, use_existing_resource):
+def create(ctx, network_client, network, use_external_resource):
     network.update(network)
     network['name'] = get_network_name(ctx, network)
     check_name_for_special_characters(network['name'])
@@ -55,7 +55,7 @@ def create(ctx, network_client, network, use_existing_resource):
 
     creating = runtime_properties.get('status', None) == 'creating'
 
-    if use_existing_resource:
+    if use_external_resource:
         if not existing_id:
             raise NonRecoverableError(
                 'Could not use existing {distributed}network "{name}" as no '
@@ -111,10 +111,10 @@ def create(ctx, network_client, network, use_existing_resource):
 
 @op
 @with_network_client
-def delete(ctx, network_client, network, use_existing_resource):
+def delete(ctx, network_client, network, use_external_resource):
     port_group_name = get_network_name(ctx, network)
     switch_distributed = network.get('switch_distributed')
-    if use_existing_resource:
+    if use_external_resource:
         ctx.logger.info(
             'Not deleting existing {type}: {name}'.format(
                 type=get_network_type(ctx, network),

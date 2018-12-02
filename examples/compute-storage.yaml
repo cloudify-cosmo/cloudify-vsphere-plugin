@@ -2,6 +2,7 @@ tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
+  - http://www.getcloudify.org/spec/fabric-plugin/1.5.1/plugin.yaml
   - plugin.yaml
 
 inputs:
@@ -32,15 +33,14 @@ inputs:
     type: string
 
   # SERVER CONFIGURATION
+
   old_vm:
     type: boolean
     default: false
 
-
-
   server_name:
     type: string
-    default: meta_vm
+    default: example_server
 
   template_name:
     type: string
@@ -53,6 +53,15 @@ inputs:
   switch_distributed:
     type: boolean
     default: false
+
+  # SSH
+  key_path:
+    type: string
+    default: ~/.ssh/vmware-centos.key
+
+  agent_user:
+    type: string
+    default: centos
 
 dsl_definitions:
 
@@ -92,3 +101,25 @@ node_templates:
             ip: 172.16.168.201
       custom_attributes:
         username: { get_input: username }
+
+  storage:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      storage:
+        storage_size: 1
+      connection_config: *connection_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file: scripts/test_disk.py
+            task_name: configure
+            fabric_env:
+              user: { get_input: agent_user }
+              key_filename: { get_input: key_path }
+              host_string: { get_attribute: [ vm, public_ip ] }
+              scsi_id: { get_attribute: [ SELF, scsi_id ] }
+    relationships:
+      - target: vm
+        type: cloudify.vsphere.storage_connected_to_server

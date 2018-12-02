@@ -38,7 +38,7 @@ inputs:
 
   template_name:
     type: string
-    default: CentOS-7.4-x86-64-1708-tmpl #CentOS-7.4-x86_64-1708
+    default: CentOS-7.4_with_ssh_key
 
   # NIC CONFIGURATION
   switch_distributed:
@@ -79,7 +79,7 @@ node_templates:
   net:
     type: cloudify.vsphere.nodes.Network
     properties:
-      use_existing_resource: { get_input: existing_network }
+      use_external_resource: { get_input: existing_network }
       connection_config: *connection_config
       network:
         name: { get_input: network_name }
