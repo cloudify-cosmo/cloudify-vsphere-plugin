@@ -47,9 +47,10 @@ from cloudify_vsphere.vendored.collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
 
 
-def get_ip_from_vsphere_nic_ips(nic):
+def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
     for ip in nic.ipAddress:
-        if ip.startswith('169.254.') or ip.lower().startswith('fe80::'):
+        if (ip.startswith('169.254.') or ip.lower().startswith('fe80::')) \
+                and ignore_local:
             # This is a locally assigned IPv4 or IPv6 address and thus we
             # will assume it is not routable
             logger().debug(
@@ -1675,7 +1676,7 @@ class ServerClient(VsphereClient):
         self._wait_for_task(task)
         logger().debug("Server is now stopped.")
 
-    def backup_server(self, server, snapshot_name):
+    def backup_server(self, server, snapshot_name, description):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -1685,7 +1686,7 @@ class ServerClient(VsphereClient):
                     .format(snapshot_name=snapshot_name,))
 
         task = server.obj.CreateSnapshot(
-            snapshot_name, description="Backup created by vsphere plugin.",
+            snapshot_name, description=description,
             memory=False, quiesce=False)
         self._wait_for_task(task)
 
@@ -2366,7 +2367,7 @@ class ServerClient(VsphereClient):
             "Server '%s' resized with new number of "
             "CPUs: %s and RAM: %s." % (server.name, cpus, memory))
 
-    def get_server_ip(self, vm, network_name):
+    def get_server_ip(self, vm, network_name, ignore_local=True):
         logger().debug(
             'Getting server IP from {network}.'.format(
                 network=network_name,
@@ -2388,7 +2389,7 @@ class ServerClient(VsphereClient):
                     network.network.lower()) and
                 len(network.ipAddress) > 0
             ):
-                ip_address = get_ip_from_vsphere_nic_ips(network)
+                ip_address = get_ip_from_vsphere_nic_ips(network, ignore_local)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
                 logger().info(
@@ -2713,11 +2714,11 @@ class StorageClient(VsphereClient):
             if isinstance(vm_device, vim.vm.device.VirtualDisk):
                 # Generate filename (add increment to VMDK base name)
                 vm_disk_filename_cur = vm_device.backing.fileName
-                p = re.compile('^(\[.*\]\s+.*\/.*)\.vmdk$')
+                p = re.compile('^(\\[.*\\]\\s+.*\\/.*)\\.vmdk$')
                 m = p.match(vm_disk_filename_cur)
                 if vm_disk_filename is None:
                     vm_disk_filename = m.group(1)
-                p = re.compile('^(.*)_([0-9]+)\.vmdk$')
+                p = re.compile('^(.*)_([0-9]+)\\.vmdk$')
                 m = p.match(vm_disk_filename_cur)
                 if m:
                     if m.group(2) is not None:
