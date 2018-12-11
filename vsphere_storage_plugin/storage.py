@@ -40,7 +40,7 @@ from cloudify_vsphere.utils.feedback import prepare_for_log
 
 @op
 @with_storage_client
-def create(storage_client, storage):
+def create(storage_client, storage, use_external_resource=False):
     ctx.logger.debug("Entering create storage procedure.")
     storage.setdefault('name', ctx.node.id)
     # This should be debug, but left as info until CFY-4867 makes logs more
@@ -70,51 +70,71 @@ def create(storage_client, storage):
 
     vm_id = connected_vms[0][VSPHERE_SERVER_ID]
     vm_name = connected_vms[0]['name']
-    ctx.logger.info(
-        "Creating new volume on VM '{vm}' with name '{name}' and size: "
-        "{size}".format(
-            vm=vm_name,
-            name=storage['name'],
-            size=storage_size
+    if use_external_resource:
+        for fname in [
+            VSPHERE_STORAGE_SCSI_ID, VSPHERE_STORAGE_FILE_NAME, 'storage_size'
+        ]:
+            if fname not in storage:
+                raise NonRecoverableError(
+                    'You should provide {}'.format(fname))
+            else:
+                ctx.instance.runtime_properties[fname] = storage[fname]
+        ctx.logger.info(
+            "Reuse volume on VM '{vm}' with name '{name}'".format(
+                vm=vm_name,
+                name=storage['name']
+            )
         )
-    )
-
-    try:
-        storage_file_name, scsi_id = storage_client.create_storage(
-            vm_id,
-            storage_size,
-            parent_key,
-            mode,
-            thin_provision,
+    else:
+        ctx.logger.info(
+            "Creating new volume on VM '{vm}' with name '{name}' and size: "
+            "{size}".format(
+                vm=vm_name,
+                name=storage['name'],
+                size=storage_size
+            )
         )
-    except NonRecoverableError as e:
-        # If more than one storage is attached to the same VM, there is a race
-        # and they might try to use the same name. If that happens the loser
-        # will retry.
-        if 'vim.fault.FileAlreadyExists' in str(e):
-            ctx.operation.retry('Name clash with another storage. Retrying')
-            return
-        raise
 
-    ctx.logger.info(
-        "Storage successfully created on VM '{vm}' with file name "
-        "'{file_name}' and SCSI ID: {scsi} ".format(
-            vm=vm_name,
-            file_name=storage_file_name,
-            scsi=scsi_id,
+        try:
+            storage_file_name, scsi_id = storage_client.create_storage(
+                vm_id,
+                storage_size,
+                parent_key,
+                mode,
+                thin_provision,
+            )
+        except NonRecoverableError as e:
+            # If more than one storage is attached to the same VM, there is
+            # a race and they might try to use the same name. If that happens
+            # the loser will retry.
+            if 'vim.fault.FileAlreadyExists' in str(e):
+                ctx.operation.retry('Name clash with another storage. '
+                                    'Retrying')
+                return
+            raise
+
+        ctx.logger.info(
+            "Storage successfully created on VM '{vm}' with file name "
+            "'{file_name}' and SCSI ID: {scsi} ".format(
+                vm=vm_name,
+                file_name=storage_file_name,
+                scsi=scsi_id,
+            )
         )
-    )
-
-    ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
-        storage_file_name
+        ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
+        ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
+            storage_file_name
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID] = vm_id
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME] = vm_name
-    ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
 
 
 @op
 @with_storage_client
 def delete(storage_client, **kwargs):
+    if ctx.instance.runtime_properties.get('use_external_resource'):
+        ctx.logger.info('Used existing resource.')
+        return
+
     vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
     vm_name = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME]
     storage_file_name = \

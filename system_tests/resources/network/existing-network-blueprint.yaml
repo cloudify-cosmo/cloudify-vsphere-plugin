@@ -81,7 +81,7 @@ node_templates:
   network:
     type: cloudify.vsphere.nodes.Network
     properties:
-      use_existing_resource: true
+      use_external_resource: true
       network:
         name: { get_input: test_network_name }
         switch_distributed: { get_input: test_network_distributed }

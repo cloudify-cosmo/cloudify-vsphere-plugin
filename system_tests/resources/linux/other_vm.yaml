@@ -1,9 +1,9 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.7.0/plugin.yaml
+  - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
   - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.7.0/plugin.yaml
-  - http://www.getcloudify.org/spec/cloudify/4.2/types.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.8.0/plugin.yaml
 
 inputs:
 
@@ -46,6 +46,18 @@ inputs:
     description: >
       vcenter network
     default: Internal
+
+  management_name:
+    type: string
+    description: >
+      Management network
+    default: Management
+
+  management_distributed:
+    type: boolean
+    description: >
+      Management distributed
+    default: true
 
   vcenter_datastore:
     type: string
@@ -131,7 +143,7 @@ node_templates:
   vm_instance:
     type: cloudify.vsphere.nodes.Server
     properties:
-      use_existing_resource: true
+      use_external_resource: true
       connection_config: *connection_config
       agent_config:
         install_method: none
@@ -187,12 +199,34 @@ node_templates:
   vm_nic_distributed:
     type: cloudify.vsphere.nodes.NIC
     properties:
-      name: Management
-      switch_distributed: true
+      name: { get_input: management_name }
+      switch_distributed: { get_input: management_distributed }
       mac_address: 00:50:56:85:18:01
       connection_config: *connection_config
     relationships:
       - target: vm_instance
         type: cloudify.vsphere.nic_connected_to_server
       - target: vm_nic
+        type: cloudify.relationships.depends_on
+
+  vm_volume_resize:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      use_external_resource: true
+      storage: {}
+      connection_config: *connection_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            storage:
+              datastore_file_name: { get_attribute: [vm_volume, datastore_file_name] }
+              scsi_id: { get_attribute: [vm_volume, scsi_id] }
+              storage_size: 30
+        start:
+          implementation: vsphere.vsphere_storage_plugin.storage.resize
+    relationships:
+      - target: vm_instance
+        type: cloudify.vsphere.storage_connected_to_server
+      - target: vm_nic_distributed
         type: cloudify.relationships.depends_on

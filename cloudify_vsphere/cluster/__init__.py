@@ -35,7 +35,7 @@ from vsphere_plugin_common.constants import (
 
 @op
 @with_server_client
-def create(ctx, server_client, name, use_existing_resource):
+def create(ctx, server_client, name, use_external_resource):
     existing_id = server_client._get_obj_by_name(
         vim.ClusterComputeResource,
         name,
@@ -45,7 +45,7 @@ def create(ctx, server_client, name, use_existing_resource):
 
     runtime_properties = ctx.instance.runtime_properties
 
-    if use_existing_resource:
+    if use_external_resource:
         if not existing_id:
             raise NonRecoverableError(
                 'Could not use existing cluster "{name}" as no '
@@ -64,8 +64,8 @@ def create(ctx, server_client, name, use_existing_resource):
 
 @op
 @with_server_client
-def delete(ctx, server_client, name, use_existing_resource):
-    if use_existing_resource:
+def delete(ctx, server_client, name, use_external_resource):
+    if use_external_resource:
         ctx.logger.info(
             'Not deleting existing cluster: {name}'.format(
                 name=name,

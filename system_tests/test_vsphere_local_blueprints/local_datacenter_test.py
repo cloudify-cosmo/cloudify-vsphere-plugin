@@ -134,7 +134,7 @@ class VsphereLocalDatacenterTest(TestCase):
             assert inputs['test_datacenter_name'] in err.message
             assert 'no datacenter by that name exists' in err.message
             self.logger.info('Use non-existing datacenter with '
-                             'use_existing_resource has correct error.')
+                             'use_external_resource has correct error.')
 
     def test_datacenter(self):
         blueprint = os.path.join(

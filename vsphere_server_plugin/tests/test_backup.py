@@ -61,14 +61,14 @@ class BackupServerTest(unittest.TestCase):
         ctx = self._gen_ctx()
 
         # backup for external
-        ctx.instance.runtime_properties['use_existing_resource'] = True
+        ctx.instance.runtime_properties['use_external_resource'] = True
         server.snapshot_create(server={"name": "server_name"},
                                os_family="other_os",
                                snapshot_name="snapshot_name",
                                snapshot_incremental=True)
 
         # backup without name
-        ctx.instance.runtime_properties['use_existing_resource'] = False
+        ctx.instance.runtime_properties['use_external_resource'] = False
         with self.assertRaisesRegexp(
             NonRecoverableError,
             "Backup name must be provided."
@@ -116,8 +116,7 @@ class BackupServerTest(unittest.TestCase):
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
         vm.obj.CreateSnapshot.assert_called_with(
-            'snapshot', description='Backup created by vsphere plugin.',
-            memory=False, quiesce=False)
+            'snapshot', description=None, memory=False, quiesce=False)
 
         # no snapshots
         vm.obj.snapshot = None
@@ -131,8 +130,7 @@ class BackupServerTest(unittest.TestCase):
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
         vm.obj.CreateSnapshot.assert_called_with(
-            'snapshot', description='Backup created by vsphere plugin.',
-            memory=False, quiesce=False)
+            'snapshot', description=None, memory=False, quiesce=False)
 
         # with some vm, prexisted snapshots
         vm = mock.Mock()
@@ -163,14 +161,14 @@ class BackupServerTest(unittest.TestCase):
         ctx = self._gen_ctx()
 
         # backup for external
-        ctx.instance.runtime_properties['use_existing_resource'] = True
+        ctx.instance.runtime_properties['use_external_resource'] = True
         server.snapshot_apply(server={"name": "server_name"},
                               os_family="other_os",
                               snapshot_name="snapshot_name",
                               snapshot_incremental=True)
 
         # backup without name
-        ctx.instance.runtime_properties['use_existing_resource'] = False
+        ctx.instance.runtime_properties['use_external_resource'] = False
         with self.assertRaisesRegexp(
             NonRecoverableError,
             "Backup name must be provided."
@@ -245,14 +243,14 @@ class BackupServerTest(unittest.TestCase):
         ctx = self._gen_ctx()
 
         # backup for external
-        ctx.instance.runtime_properties['use_existing_resource'] = True
+        ctx.instance.runtime_properties['use_external_resource'] = True
         server.snapshot_delete(server={"name": "server_name"},
                                os_family="other_os",
                                snapshot_name="snapshot_name",
                                snapshot_incremental=True)
 
         # backup without name
-        ctx.instance.runtime_properties['use_existing_resource'] = False
+        ctx.instance.runtime_properties['use_external_resource'] = False
         with self.assertRaisesRegexp(
             NonRecoverableError,
             "Backup name must be provided."
@@ -355,8 +353,8 @@ class BackupServerTest(unittest.TestCase):
         ):
             with self.assertRaisesRegexp(
                 NonRecoverableError,
-                "Sub snapshots \[\'snapshot\'\] found for snapshotparent. You "
-                "should remove subsnaphots before remove current."
+                "Sub snapshots \\[\'snapshot\'\\] found for snapshotparent. "
+                "You should remove subsnaphots before remove current."
             ):
                 server.snapshot_delete(server={"name": "server_name"},
                                        os_family="other_os",
@@ -371,12 +369,12 @@ class BackupServerTest(unittest.TestCase):
         ctx = self._gen_ctx()
 
         # delete for external
-        ctx.instance.runtime_properties['use_existing_resource'] = True
+        ctx.instance.runtime_properties['use_external_resource'] = True
         server.delete(server={"name": "server_name"},
                       os_family="other_os")
 
         # nosuch vm
-        ctx.instance.runtime_properties['use_existing_resource'] = False
+        ctx.instance.runtime_properties['use_external_resource'] = False
         with mock.patch(
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
@@ -412,7 +410,7 @@ class BackupServerTest(unittest.TestCase):
         ctx = self._gen_ctx()
 
         # shutdown_guest for external
-        ctx.instance.runtime_properties['use_existing_resource'] = True
+        ctx.instance.runtime_properties['use_external_resource'] = True
         with mock.patch(
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
@@ -426,7 +424,7 @@ class BackupServerTest(unittest.TestCase):
                                       os_family="other_os")
 
         # nosuch vm
-        ctx.instance.runtime_properties['use_existing_resource'] = False
+        ctx.instance.runtime_properties['use_external_resource'] = False
         with mock.patch(
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
@@ -457,12 +455,12 @@ class BackupServerTest(unittest.TestCase):
         ctx = self._gen_ctx()
 
         # stop for external
-        ctx.instance.runtime_properties['use_existing_resource'] = True
+        ctx.instance.runtime_properties['use_external_resource'] = True
         server.stop(server={"name": "server_name"},
                     os_family="other_os")
 
         # nosuch vm
-        ctx.instance.runtime_properties['use_existing_resource'] = False
+        ctx.instance.runtime_properties['use_external_resource'] = False
         with mock.patch(
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
@@ -508,12 +506,12 @@ class BackupServerTest(unittest.TestCase):
         ctx = self._gen_ctx()
 
         # suspend for external
-        ctx.instance.runtime_properties['use_existing_resource'] = True
+        ctx.instance.runtime_properties['use_external_resource'] = True
         server.freeze_suspend(server={"name": "server_name"},
                               os_family="other_os")
 
         # nosuch vm
-        ctx.instance.runtime_properties['use_existing_resource'] = False
+        ctx.instance.runtime_properties['use_external_resource'] = False
         with mock.patch(
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
@@ -569,12 +567,12 @@ class BackupServerTest(unittest.TestCase):
         ctx = self._gen_ctx()
 
         # resume external resorce
-        ctx.instance.runtime_properties['use_existing_resource'] = True
+        ctx.instance.runtime_properties['use_external_resource'] = True
         server.freeze_resume(server={"name": "server_name"},
                              os_family="other_os")
 
         # nosuch vm
-        ctx.instance.runtime_properties['use_existing_resource'] = False
+        ctx.instance.runtime_properties['use_external_resource'] = False
         with mock.patch(
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)

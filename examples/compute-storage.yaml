@@ -1,0 +1,125 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
+  - http://www.getcloudify.org/spec/fabric-plugin/1.5.1/plugin.yaml
+  - plugin.yaml
+
+inputs:
+
+  # CLIENT CONFIGURATION
+  username:
+    type: string
+
+  password:
+    type: string
+
+  host:
+    type: string
+
+  port:
+    type: string
+
+  datacenter_name:
+    type: string
+
+  resource_pool_name:
+    type: string
+
+  auto_placement:
+    type: string
+
+  allow_insecure:
+    type: string
+
+  # SERVER CONFIGURATION
+
+  old_vm:
+    type: boolean
+    default: false
+
+  server_name:
+    type: string
+    default: example_server
+
+  template_name:
+    type: string
+    default: CentOS-7.4_with_ssh_key
+
+  network_name:
+    type: string
+    default: Internal
+
+  switch_distributed:
+    type: boolean
+    default: false
+
+  # SSH
+  key_path:
+    type: string
+    default: ~/.ssh/vmware-centos.key
+
+  agent_user:
+    type: string
+    default: centos
+
+dsl_definitions:
+
+  connection_config: &connection_config
+    username: { get_input: username }
+    password: { get_input: password }
+    host: { get_input: host }
+    port: { get_input: port }
+    datacenter_name: { get_input: datacenter_name }
+    resource_pool_name: { get_input: resource_pool_name }
+    auto_placement: { get_input: auto_placement }
+    allow_insecure: { get_input: allow_insecure }
+
+node_templates:
+
+  vm:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      use_external_resource: { get_input: old_vm }
+      connection_config: *connection_config
+      agent_config:
+        install_method: none
+      server:
+        name: { get_input: server_name }
+        template: { get_input: template_name }
+        cpus: 1
+        memory: 1024
+      networking:
+        connect_networks:
+          - name: { get_input: network_name }
+            management: true
+            external: true
+            switch_distributed: false
+            use_dhcp: false
+            network: 172.16.168.0/24
+            gateway: 172.16.168.1
+            ip: 172.16.168.201
+      custom_attributes:
+        username: { get_input: username }
+
+  storage:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      storage:
+        storage_size: 1
+      connection_config: *connection_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        configure:
+          implementation: fabric.fabric_plugin.tasks.run_task
+          inputs:
+            tasks_file: scripts/test_disk.py
+            task_name: configure
+            fabric_env:
+              user: { get_input: agent_user }
+              key_filename: { get_input: key_path }
+              host_string: { get_attribute: [ vm, public_ip ] }
+              scsi_id: { get_attribute: [ SELF, scsi_id ] }
+    relationships:
+      - target: vm
+        type: cloudify.vsphere.storage_connected_to_server

@@ -63,3 +63,15 @@ def op(func):
         return func(**processed_kwargs)
 
     return wrapper
+
+
+def find_rels_by_type(node_instance, rel_type):
+    """Finds all specified relationships of the Cloudify instance.
+    :param `cloudify.context.NodeInstanceContext` node_instance:
+        Cloudify node instance.
+    :param str rel_type: Cloudify relationship type to search
+        node_instance.relationships for.
+    :returns: List of Cloudify relationships
+    """
+    return [x for x in node_instance.relationships
+            if rel_type in x.type_hierarchy]
