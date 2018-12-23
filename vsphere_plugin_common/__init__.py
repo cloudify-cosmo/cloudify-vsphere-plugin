@@ -2292,7 +2292,7 @@ class ServerClient(VsphereClient):
             Return the name of the cluster this host is part of,
             or None if it is not part of a cluster.
         """
-        if isinstance(host.parent, vim.ClusterComputeResource):
+        if isinstance(host.parent, vim.ClusterComputeResource) or isinstance(host.parent.obj, vim.ClusterComputeResource):
             return host.parent.name
         else:
             return None
