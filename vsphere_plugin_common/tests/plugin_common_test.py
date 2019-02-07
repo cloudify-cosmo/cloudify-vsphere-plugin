@@ -1783,10 +1783,9 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         result = client.get_host_cluster_membership(host)
 
-        mock_isinstance.assert_called_once_with(
-            host.parent,
-            mock_cluster_type,
-        )
+        mock_isinstance.assert_has_calls([
+            call(host.parent, mock_cluster_type),
+            call(host.parent.obj, mock_cluster_type)])
 
         self.assertIsNone(result)
 
@@ -2099,7 +2098,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             'allow_insecure': allow_insecure,
         }
 
-        if cert_path is not 'unset':
+        if cert_path != 'unset':
             cfg['certificate_path'] = cert_path
 
         client = vsphere_plugin_common.VsphereClient()
