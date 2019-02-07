@@ -483,6 +483,7 @@ node_types:
           a duplicate.
         default: ""
       network_configuration:
+        default: {}
         description: >
           Only valid with a relationship cloudify.relationships.vsphere.nic_connected_to_network to a network.
           Dictionary with following keys:

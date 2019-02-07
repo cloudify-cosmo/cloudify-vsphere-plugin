@@ -85,6 +85,7 @@ def create(storage_client, storage, use_external_resource=False):
                 name=storage['name']
             )
         )
+        ctx.instance.runtime_properties['use_external_resource'] = True
     else:
         ctx.logger.info(
             "Creating new volume on VM '{vm}' with name '{name}' and size: "
