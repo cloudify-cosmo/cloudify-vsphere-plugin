@@ -12,30 +12,77 @@ checkout:
 jobs:
 
   unittests:
-    machine:
-      enabled: true
-      python:
-        version: pypy-2.2.1
+    docker:
+      - image: circleci/python:2.7.15-stretch
     steps:
       - checkout
       - run:
-          name: Install tox
-          command: pip install --upgrade setuptools
+          name: install python/pip/libvirt packages
+          command: sudo apt-get install -yq python-libvirt libvirt-dev python-dev python-pip
       - run:
-          name: Install tox
-          command: pip install --upgrade tox
+          name: Download pip
+          command: curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
+      - run:
+          name: Install pip
+          command: sudo python get-pip.py
       - run:
           name: Install virtualenv
-          command: pip install --upgrade virtualenv
+          command: pip install --user virtualenv
       - run:
-          name: Test code quality
-          command: tox -e code-quality
+          name: Init virtualenv
+          command: virtualenv env
       - run:
-          name: Test python
-          command: tox -e py27
+          name: install tox
+          command: pip install --user tox
+      - run: /home/circleci/.local/bin/tox -e code-quality
+      - run: /home/circleci/.local/bin/tox -e py27
+
+  wagon:
+    docker:
+      - image: amd64/centos:centos7.5.1804
+    steps:
+      - checkout
+      - run:
+          name: Install dependencies
+          command: yum -y install python-devel gcc openssl git libxslt-devel libxml2-devel openldap-devel libffi-devel openssl-devel libvirt-devel libvirt-python
+      - run:
+          name: Download pip
+          command: curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
+      - run:
+          name: Install pip
+          command: python get-pip.py
+      - run:
+          name: Upgrade pip
+          command: pip install --upgrade pip==9.0.1
+      - run:
+          name: Install virtualenv
+          command: pip install virtualenv
+      - run:
+          name: Init virtualenv
+          command: virtualenv env
+      - run:
+          name: Install wagon
+          command: pip install wagon==0.3.2
+      - run:
+          name: many_linux
+          command: echo "manylinux1_compatible = False" > "env/bin/_manylinux.py"
+      - run:
+          name: make workspace
+          command: mkdir -p workspace/build
+      - run:
+          name: Create wagon
+          command: source env/bin/activate && wagon create -s . -v -o workspace/build -f -a '--no-cache-dir -c constraints.txt'
+      - persist_to_workspace:
+          root: workspace
+          paths:
+            - build/*
 
 workflows:
   version: 2
   tests:
     jobs:
       - unittests
+      - wagon:
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master|dev)/
