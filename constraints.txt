@@ -1,0 +1,3 @@
+pyvmomi==6.5.0.2017.5
+pyyaml==3.10
+cloudify-plugins-common===3.4.2
