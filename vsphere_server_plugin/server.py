@@ -559,6 +559,8 @@ def get_state(ctx, server_client, server, networking, os_family):
         management_network_name = (management_networks[0]
                                    if len(management_networks) == 1
                                    else None)
+        ctx.logger.info("Server management networks: {networks}"
+                        .format(networks=repr(management_networks)))
 
         # We must obtain IPs at this stage, as they are not populated until
         # after the VM is fully booted
@@ -584,6 +586,13 @@ def get_state(ctx, server_client, server, networking, os_family):
                 if net['name'] == network_name:
                     net['ip'] = get_ip_from_vsphere_nic_ips(network)
 
+        # if we have some managment network but no ip in such by some reason
+        # go and run one more time
+        if management_network_name and not manager_network_ip:
+            return ctx.operation.retry(
+                message="Management IP addresses not yet assigned.",
+            )
+
         ctx.instance.runtime_properties[NETWORKS] = nets
         try:
             ctx.instance.runtime_properties[IP] = (
@@ -594,40 +603,30 @@ def get_state(ctx, server_client, server, networking, os_family):
             ctx.logger.warn("Server has no IP addresses.")
             ctx.instance.runtime_properties[IP] = None
 
-        if len(server_obj.guest.net) > 0:
+        if len(server_obj.guest.net):
             public_ips = [
                 server_client.get_server_ip(server_obj, network['name'])
                 for network in networks
                 if network.get('external', False)]
 
-            if public_ips is None or None in public_ips:
+            if not public_ips:
+                ctx.logger.info("No Server public IP addresses.")
+            elif None in public_ips:
                 return ctx.operation.retry(
-                    message="IP addresses not yet assigned.",
+                    message="Public IP addresses not yet assigned.",
                 )
-
-            # This should be debug, but left as info until CFY-4867 makes logs
-            # more visible
-            ctx.logger.info("Server public IP addresses: %s."
-                            % ", ".join(public_ips))
+            else:
+                ctx.logger.info("Server public IP addresses: {ips}."
+                                .format(ips=repr(public_ips)))
         else:
             public_ips = []
 
         # I am uncertain if the logic here is correct, but as this should be
         # refactored to use the more up to date retry logic it's likely not
         # worth a great deal of attention
-        if len(public_ips) == 1:
-            ctx.logger.debug('Checking public IP for {name}'.format(
-                             name=vm_name))
-            public_ip = public_ips[0]
+        if len(public_ips):
             ctx.logger.debug("Public IP address for {name}: {ip}".format(
-                             name=vm_name, ip=public_ip))
-            if public_ip is None:
-                ctx.logger.info('Public IP not yet set for {server}'
-                                .format(server=server_obj))
-                # This should all be handled in the create server logic
-                # and use operation retries, but until that is implemented
-                # this will have to remain.
-                return False
+                             name=vm_name, ip=public_ips[0]))
             ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
         else:
             ctx.logger.debug('Public IP check not required for {server}'
@@ -638,7 +637,7 @@ def get_state(ctx, server_client, server, networking, os_family):
         message = 'Server {name} has started'
         if manager_network_ip:
             message += ' with management IP {mgmt}'
-        if len(public_ips) > 0:
+        if len(public_ips):
             public_ip = public_ips[0]
             if manager_network_ip:
                 message += ' and'
