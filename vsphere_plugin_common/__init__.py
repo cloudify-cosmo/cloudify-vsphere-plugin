@@ -1601,7 +1601,7 @@ class ServerClient(VsphereClient):
             'Cloning {server} from {template}.'.format(
                 server=vm_name, template=template_name))
         logger().debug('Cloning with clonespec: {spec}'
-                       .format(repr(clonespec)))
+                       .format(spec=repr(clonespec)))
         task = template_vm.obj.Clone(folder=destfolder,
                                      name=vm_name,
                                      spec=clonespec)
