@@ -1,0 +1,179 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
+  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.12.5/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/cloudinit/plugin.yaml
+
+inputs:
+
+  vcenter_user:
+    type: string
+
+  vcenter_password:
+    type: string
+
+  vcenter_ip:
+    type: string
+
+  vcenter_port:
+    type: string
+    default: 443
+
+  vcenter_datacenter:
+    type: string
+    description: >
+       vcenter datacenter
+    default: Datacenter
+
+  vcenter_resource_pool:
+    description: >
+      Resource pool name
+    default: Resources
+
+  vsphere_auto_placement:
+    type: string
+    default: true
+
+  template_name:
+    type: string
+    description: >
+      "CentOS 7 template name"
+    default: "CentOS-7.6-Cloud-Init-tmpl"
+
+  vcenter_network:
+    type: string
+    description: >
+      vcenter network
+    default: Internal
+
+  management_name:
+    type: string
+    description: >
+      Management network
+    default: Management
+
+  management_distributed:
+    type: boolean
+    description: >
+      Management distributed
+    default: true
+
+  vcenter_datastore:
+    type: string
+    description: >
+      vcenter datastore
+    default: datastore1
+
+  agent_user:
+    default: root
+    type: string
+
+  agent_group:
+    default: root
+
+  manager_network:
+    default: default
+
+  install_method:
+    default: remote
+
+  allowed_hosts:
+    default: []
+
+  allowed_clusters:
+    default: []
+
+  allowed_datastores:
+    default: []
+
+###############################################################################
+#  DSL section
+###############################################################################
+dsl_definitions:
+
+  connection_config: &connection_config
+    username: { get_input: vcenter_user }
+    password: {get_input: vcenter_password }
+    host: { get_input: vcenter_ip }
+    port: { get_input: vcenter_port }
+    datacenter_name: {get_input: vcenter_datacenter }
+    resource_pool_name: { get_input: vcenter_resource_pool }
+    auto_placement: { get_input: vsphere_auto_placement }
+    allow_insecure: true
+
+node_types:
+
+  host:
+    derived_from: cloudify.vsphere.nodes.Server
+    properties:
+      connection_config:
+        default: *connection_config
+      os_family:
+        default: linux
+      allowed_hosts:
+        default: { get_input: allowed_hosts }
+      allowed_clusters:
+        default: { get_input: allowed_clusters }
+      allowed_datastores:
+        default: { get_input: allowed_datastores }
+      server:
+        default:
+          name: other_vm
+          template: { get_input: template_name }
+          cpus: 1
+          memory: 1024
+      agent_config:
+        default:
+          install_method: none
+      networking:
+        default:
+          dns_servers:
+            - '8.8.8.8'
+          connect_networks:
+            - name: Internal
+
+node_templates:
+
+  cloud_init:
+    type: cloudify.nodes.CloudInit.CloudConfig
+    properties:
+      resource_config:
+        password: passw0rd
+        chpasswd:
+           expire: False
+        ssh_pwauth: True
+
+  cloud_init_image:
+    type: cloudify.vsphere.nodes.CloudInitISO
+    properties:
+      connection_config: *connection_config
+      datacenter_name: { get_input: vcenter_datacenter }
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            allowed_datastores:
+            - { get_input: vcenter_datastore }
+            vol_ident: cidata
+            raw_files:
+              meta-data: cloudinit_meta_data.yaml
+            files:
+              "1/1.sh": "whoami"
+              "1/2/3.sh": "whoami"
+              user-data: { get_attribute: [cloud_init, cloud_config ] }
+              "openstack/latest/user-data": { get_attribute: [cloud_init, cloud_config ] }
+    relationships:
+    - target: cloud_init
+      type: cloudify.relationships.depends_on
+
+  vm_base:
+    type: host
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          inputs:
+            cdrom_image: { get_attribute: [cloud_init_image, storage_image ] }
+    relationships:
+    - target: cloud_init_image
+      type: cloudify.relationships.depends_on

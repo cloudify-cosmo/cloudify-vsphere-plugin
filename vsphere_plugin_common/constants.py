@@ -1,5 +1,4 @@
-#########
-# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -9,9 +8,9 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  * See the License for the specific language governing permissions and
-#  * limitations under the License.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import os
 
@@ -35,6 +34,8 @@ VSPHERE_STORAGE_SCSI_ID = 'scsi_id'
 VSPHERE_STORAGE_RUNTIME_PROPERTIES = [VSPHERE_STORAGE_FILE_NAME,
                                       VSPHERE_STORAGE_VM_ID,
                                       VSPHERE_STORAGE_SCSI_ID]
+
+STORAGE_IMAGE = 'storage_image'
 
 DATACENTER_ID = 'vsphere_datacenter_id'
 DATACENTER_RUNTIME_PROPERTIES = [DATACENTER_ID]

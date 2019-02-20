@@ -164,6 +164,10 @@ node_types:
             lock: locked
             keyring: empty
         required: false
+      cdrom_image:
+        description: |
+          Cdrom image path
+        default: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config
     interfaces:
@@ -347,6 +351,59 @@ node_types:
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_storage_plugin.storage.resize
+
+  cloudify.vsphere.nodes.CloudInitISO:
+    derived_from: cloudify.nodes.Volume
+    properties:
+      datacenter_name:
+        description: >
+          datacenter name.
+        type: string
+        required: false
+      allowed_datastores:
+        description: >
+          Which ESX datastore(s) this server is allowed to be deployed on.
+        required: false
+      volume_prefix:
+        default: cloudinit
+        description: >
+          Datastorage path for save volume
+      vol_ident:
+        default: cidata
+        description: >
+          The volume identification string to use on the new ISO.
+      sys_ident:
+        default: ""
+        description: >
+          The system identification string to use on the new ISO.
+      files:
+        default: {}
+        description: >
+          List of files for save to CloudInit iso image with file content.
+          Example:
+            meta-data: "instance-id: localhost"
+            user-data: "password: passw0rd"
+          where meta-data and user-data are file names on cloud init image.
+      raw_files:
+        default: {}
+        description: >
+          List files for save to CloudInit iso image with file name from
+          blueprint.
+          Example:
+            meta-data: meta_data.yaml
+          where meta-data is file names on cloud init image,
+          meta_data.yaml is raw file name.
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.vsphere_storage_plugin.cidata.create
+          inputs: {}
+        delete:
+          implementation: vsphere.vsphere_storage_plugin.cidata.delete
+          inputs: {}
 
   cloudify.vsphere.nodes.Datacenter:
     derived_from: cloudify.nodes.Root
