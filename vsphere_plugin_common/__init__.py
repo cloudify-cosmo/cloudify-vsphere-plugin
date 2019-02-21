@@ -1,4 +1,3 @@
-#########
 # Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -31,6 +30,7 @@ import yaml
 from netaddr import IPNetwork
 from pyVim.connect import SmartConnect, SmartConnectNoSSL, Disconnect
 from pyVmomi import vim, vmodl
+import requests
 
 # Cloudify imports
 from cloudify import ctx
@@ -1353,6 +1353,7 @@ class ServerClient(VsphereClient):
             allowed_hosts=None,
             allowed_clusters=None,
             allowed_datastores=None,
+            cdrom_image=None,
             ):
         logger().debug(
             "Entering create_server with parameters %s"
@@ -1424,9 +1425,17 @@ class ServerClient(VsphereClient):
             )
             relospec.host = host.obj
 
-        nicspec = vim.vm.device.VirtualDeviceSpec()
+        ide_controller = None
+        bus_number = 0
+        cdrom_attached = False
         for device in template_vm.config.hardware.device:
+            # search bus for next controller add
+            if hasattr(device, 'busNumber'):
+                if bus_number < device.busNumber:
+                    bus_number = device.busNumber
+            # delete network interface
             if hasattr(device, 'macAddress'):
+                nicspec = vim.vm.device.VirtualDeviceSpec()
                 nicspec.device = device
                 logger().warn(
                     'Removing network adapter from template. '
@@ -1434,6 +1443,32 @@ class ServerClient(VsphereClient):
                 nicspec.operation = \
                     vim.vm.device.VirtualDeviceSpec.Operation.remove
                 devices.append(nicspec)
+            # remove cdrom when we have cloudinit
+            elif (
+                isinstance(device, vim.vm.device.VirtualCdrom) and
+                cdrom_image
+            ):
+                logger().warn(
+                    'Edit cdrom from template. '
+                    'Template should have no inserted cdroms.')
+                cdrom_attached = True
+                cdrom = vim.vm.device.VirtualDeviceSpec()
+                cdrom.device = device
+                device.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
+                    fileName=cdrom_image)
+                cdrom.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.edit
+                connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+                connectable.allowGuestControl = True
+                connectable.startConnected = True
+                device.connectable = connectable
+                devices.append(cdrom)
+                ide_controller = device.controllerKey
+            # ide controller
+            elif isinstance(device, vim.vm.device.VirtualIDEController):
+                # skip fully attached controllers
+                if len(device.device) < 2:
+                    ide_controller = device.key
 
         port_groups, distributed_port_groups = self._get_port_group_names()
 
@@ -1497,6 +1532,28 @@ class ServerClient(VsphereClient):
                 guest_map.adapter.gateway = network["gateway"]
                 guest_map.adapter.subnetMask = str(nw.netmask)
                 adaptermaps.append(guest_map)
+
+        # attach cdrom
+        if cdrom_image and not cdrom_attached:
+            if not ide_controller:
+                raise NonRecoverableError(
+                    'IDE controller is required for attach cloudinit cdrom.')
+
+            cdrom_device = vim.vm.device.VirtualDeviceSpec()
+            cdrom_device.operation = \
+                vim.vm.device.VirtualDeviceSpec.Operation.add
+            connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+            connectable.allowGuestControl = True
+            connectable.startConnected = True
+
+            cdrom = vim.vm.device.VirtualCdrom()
+            cdrom.controllerKey = ide_controller
+            cdrom.key = -1
+            cdrom.connectable = connectable
+            cdrom.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
+                fileName=cdrom_image)
+            cdrom_device.device = cdrom
+            devices.append(cdrom_device)
 
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
@@ -2682,6 +2739,63 @@ class NetworkClient(VsphereClient):
         logger().debug("Port deleted.")
 
 
+class RawVolumeClient(VsphereClient):
+
+    def delete_file(self, datacenter_name, datastorepath):
+        dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
+        self.si.content.fileManager.DeleteFile(datastorepath, dc.obj)
+
+    def upload_file(self, datacenter_name, allowed_datastores,
+                    remote_file, data, host, port):
+        dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
+        if not dc:
+            raise NonRecoverableError("Unable to get datacenter: {datastore}"
+                                      .format(datastore=repr(datacenter_name)))
+        datastores = self._get_datastores()
+        ds = None
+        if not allowed_datastores and datastores:
+            ds = datastores[0]
+        else:
+            for datastore in datastores:
+                if datastore.name in allowed_datastores:
+                    ds = datastore
+                    break
+        if not ds:
+            raise NonRecoverableError("Unable to get datastore: {}"
+                                      .format(repr(allowed_datastores)))
+
+        params = {"dsName": ds.name,
+                  "dcPath": dc.name}
+        http_url = (
+            "https://" + host + ":" + str(port) + "/folder" + remote_file
+        )
+
+        # Get the cookie built from the current session
+        client_cookie = self.si._stub.cookie
+        # Break apart the cookie into it's component parts - This is more than
+        # is needed, but a good example of how to break apart the cookie
+        # anyways. The verbosity makes it clear what is happening.
+        cookie_name = client_cookie.split("=", 1)[0]
+        cookie_value = client_cookie.split("=", 1)[1].split(";", 1)[0]
+        cookie_path = client_cookie.split("=", 1)[1].split(";", 1)[1].split(
+            ";", 1)[0].lstrip()
+        cookie_text = " " + cookie_value + "; $" + cookie_path
+        # Make a cookie
+        cookie = dict()
+        cookie[cookie_name] = cookie_text
+
+        response = requests.put(
+            http_url,
+            params=params,
+            data=data,
+            headers={'Content-Type': 'application/octet-stream'},
+            cookies=cookie,
+            verify=False)
+        response.raise_for_status()
+        return "[{datastore}] {file_name}".format(
+            datastore=ds.name, file_name=remote_file)
+
+
 class StorageClient(VsphereClient):
 
     def create_storage(self, vm_id, storage_size, parent_key, mode,
@@ -3137,3 +3251,4 @@ def _with_client(client_name, client):
 with_server_client = _with_client('server_client', ServerClient)
 with_network_client = _with_client('network_client', NetworkClient)
 with_storage_client = _with_client('storage_client', StorageClient)
+with_rawvolume_client = _with_client('rawvolume_client', RawVolumeClient)
