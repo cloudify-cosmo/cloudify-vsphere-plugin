@@ -51,12 +51,7 @@ def _iso_name(name):
         return "/{name}.;3".format(name=_name_cleanup(name))
 
 
-@op
-@with_rawvolume_client
-def create(rawvolume_client, files, raw_files, datacenter_name,
-           allowed_datastores, vol_ident, sys_ident, volume_prefix, **kwargs):
-    ctx.logger.info("Creating new iso image.")
-
+def _create_iso(vol_ident, sys_ident, files, raw_files, get_resource):
     iso = pycdlib.PyCdlib()
     iso.new(interchange_level=3, joliet=3,
             vol_ident=vol_ident, sys_ident=sys_ident)
@@ -67,7 +62,7 @@ def create(rawvolume_client, files, raw_files, datacenter_name,
     # apply raw files over files content
     if raw_files:
         for name in raw_files:
-            files[name] = ctx.get_resource(raw_files[name])
+            files[name] = get_resource(raw_files[name])
 
     # existed directories
     dirs = []
@@ -98,6 +93,19 @@ def create(rawvolume_client, files, raw_files, datacenter_name,
 
     ctx.logger.info("ISO size: {size}".format(size=repr(iso_size)))
 
+    return outiso
+
+
+@op
+@with_rawvolume_client
+def create(rawvolume_client, files, raw_files, datacenter_name,
+           allowed_datastores, vol_ident, sys_ident, volume_prefix, **kwargs):
+    ctx.logger.info("Creating new iso image.")
+
+    outiso = _create_iso(vol_ident=vol_ident, sys_ident=sys_ident,
+                         get_resource=ctx.get_resource, files=files,
+                         raw_files=raw_files)
+
     iso_disk = "/{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)
     ctx.instance.runtime_properties[
@@ -118,3 +126,4 @@ def delete(rawvolume_client, datacenter_name, **kwargs):
         return
     rawvolume_client.delete_file(datacenter_name=datacenter_name,
                                  datastorepath=datastorepath)
+    ctx.instance.runtime_properties[STORAGE_IMAGE] = None
