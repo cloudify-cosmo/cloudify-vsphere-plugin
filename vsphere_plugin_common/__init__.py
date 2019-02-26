@@ -1,5 +1,5 @@
 #########
-# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -9,9 +9,9 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  * See the License for the specific language governing permissions and
-#  * limitations under the License.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from __future__ import division
 
@@ -1600,6 +1600,8 @@ class ServerClient(VsphereClient):
         logger().info(
             'Cloning {server} from {template}.'.format(
                 server=vm_name, template=template_name))
+        logger().debug('Cloning with clonespec: {spec}'
+                       .format(spec=repr(clonespec)))
         task = template_vm.obj.Clone(folder=destfolder,
                                      name=vm_name,
                                      spec=clonespec)
