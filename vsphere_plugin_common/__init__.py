@@ -1331,6 +1331,66 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise NonRecoverableError(message)
 
+    def _add_network(self, network):
+        network_name = network['name']
+        switch_distributed = network['switch_distributed']
+        mac_address = network.get('mac_address')
+
+        use_dhcp = network['use_dhcp']
+        if switch_distributed:
+            network_obj = self._get_obj_by_name(
+                vim.dvs.DistributedVirtualPortgroup,
+                network_name,
+            )
+        else:
+            network_obj = self._get_obj_by_name(
+                vim.Network,
+                network_name,
+            )
+        if network_obj is None:
+            raise NonRecoverableError(
+                'Network {0} could not be found'.format(network_name))
+        nicspec = vim.vm.device.VirtualDeviceSpec()
+        # Info level as this is something that was requested in the
+        # blueprint
+        logger().info(
+            'Adding network interface on {name}'.format(
+                name=network_name))
+        nicspec.operation = \
+            vim.vm.device.VirtualDeviceSpec.Operation.add
+        nicspec.device = vim.vm.device.VirtualVmxnet3()
+        if switch_distributed:
+            info = vim.vm.device.VirtualEthernetCard\
+                .DistributedVirtualPortBackingInfo()
+            nicspec.device.backing = info
+            nicspec.device.backing.port =\
+                vim.dvs.PortConnection()
+            nicspec.device.backing.port.switchUuid =\
+                network_obj.config.distributedVirtualSwitch.uuid
+            nicspec.device.backing.port.portgroupKey =\
+                network_obj.key
+        else:
+            nicspec.device.backing = \
+                vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
+            nicspec.device.backing.network = network_obj.obj
+            nicspec.device.backing.deviceName = network_name
+        if mac_address:
+            nicspec.device.macAddress = mac_address
+
+        if use_dhcp:
+            guest_map = vim.vm.customization.AdapterMapping()
+            guest_map.adapter = vim.vm.customization.IPSettings()
+            guest_map.adapter.ip = vim.vm.customization.DhcpIpGenerator()
+        else:
+            nw = IPNetwork(network["network"])
+            guest_map = vim.vm.customization.AdapterMapping()
+            guest_map.adapter = vim.vm.customization.IPSettings()
+            guest_map.adapter.ip = vim.vm.customization.FixedIp()
+            guest_map.adapter.ip.ipAddress = network['ip']
+            guest_map.adapter.gateway = network["gateway"]
+            guest_map.adapter.subnetMask = str(nw.netmask)
+        return nicspec, guest_map
+
     def create_server(
             self,
             auto_placement,
@@ -1426,13 +1486,8 @@ class ServerClient(VsphereClient):
             relospec.host = host.obj
 
         ide_controller = None
-        bus_number = 0
         cdrom_attached = False
         for device in template_vm.config.hardware.device:
-            # search bus for next controller add
-            if hasattr(device, 'busNumber'):
-                if bus_number < device.busNumber:
-                    bus_number = device.busNumber
             # delete network interface
             if hasattr(device, 'macAddress'):
                 nicspec = vim.vm.device.VirtualDeviceSpec()
@@ -1473,65 +1528,9 @@ class ServerClient(VsphereClient):
         port_groups, distributed_port_groups = self._get_port_group_names()
 
         for network in networks:
-            network_name = network['name']
-            network_name_lower = network_name.lower()
-            switch_distributed = network['switch_distributed']
-
-            use_dhcp = network['use_dhcp']
-            if switch_distributed:
-                network_obj = self._get_obj_by_name(
-                    vim.dvs.DistributedVirtualPortgroup,
-                    network_name,
-                )
-            else:
-                network_obj = self._get_obj_by_name(
-                    vim.Network,
-                    network_name,
-                )
-            if network_obj is None:
-                raise NonRecoverableError(
-                    'Network {0} could not be found'.format(network_name))
-            nicspec = vim.vm.device.VirtualDeviceSpec()
-            # Info level as this is something that was requested in the
-            # blueprint
-            logger().info(
-                'Adding network interface on {name} to {server}'.format(
-                    name=network_name,
-                    server=vm_name))
-            nicspec.operation = \
-                vim.vm.device.VirtualDeviceSpec.Operation.add
-            nicspec.device = vim.vm.device.VirtualVmxnet3()
-            if switch_distributed:
-                info = vim.vm.device.VirtualEthernetCard\
-                    .DistributedVirtualPortBackingInfo()
-                nicspec.device.backing = info
-                nicspec.device.backing.port =\
-                    vim.dvs.PortConnection()
-                nicspec.device.backing.port.switchUuid =\
-                    network_obj.config.distributedVirtualSwitch.uuid
-                nicspec.device.backing.port.portgroupKey =\
-                    network_obj.key
-            else:
-                nicspec.device.backing = \
-                    vim.vm.device.VirtualEthernetCard.NetworkBackingInfo()
-                nicspec.device.backing.network = network_obj.obj
-                nicspec.device.backing.deviceName = network_name
+            nicspec, guest_map = self._add_network(network)
             devices.append(nicspec)
-
-            if use_dhcp:
-                guest_map = vim.vm.customization.AdapterMapping()
-                guest_map.adapter = vim.vm.customization.IPSettings()
-                guest_map.adapter.ip = vim.vm.customization.DhcpIpGenerator()
-                adaptermaps.append(guest_map)
-            else:
-                nw = IPNetwork(network["network"])
-                guest_map = vim.vm.customization.AdapterMapping()
-                guest_map.adapter = vim.vm.customization.IPSettings()
-                guest_map.adapter.ip = vim.vm.customization.FixedIp()
-                guest_map.adapter.ip.ipAddress = network['ip']
-                guest_map.adapter.gateway = network["gateway"]
-                guest_map.adapter.subnetMask = str(nw.netmask)
-                adaptermaps.append(guest_map)
+            adaptermaps.append(guest_map)
 
         # attach cdrom
         if cdrom_image and not cdrom_attached:
@@ -2527,8 +2526,22 @@ class NetworkClient(VsphereClient):
             else:
                 vswitches = vswitches.union(current_host_vswitches)
 
-        logger().debug('Found vswitches'.format(vswitches=vswitches))
+        logger().debug('Found vswitches: {vswitches}'
+                       .format(vswitches=vswitches))
         return vswitches
+
+    def get_vswitch_mtu(self, vswitch_name):
+        mtu = -1
+
+        for host in self._get_hosts():
+            conf = host.config
+            for vswitch in conf.network.vswitch:
+                if vswitch_name == vswitch.name:
+                    if mtu == -1:
+                        mtu = vswitch.mtu
+                    elif mtu > vswitch.mtu:
+                        mtu = vswitch.mtu
+        return mtu
 
     def get_dvswitches(self):
         logger().debug('Getting list of dvswitches')
@@ -2538,7 +2551,8 @@ class NetworkClient(VsphereClient):
         dvswitches = self._get_dvswitches()
         dvswitches = [dvswitch.name for dvswitch in dvswitches]
 
-        logger().debug('Found dvswitches'.format(dvswitches=dvswitches))
+        logger().debug('Found dvswitches: {dvswitches}'
+                       .format(dvswitches=dvswitches))
         return dvswitches
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
@@ -2566,6 +2580,10 @@ class NetworkClient(VsphereClient):
                             vswitches=', '.join(vswitches),
                         )
                     )
+
+        # update mtu
+        ctx.instance.runtime_properties['mtu'] = self.get_vswitch_mtu(
+            vswitch_name)
 
         if runtime_properties['status'] in ('preparing', 'creating'):
             runtime_properties['status'] = 'creating'
@@ -2703,11 +2721,14 @@ class NetworkClient(VsphereClient):
             vim.DistributedVirtualSwitch,
             vswitch_name,
         )
-        logger().debug(
-            "Distributed vSwitch info: \n%s." % "".join(
-                "%s: %s" % item
-                for item in
-                vars(dvswitch).items()))
+        logger().debug("Distributed vSwitch info: {dvswitch}"
+                       .format(dvswitch=dvswitch))
+        # update mtu
+        dvswitch = self._get_obj_by_name(
+            vim.DistributedVirtualSwitch,
+            vswitch_name,
+        )
+        ctx.instance.runtime_properties['mtu'] = dvswitch.obj.config.maxMtu
         vlan_spec = vim.dvs.VmwareDistributedVirtualSwitch.VlanIdSpec(
             vlanId=vlan_id)
         port_settings = \

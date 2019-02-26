@@ -3,7 +3,7 @@ tosca_definitions_version: cloudify_dsl_1_3
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
   - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.12.5/plugin.yaml
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/cloudinit/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.10.0/plugin.yaml
 
 inputs:
 
@@ -87,6 +87,28 @@ inputs:
   allowed_datastores:
     default: []
 
+  test_network_name:
+    description: >
+      The name to give to the new test network
+    type: string
+    default: systestnetwork
+  test_network_distributed:
+    description: >
+      Whether the test network is distributed
+    type: boolean
+    default: false
+  test_network_vlan:
+    description: >
+      Which VLAN to use for the test network.
+      It is not recommended that this is set to 1
+    type: integer
+    default: 404
+  test_network_vswitch:
+    description: >
+      The vswitch/dvswitch to attach this portgroup (network) to
+    type: string
+    default: vSwitch0
+
 ###############################################################################
 #  DSL section
 ###############################################################################
@@ -128,10 +150,8 @@ node_types:
           install_method: none
       networking:
         default:
-          dns_servers:
-            - '8.8.8.8'
           connect_networks:
-            - name: Internal
+            - name: { get_input: test_network_name }
 
 node_templates:
 
@@ -143,7 +163,15 @@ node_templates:
         chpasswd:
            expire: False
         ssh_pwauth: True
-
+        #network:
+          #version: 1
+          #config:
+          #- type: physical
+            #name: ens192
+            #subnets:
+            #- type: static
+              #address: 172.16.168.156/24
+              #gateway: 172.16.168.1
   cloud_init_image:
     type: cloudify.vsphere.nodes.CloudInitISO
     properties:
@@ -159,13 +187,20 @@ node_templates:
             raw_files:
               meta-data: cloudinit_meta_data.yaml
             files:
-              "1/1.sh": "whoami"
-              "1/2/3.sh": "whoami"
               user-data: { get_attribute: [cloud_init, cloud_config ] }
-              "openstack/latest/user-data": { get_attribute: [cloud_init, cloud_config ] }
     relationships:
     - target: cloud_init
       type: cloudify.relationships.depends_on
+
+  network:
+    type: cloudify.vsphere.nodes.Network
+    properties:
+      network:
+        name: { get_input: test_network_name }
+        switch_distributed: { get_input: test_network_distributed }
+        vlan_id: { get_input: test_network_vlan }
+        vswitch_name: { get_input: test_network_vswitch }
+      connection_config: *connection_config
 
   vm_base:
     type: host
@@ -176,4 +211,6 @@ node_templates:
             cdrom_image: { get_attribute: [cloud_init_image, storage_image ] }
     relationships:
     - target: cloud_init_image
+      type: cloudify.relationships.depends_on
+    - target: network
       type: cloudify.relationships.depends_on
