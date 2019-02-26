@@ -818,6 +818,8 @@ class VsphereClient(object):
             'name',
             'summary',
             'config.hardware.device',
+            'config.hardware.memoryMB',
+            'config.hardware.numCPU',
             'datastore',
             'guest.guestState',
             'guest.net',
@@ -1164,9 +1166,7 @@ class ServerClient(VsphereClient):
                          template_name,
                          datacenter_name,
                          resource_pool_name,
-                         networks,
-                         vm_cpus,
-                         vm_memory):
+                         networks):
         """
             Make sure we can actually continue with the inputs given.
             If we can't, we want to report all of the issues at once.
@@ -1296,12 +1296,6 @@ class ServerClient(VsphereClient):
                         nets=', '.join(port_groups),
                     )
                 )
-
-        if vm_cpus < 1:
-            issues.append('At least one vCPU must be assigned.')
-
-        if vm_memory < 1:
-            issues.append('Assigned memory cannot be less than 1MB.')
 
         if issues:
             issues.insert(0, 'Issues found while validating inputs:')
@@ -1532,9 +1526,15 @@ class ServerClient(VsphereClient):
             networks=networks,
             resource_pool_name=resource_pool_name,
             datacenter_name=datacenter_name,
-            vm_cpus=cpus,
-            vm_memory=memory,
         )
+
+        # If cpus and memory are not specified, take values from the template.
+        template_vm = self._get_obj_by_name(vim.VirtualMachine, template_name)
+        if not cpus:
+            cpus = template_vm.config.hardware.numCPU
+
+        if not memory:
+            memory = template_vm.config.hardware.memoryMB
 
         # Correct the network name for all networks from relationships
         for network in networks:
@@ -1548,9 +1548,6 @@ class ServerClient(VsphereClient):
             allowed_hosts=allowed_hosts,
             allowed_clusters=allowed_clusters,
         )
-
-        template_vm = self._get_obj_by_name(vim.VirtualMachine,
-                                            template_name)
 
         host, datastore = self.select_host_and_datastore(
             candidate_hosts=candidate_hosts,

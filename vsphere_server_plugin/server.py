@@ -258,8 +258,8 @@ def create_new_server(
     # actually used.
     auto_placement = connection_config.get('auto_placement', True)
     template_name = server['template']
-    cpus = server['cpus']
-    memory = server['memory']
+    cpus = server.get('cpus')
+    memory = server.get('memory')
 
     # Computer name may only contain A-Z, 0-9, and hyphens
     # May not be entirely digits
@@ -345,10 +345,8 @@ def start(
         ctx.instance.runtime_properties[NETWORKS] = \
             server_client.get_vm_networks(server_obj)
         ctx.instance.runtime_properties['use_external_resource'] = True
-    else:
-        for key in ["cpus", "memory", "template"]:
-            if not server.get(key):
-                raise NonRecoverableError('{0} is not provided.'.format(key))
+    elif "template" not in server:
+        raise NonRecoverableError('template is not provided.')
     if server_obj is None:
         server_obj = get_server_by_context(ctx, server_client,
                                            server, os_family)
