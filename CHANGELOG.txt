@@ -1,9 +1,10 @@
 2.10.0:
   - Initial CloudInit support
   - MTU export for new created networks
+2.9.2:
+  - CFY-981: DHCP regression fix
 2.9.1:
   - Support Servers without memory and cpu values assigned
-  - CFY-981: DHCP regression fix
 2.9.0:
   - Support Server - Nic relationship.
   - Start moving from use_existing_resource to use_external_resource.
