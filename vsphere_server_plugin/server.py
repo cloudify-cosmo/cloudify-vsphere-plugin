@@ -559,6 +559,8 @@ def get_state(ctx, server_client, server, networking, os_family):
     nets = ctx.instance.runtime_properties[NETWORKS]
     if server_client.is_server_guest_running(server_obj):
         ctx.logger.debug("Server is running, getting network details.")
+        ctx.logger.info("Guest info: {info}"
+                        .format(info=repr(server_obj.guest)))
         networks = networking.get('connect_networks', []) if networking else []
         manager_network_ip = None
         management_networks = \
@@ -585,7 +587,7 @@ def get_state(ctx, server_client, server, networking, os_family):
                 if manager_network_ip is None:
                     ctx.logger.info(
                         'Manager network IP not yet present for {server}. '
-                        'Retrying.'.format(server=server_obj)
+                        'Retrying.'.format(server=server_obj.name)
                     )
                     # This should all be handled in the create server logic
                     # and use operation retries, but until that is implemented
@@ -639,7 +641,7 @@ def get_state(ctx, server_client, server, networking, os_family):
             ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
         else:
             ctx.logger.debug('Public IP check not required for {server}'
-                             .format(server=server_obj))
+                             .format(server=server_obj.name))
             # Ensure the property still exists
             ctx.instance.runtime_properties[PUBLIC_IP] = None
 
@@ -664,7 +666,7 @@ def get_state(ctx, server_client, server, networking, os_family):
         )
         return True
     ctx.logger.info(
-        'Server {server} is not started yet'.format(server=server_obj))
+        'Server {server} is not started yet'.format(server=server_obj.name))
     # This should all be handled in the create server logic and use operation
     # retries, but until that is implemented this will have to remain.
     return False

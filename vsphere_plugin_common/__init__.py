@@ -21,6 +21,7 @@ import re
 import ssl
 import time
 import urllib
+import netaddr
 from collections import MutableMapping
 from copy import copy
 from functools import wraps
@@ -998,6 +999,8 @@ class VsphereClient(object):
             vim.TaskInfo.State.running,
         ):
             time.sleep(TASK_CHECK_SLEEP)
+            logger().debug('Task state {state}'
+                           .format(state=task.info.state))
         if task.info.state != vim.TaskInfo.State.success:
             raise NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
@@ -1663,9 +1666,8 @@ class ServerClient(VsphereClient):
                                      spec=clonespec)
         try:
             logger().debug(
-                "Task info: \n%s." % "".join(
-                    "%s: %s" % item for item in vars(task).items()))
-            self._wait_vm_running(task, adaptermaps)
+                "Task info: {task}".format(task=repr(task)))
+            self._wait_vm_running(task, adaptermaps, os_type == "other")
         except task.info.error:
             raise NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."
@@ -2467,6 +2469,8 @@ class ServerClient(VsphereClient):
 
     def _task_guest_state_is_running(self, task):
         try:
+            logger().debug("VM state: {state}"
+                           .format(state=task.info.result.guest.guestState))
             return task.info.result.guest.guestState == "running"
         except vmodl.fault.ManagedObjectNotFound:
             raise NonRecoverableError(
@@ -2486,11 +2490,21 @@ class ServerClient(VsphereClient):
             else:
                 return False
 
-    def _wait_vm_running(self, task, adaptermaps):
+    def _wait_vm_running(self, task, adaptermaps, other=False):
+        # wait for task finish
         self._wait_for_task(task)
 
-        while not self._task_guest_state_is_running(task) \
-                or not self._task_guest_has_networks(task, adaptermaps):
+        # check VM state
+        while not self._task_guest_state_is_running(task):
+            time.sleep(TASK_CHECK_SLEEP)
+
+        # skip guests check for other
+        if other:
+            logger().info("Skip guest checks for other os")
+            return
+
+        # check guest networks
+        if not self._task_guest_has_networks(task, adaptermaps):
             time.sleep(TASK_CHECK_SLEEP)
 
 
@@ -2759,6 +2773,114 @@ class NetworkClient(VsphereClient):
         self._wait_for_task(task)
         logger().debug("Port deleted.")
 
+    def get_network_cidr(self, name, switch_distributed):
+        # search in all datacenters
+        for dc in self.si.content.rootFolder.childEntity:
+            # select all ipppols
+            pools = self.si.content.ipPoolManager.QueryIpPools(dc=dc)
+            for pool in pools:
+                # check network associations pools
+                for association in pool.networkAssociation:
+                    # check network type
+                    network_distributed = isinstance(
+                        association.network,
+                        vim.dvs.DistributedVirtualPortgroup)
+                    if (
+                        association.networkName == name and
+                        network_distributed == switch_distributed
+                    ):
+                        # convert network information to CIDR
+                        return str(netaddr.IPNetwork(
+                            '{network}/{netmask}'
+                            .format(network=pool.ipv4Config.subnetAddress,
+                                    netmask=pool.ipv4Config.netmask)))
+        # We dont have any ipppols related to network
+        return "0.0.0.0/0"
+
+    def get_network_mtu(self, name, switch_distributed):
+        if switch_distributed:
+            # select virtual port group
+            dv_port_group = self._get_obj_by_name(
+                vim.dvs.DistributedVirtualPortgroup,
+                name,
+            )
+            if not dv_port_group:
+                raise NonRecoverableError(
+                    "Unable to get DistributedVirtualPortgroup: {name}"
+                    .format(name=repr(name)))
+            # get assigned VirtualSwith
+            dvSwitch = dv_port_group.config.distributedVirtualSwitch
+            return dvSwitch.obj.config.maxMtu
+        else:
+            mtu = -1
+            # search hosts with vswitches
+            hosts = self.get_host_list()
+            for host in hosts:
+                conf = host.config
+                # iterate by vswitches
+                for vswitch in conf.network.vswitch:
+                    # search port group in linked
+                    port_name = "key-vim.host.PortGroup-{name}".format(
+                        name=name)
+                    # check that we have linked network in portgroup(str list)
+                    if port_name in vswitch.portgroup:
+                        # use mtu from switch
+                        if mtu == -1:
+                            mtu = vswitch.mtu
+                        elif mtu > vswitch.mtu:
+                            mtu = vswitch.mtu
+            return mtu
+
+    def create_ippool(self, datacenter_name, ippool, networks):
+        # create ip pool only on specific datacenter
+        dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
+        if not dc:
+            raise NonRecoverableError(
+                "Unable to get datacenter: {datacenter}"
+                .format(datacenter=repr(datacenter_name)))
+        pool = vim.vApp.IpPool(name=ippool['name'])
+        pool.ipv4Config = vim.vApp.IpPool.IpPoolConfigInfo()
+        pool.ipv4Config.subnetAddress = ippool['subnet']
+        pool.ipv4Config.netmask = ippool['netmask']
+        pool.ipv4Config.gateway = ippool['gateway']
+        pool.ipv4Config.range = ippool['range']
+        pool.ipv4Config.dhcpServerAvailable = ippool.get('dhcp', False)
+        pool.ipv4Config.ipPoolEnabled = ippool.get('enabled', True)
+        # add networks to pool
+        for network in networks:
+            network_name = network.runtime_properties["network_name"]
+            logger().debug("Attach network {network} to {pool}."
+                           .format(network=network_name, pool=ippool['name']))
+            if network.runtime_properties.get("switch_distributed"):
+                # search vim.dvs.DistributedVirtualPortgroup
+                dv_port_group = self._get_obj_by_name(
+                    vim.dvs.DistributedVirtualPortgroup,
+                    network_name,
+                )
+                pool.networkAssociation.insert(0, vim.vApp.IpPool.Association(
+                    network=dv_port_group.obj))
+            else:
+                # search all networks
+                networks = [
+                    net for net in self._collect_properties(
+                        vim.Network, path_set=["name"],
+                    ) if not net['obj']._moId.startswith('dvportgroup')]
+                # attach all networks with provided name
+                for net in networks:
+                    if net['name'] == network_name:
+                        pool.networkAssociation.insert(
+                            0, vim.vApp.IpPool.Association(network=net['obj']))
+        return self.si.content.ipPoolManager.CreateIpPool(dc=dc.obj, pool=pool)
+
+    def delete_ippool(self, datacenter_name, ippool_id):
+        dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
+        if not dc:
+            raise NonRecoverableError(
+                "Unable to get datacenter: {datacenter}"
+                .format(datacenter=repr(datacenter_name)))
+        self.si.content.ipPoolManager.DestroyIpPool(dc=dc.obj, id=ippool_id,
+                                                    force=True)
+
 
 class RawVolumeClient(VsphereClient):
 
@@ -2770,8 +2892,9 @@ class RawVolumeClient(VsphereClient):
                     remote_file, data, host, port):
         dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
         if not dc:
-            raise NonRecoverableError("Unable to get datacenter: {datastore}"
-                                      .format(datastore=repr(datacenter_name)))
+            raise NonRecoverableError(
+                "Unable to get datacenter: {datacenter}"
+                .format(datacenter=repr(datacenter_name)))
         datastores = self._get_datastores()
         ds = None
         if not allowed_datastores and datastores:

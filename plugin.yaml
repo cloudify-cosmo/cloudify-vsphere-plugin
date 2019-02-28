@@ -352,6 +352,36 @@ node_types:
         resize:
           implementation: vsphere.vsphere_storage_plugin.storage.resize
 
+  cloudify.vsphere.nodes.IPPool:
+    derived_from: cloudify.nodes.Subnet
+    properties:
+      datacenter_name:
+        description: >
+          datacenter name.
+        type: string
+        required: false
+      ippool:
+        description: >
+          Ip Pool settings:
+            name: ip pool name
+            subnet: Subnet settings: x.x.x.x
+            netmask: Netmask: x.x.x.x
+            gateway: Ip gateway: x.x.x.x
+            range: Ip range for allocate: x.x.x.x#x
+            dhcp: Use external dhcp server. Default is False
+            enabled: Enable ip pool. Default is True
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.vsphere_network_plugin.ippool.create
+          inputs: {}
+        delete:
+          implementation: vsphere.vsphere_network_plugin.ippool.delete
+          inputs: {}
+
   cloudify.vsphere.nodes.CloudInitISO:
     derived_from: cloudify.nodes.Volume
     properties:
@@ -677,3 +707,6 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_server_to_ethernet_card
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_server_from_contoller
+
+  cloudify.relationships.vsphere.ippool_connected_to_network:
+    derived_from: cloudify.relationships.depends_on
