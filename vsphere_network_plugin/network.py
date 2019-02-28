@@ -65,6 +65,12 @@ def create(ctx, network_client, network, use_external_resource):
                 )
             )
         network_id = existing_id
+        mtu = network_client.get_network_mtu(
+            name=port_group_name, switch_distributed=switch_distributed)
+        ctx.instance.runtime_properties['mtu'] = mtu
+        cidr = network_client.get_network_cidr(
+            name=port_group_name, switch_distributed=switch_distributed)
+        ctx.instance.runtime_properties['cidr'] = cidr
     else:
         if existing_id and not creating:
             raise NonRecoverableError(

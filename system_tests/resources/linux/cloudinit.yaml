@@ -2,8 +2,8 @@ tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
   - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
-  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.12.5/plugin.yaml
-  - https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/2.10.0/plugin.yaml
+  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.13.0/plugin.yaml
+  - ../../../plugin.yaml
 
 inputs:
 
@@ -108,6 +108,7 @@ inputs:
       The vswitch/dvswitch to attach this portgroup (network) to
     type: string
     default: vSwitch0
+    #default: dvSwitch
 
 ###############################################################################
 #  DSL section
@@ -132,7 +133,7 @@ node_types:
       connection_config:
         default: *connection_config
       os_family:
-        default: linux
+        default: other
       allowed_hosts:
         default: { get_input: allowed_hosts }
       allowed_clusters:
@@ -172,6 +173,7 @@ node_templates:
             #- type: static
               #address: 172.16.168.156/24
               #gateway: 172.16.168.1
+
   cloud_init_image:
     type: cloudify.vsphere.nodes.CloudInitISO
     properties:
@@ -202,6 +204,35 @@ node_templates:
         vswitch_name: { get_input: test_network_vswitch }
       connection_config: *connection_config
 
+  ippool:
+    type: cloudify.vsphere.nodes.IPPool
+    properties:
+      datacenter_name: { get_input: vcenter_datacenter }
+      ippool:
+        name: ippool-check
+        subnet: 199.199.199.0
+        netmask: 255.255.255.0
+        gateway: 199.199.199.254
+        range: 199.199.199.1#12
+      connection_config: *connection_config
+    relationships:
+    - target: network
+      type: cloudify.relationships.vsphere.ippool_connected_to_network
+
+  network_reuse:
+    type: cloudify.vsphere.nodes.Network
+    properties:
+      use_external_resource: true
+      network:
+        name: { get_input: test_network_name }
+        switch_distributed: { get_input: test_network_distributed }
+      connection_config: *connection_config
+    relationships:
+    - target: network
+      type: cloudify.relationships.depends_on
+    - target: ippool
+      type: cloudify.relationships.depends_on
+
   vm_base:
     type: host
     interfaces:
@@ -212,5 +243,5 @@ node_templates:
     relationships:
     - target: cloud_init_image
       type: cloudify.relationships.depends_on
-    - target: network
+    - target: network_reuse
       type: cloudify.relationships.depends_on
