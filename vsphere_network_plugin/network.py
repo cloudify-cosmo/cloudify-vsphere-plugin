@@ -31,6 +31,8 @@ from vsphere_plugin_common.constants import (
     NETWORK_ID,
     NETWORK_NAME,
     SWITCH_DISTRIBUTED,
+    NETWORK_MTU,
+    NETWORK_CIDR,
     NETWORK_RUNTIME_PROPERTIES,
 )
 from cloudify_vsphere.utils.feedback import check_name_for_special_characters
@@ -67,10 +69,10 @@ def create(ctx, network_client, network, use_external_resource):
         network_id = existing_id
         mtu = network_client.get_network_mtu(
             name=port_group_name, switch_distributed=switch_distributed)
-        ctx.instance.runtime_properties['mtu'] = mtu
+        ctx.instance.runtime_properties[NETWORK_MTU] = mtu
         cidr = network_client.get_network_cidr(
             name=port_group_name, switch_distributed=switch_distributed)
-        ctx.instance.runtime_properties['cidr'] = cidr
+        ctx.instance.runtime_properties[NETWORK_CIDR] = cidr
     else:
         if existing_id and not creating:
             raise NonRecoverableError(
