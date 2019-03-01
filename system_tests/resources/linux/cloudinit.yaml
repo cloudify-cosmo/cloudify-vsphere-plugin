@@ -210,10 +210,10 @@ node_templates:
       datacenter_name: { get_input: vcenter_datacenter }
       ippool:
         name: ippool-check
-        subnet: 199.199.199.0
+        subnet: 10.0.0.0
         netmask: 255.255.255.0
-        gateway: 199.199.199.254
-        range: 199.199.199.1#12
+        gateway: 10.0.0.254
+        range: 10.0.0.1#12
       connection_config: *connection_config
     relationships:
     - target: network

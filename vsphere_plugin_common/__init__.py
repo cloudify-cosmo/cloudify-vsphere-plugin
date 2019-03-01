@@ -42,6 +42,7 @@ from vsphere_plugin_common.constants import (
     DEFAULT_CONFIG_PATH,
     NETWORKS,
     NETWORK_ID,
+    NETWORK_MTU,
     TASK_CHECK_SLEEP,
 )
 from cloudify_vsphere.vendored.collections import namedtuple
@@ -2596,7 +2597,7 @@ class NetworkClient(VsphereClient):
                     )
 
         # update mtu
-        ctx.instance.runtime_properties['mtu'] = self.get_vswitch_mtu(
+        ctx.instance.runtime_properties[NETWORK_MTU] = self.get_vswitch_mtu(
             vswitch_name)
 
         if runtime_properties['status'] in ('preparing', 'creating'):
@@ -2742,7 +2743,8 @@ class NetworkClient(VsphereClient):
             vim.DistributedVirtualSwitch,
             vswitch_name,
         )
-        ctx.instance.runtime_properties['mtu'] = dvswitch.obj.config.maxMtu
+        ctx.instance.runtime_properties[
+            NETWORK_MTU] = dvswitch.obj.config.maxMtu
         vlan_spec = vim.dvs.VmwareDistributedVirtualSwitch.VlanIdSpec(
             vlanId=vlan_id)
         port_settings = \
@@ -2886,6 +2888,10 @@ class RawVolumeClient(VsphereClient):
 
     def delete_file(self, datacenter_name, datastorepath):
         dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
+        if not dc:
+            raise NonRecoverableError(
+                "Unable to get datacenter: {datacenter}"
+                .format(datacenter=repr(datacenter_name)))
         self.si.content.fileManager.DeleteFile(datastorepath, dc.obj)
 
     def upload_file(self, datacenter_name, allowed_datastores,

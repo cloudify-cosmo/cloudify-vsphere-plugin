@@ -1,3 +1,7 @@
+2.11.0:
+  - IP Pool support
+  - CIDR/MTU export for external network based on assigned IP Pool and
+    parent switch
 2.10.0:
   - Initial CloudInit support
   - MTU export for new created networks

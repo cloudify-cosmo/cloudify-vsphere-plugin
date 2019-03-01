@@ -17,6 +17,7 @@ import unittest
 from mock import Mock, patch
 
 from cloudify.state import current_ctx
+from cloudify.exceptions import NonRecoverableError
 
 import vsphere_plugin_common
 
@@ -40,6 +41,10 @@ class RawVolumeTest(unittest.TestCase):
             vsphere_plugin_common.vim.Datacenter, "datacenter")
         client.si.content.fileManager.DeleteFile.assert_called_once_with(
             '[datastore] filename', datacenter.obj)
+        # no such datacenter
+        client._get_obj_by_name = Mock(return_value=None)
+        with self.assertRaises(NonRecoverableError):
+            client.delete_file("datacenter", "[datastore] filename")
 
     def test_upload_file(self):
         client = vsphere_plugin_common.RawVolumeClient()
@@ -78,6 +83,42 @@ class RawVolumeTest(unittest.TestCase):
         client._get_obj_by_name.assert_called_once_with(
             vsphere_plugin_common.vim.Datacenter, "datacenter")
         client._get_datastores.assert_called_once_with()
+
+        # without specific datastore
+        put_mock = Mock()
+        with patch("vsphere_plugin_common.requests.put", put_mock):
+            # check upload code
+            self.assertEqual(
+                client.upload_file("datacenter", [], "file", "data",
+                                   "host", 80),
+                '[datastore] file'
+            )
+        put_mock.assert_called_once_with(
+            'https://host:80/folderfile',
+            cookies={
+                'vmware_soap_session': ' "abcd"; $Path=/'
+            },
+            data='data',
+            headers={
+                'Content-Type': 'application/octet-stream'
+            },
+            params={
+                'dcPath': "datacenter",
+                'dsName': 'datastore'
+            },
+            verify=False)
+
+        # unknown datastores
+        client._get_datastores = Mock(return_value=[])
+        with self.assertRaises(NonRecoverableError):
+            client.upload_file("datacenter", ["datastore"], "file", "data",
+                               "host", 80)
+
+        # unknown datacenter
+        client._get_obj_by_name = Mock(return_value=None)
+        with self.assertRaises(NonRecoverableError):
+            client.upload_file("datacenter", ["datastore"], "file", "data",
+                               "host", 80)
 
 
 if __name__ == '__main__':
