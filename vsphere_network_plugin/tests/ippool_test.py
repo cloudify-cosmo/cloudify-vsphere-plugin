@@ -45,10 +45,10 @@ class IPPoolTest(unittest.TestCase):
             "datacenter_name": "datacenter",
             "ippool": {
                 "name": "ippool-check",
-                "subnet": "199.199.199.0",
+                "subnet": "192.0.2.0",
                 "netmask": "255.255.255.0",
-                "gateway": "199.199.199.254",
-                "range": "199.199.199.1#12"
+                "gateway": "192.0.2.254",
+                "range": "192.0.2.1#12"
             }
         }
 
@@ -60,11 +60,11 @@ class IPPoolTest(unittest.TestCase):
         )
         mock_client_get().create_ippool.assert_called_once_with(
             'datacenter', {
-                'subnet': '199.199.199.0',
+                'subnet': '192.0.2.0',
                 'netmask': '255.255.255.0',
-                'range': '199.199.199.1#12',
+                'range': '192.0.2.1#12',
                 'name': 'ippool-check',
-                'gateway': '199.199.199.254'
+                'gateway': '192.0.2.254'
             },
             [rel.target.instance])
 

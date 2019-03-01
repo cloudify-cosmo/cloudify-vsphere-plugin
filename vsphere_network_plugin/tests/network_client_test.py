@@ -78,10 +78,10 @@ class NetworkClientTest(unittest.TestCase):
         self.assertEqual(
             client.create_ippool("datacenter", {
                 "name": "ippool-check",
-                "subnet": "199.199.199.0",
+                "subnet": "192.0.2.0",
                 "netmask": "255.255.255.0",
-                "gateway": "199.199.199.254",
-                "range": "199.199.199.1#12"
+                "gateway": "192.0.2.254",
+                "range": "192.0.2.1#12"
             }, [network_instance]),
             124)
         # legacy network
@@ -99,10 +99,10 @@ class NetworkClientTest(unittest.TestCase):
         self.assertEqual(
             client.create_ippool("datacenter", {
                 "name": "ippool-check",
-                "subnet": "199.199.199.0",
+                "subnet": "192.0.2.0",
                 "netmask": "255.255.255.0",
-                "gateway": "199.199.199.254",
-                "range": "199.199.199.1#12"
+                "gateway": "192.0.2.254",
+                "range": "192.0.2.1#12"
             }, [network_instance]),
             124)
         client._collect_properties.assert_called_once_with(
@@ -167,13 +167,13 @@ class NetworkClientTest(unittest.TestCase):
         client.si.content.rootFolder.childEntity = [datacenter]
         pool = vim.vApp.IpPool(name='name')
         pool.ipv4Config = vim.vApp.IpPool.IpPoolConfigInfo()
-        pool.ipv4Config.subnetAddress = "1.2.3.4"
+        pool.ipv4Config.subnetAddress = "192.0.2.4"
         pool.ipv4Config.netmask = "255.255.255.0"
         pool.networkAssociation.insert(0, vim.vApp.IpPool.Association(
                     network=network, networkName="some"))
         client.si.content.ipPoolManager.QueryIpPools = Mock(
             return_value=[pool])
-        self.assertEqual(client.get_network_cidr("some", True), "1.2.3.4/24")
+        self.assertEqual(client.get_network_cidr("some", True), "192.0.2.4/24")
         client.si.content.ipPoolManager.QueryIpPools.assert_called_once_with(
             dc=datacenter)
 
