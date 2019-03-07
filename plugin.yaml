@@ -170,6 +170,14 @@ node_types:
         default: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config
+      force_stop:
+        description: |
+          Force stop vm for external resource
+        default: false
+      force_delete:
+        description: |
+          Force delete vm for external resource
+        default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         start:

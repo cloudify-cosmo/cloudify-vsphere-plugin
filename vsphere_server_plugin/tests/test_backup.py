@@ -373,10 +373,21 @@ class BackupServerTest(unittest.TestCase):
         server.delete(server={"name": "server_name"},
                       os_family="other_os")
 
-        # nosuch vm
+        # nosuch vm (we dont have vm_id)
         ctx.instance.runtime_properties['use_external_resource'] = False
+        ctx.instance.runtime_properties['vsphere_server_id'] = None
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=None)
+        ):
+            server.delete(server={"name": "server_name"},
+                          os_family="other_os")
+
+        # nosuch vm (we have vm_id)
+        ctx.instance.runtime_properties['use_external_resource'] = False
+        ctx.instance.runtime_properties['vsphere_server_id'] = 'vm-unknow'
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -395,11 +406,32 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.Destroy = mock.Mock(return_value=task)
         vm.obj.summary.runtime.powerState = "PoweredOFF"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             server.delete(server={"name": "server_name"},
                           os_family="other_os")
+        vm.obj.Destroy.assert_called_with()
+
+        # with some external vm with force action
+        ctx.instance.runtime_properties['use_external_resource'] = True
+        vm = mock.Mock()
+        task = mock.Mock()
+        task.info.state = vim.TaskInfo.State.success
+        vm.obj.snapshot = None  # no snapshots
+        vm.obj.Destroy = mock.Mock(return_value=task)
+        vm.obj.summary.runtime.powerState = "PoweredOFF"
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            with mock.patch(
+                "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                mock.Mock(return_value=vm)
+            ):
+                server.delete(server={"name": "server_name"},
+                              os_family="other_os",
+                              force_delete=True)
         vm.obj.Destroy.assert_called_with()
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
@@ -459,10 +491,21 @@ class BackupServerTest(unittest.TestCase):
         server.stop(server={"name": "server_name"},
                     os_family="other_os")
 
-        # nosuch vm
+        # nosuch vm (we dont have vm_id)
         ctx.instance.runtime_properties['use_external_resource'] = False
+        ctx.instance.runtime_properties['vsphere_server_id'] = None
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=None)
+        ):
+            server.stop(server={"name": "server_name"},
+                        os_family="other_os")
+
+        # nosuch vm (we have vm_id)
+        ctx.instance.runtime_properties['use_external_resource'] = False
+        ctx.instance.runtime_properties['vsphere_server_id'] = 'vm-unknow'
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -477,13 +520,13 @@ class BackupServerTest(unittest.TestCase):
         vm = mock.Mock()
         vm.obj.summary.runtime.powerState = "PoweredOFF"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             server.stop(server={"name": "server_name"},
                         os_family="other_os")
 
-        # with poweredon vm
+        # with poweredoff vm
         vm = mock.Mock()
         task = mock.Mock()
         task.info.state = vim.TaskInfo.State.success
@@ -491,11 +534,28 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.PowerOff = mock.Mock(return_value=task)
         vm.obj.summary.runtime.powerState = "PoweredOn"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             server.stop(server={"name": "server_name"},
                         os_family="other_os")
+        vm.obj.PowerOff.assert_called_with()
+
+        # with poweredoff vm, use exteranl vm with force
+        ctx.instance.runtime_properties['use_external_resource'] = True
+        vm = mock.Mock()
+        task = mock.Mock()
+        task.info.state = vim.TaskInfo.State.success
+        vm.obj.snapshot = None  # no snapshots
+        vm.obj.PowerOff = mock.Mock(return_value=task)
+        vm.obj.summary.runtime.powerState = "PoweredOn"
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            server.stop(server={"name": "server_name"},
+                        os_family="other_os",
+                        force_stop=True)
         vm.obj.PowerOff.assert_called_with()
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
@@ -609,3 +669,7 @@ class BackupServerTest(unittest.TestCase):
             server.freeze_resume(server={"name": "server_name"},
                                  os_family="other_os")
         vm.obj.PowerOn.assert_called_with()
+
+
+if __name__ == '__main__':
+    unittest.main()

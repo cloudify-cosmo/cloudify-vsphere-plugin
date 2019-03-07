@@ -361,8 +361,9 @@ def start(
             cdrom_image=cdrom_image,
             )
     else:
+        server_client.update_server(server=server_obj, cdrom_image=cdrom_image)
         ctx.logger.info("Server already exists, powering on.")
-        server_client.start_server(server_obj)
+        server_client.start_server(server=server_obj)
         ctx.logger.info("Server powered on.")
 
 
@@ -384,15 +385,23 @@ def shutdown_guest(ctx, server_client, server, os_family):
 
 @op
 @with_server_client
-def stop(ctx, server_client, server, os_family):
-    if ctx.instance.runtime_properties.get('use_external_resource'):
+def stop(ctx, server_client, server, os_family, force_stop=False):
+    if (
+        ctx.instance.runtime_properties.get('use_external_resource') and
+        not force_stop
+    ):
         ctx.logger.info('Used existing resource.')
         return
+    elif force_stop:
+        ctx.logger.info('Stop is forced.')
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
-        raise NonRecoverableError(
-            "Cannot stop server - server doesn't exist for node: {0}"
-            .format(ctx.instance.id))
+        if ctx.instance.runtime_properties.get(VSPHERE_SERVER_ID):
+            # skip already deleted host
+            raise NonRecoverableError(
+                "Cannot stop server - server doesn't exist for node: {0}"
+                .format(ctx.instance.id))
+        return
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to stop server {name}'.format(name=vm_name))
     server_client.stop_server(server_obj)
@@ -526,15 +535,23 @@ def snapshot_delete(ctx, server_client, server, os_family, snapshot_name,
 
 @op
 @with_server_client
-def delete(ctx, server_client, server, os_family):
-    if ctx.instance.runtime_properties.get('use_external_resource'):
+def delete(ctx, server_client, server, os_family, force_delete):
+    if (
+        ctx.instance.runtime_properties.get('use_external_resource') and
+        not force_delete
+    ):
         ctx.logger.info('Used existing resource.')
         return
+    elif force_delete:
+        ctx.logger.info('Delete is forced.')
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
-        raise NonRecoverableError(
-            "Cannot delete server - server doesn't exist for node: {0}"
-            .format(ctx.instance.id))
+        if ctx.instance.runtime_properties.get(VSPHERE_SERVER_ID):
+            # skip already deleted host
+            raise NonRecoverableError(
+                "Cannot delete server - server doesn't exist for node: {0}"
+                .format(ctx.instance.id))
+        return
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
     server_client.delete_server(server_obj)
