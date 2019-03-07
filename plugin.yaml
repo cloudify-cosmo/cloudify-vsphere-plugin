@@ -520,6 +520,35 @@ node_types:
           implementation: vsphere.cloudify_vsphere.cluster.delete
           inputs: {}
 
+  cloudify.vsphere.nodes.ResourcePool:
+    derived_from: cloudify.nodes.Root
+    properties:
+      name:
+        description: >
+          The name of the resource_pool.
+      use_existing_resource:
+        description: >
+          Whether to use a resource pool that already exists on vSphere.
+          Currently, resource pools cannot be created or deleted,
+          and this node type exists only for compatibility with the NSX/Content
+          Library plugin.
+        default: True
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.resource_pool.create
+          inputs: {}
+        delete:
+          implementation: vsphere.cloudify_vsphere.resource_pool.delete
+          inputs: {}
+
   cloudify.vsphere.nodes.Host:
     derived_from: cloudify.nodes.Root
     properties:
