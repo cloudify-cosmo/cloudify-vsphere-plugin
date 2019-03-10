@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2019 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -27,8 +27,8 @@ from vsphere_plugin_common import (
     remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
-    DATASTORE_ID,
-    DATASTORE_RUNTIME_PROPERTIES,
+    RESOURCE_POOL_ID,
+    RESOURCE_POOL_RUNTIME_PROPERTIES,
 )
 
 
@@ -36,7 +36,7 @@ from vsphere_plugin_common.constants import (
 @with_server_client
 def create(ctx, server_client, name, use_external_resource):
     existing_id = server_client._get_obj_by_name(
-        vim.Datastore,
+        vim.ResourcePool,
         name,
     )
     if existing_id is not None:
@@ -47,18 +47,18 @@ def create(ctx, server_client, name, use_external_resource):
     if use_external_resource:
         if not existing_id:
             raise NonRecoverableError(
-                'Could not use existing datastore "{name}" as no '
-                'datastore by that name exists!'.format(
+                'Could not use existing resource_pool "{name}" as no '
+                'resource_pool by that name exists!'.format(
                     name=name,
                 )
             )
-        datastore_id = existing_id
+        resource_pool_id = existing_id
     else:
         raise NonRecoverableError(
             'Datastores cannot currently be created by this plugin.'
         )
 
-    runtime_properties[DATASTORE_ID] = datastore_id
+    runtime_properties[RESOURCE_POOL_ID] = resource_pool_id
 
 
 @op
@@ -66,15 +66,15 @@ def create(ctx, server_client, name, use_external_resource):
 def delete(ctx, server_client, name, use_external_resource):
     if use_external_resource:
         ctx.logger.info(
-            'Not deleting existing datastore: {name}'.format(
+            'Not deleting existing resource_pool: {name}'.format(
                 name=name,
             )
         )
     else:
         ctx.logger.info(
-            'Not deleting datastore {name} as creation and deletion of '
-            'datastores is not currently supported by this plugin.'.format(
+            'Not deleting resource_pool {name} as creation and deletion of '
+            'resource_pools is not currently supported by this plugin.'.format(
                 name=name,
             )
         )
-    remove_runtime_properties(DATASTORE_RUNTIME_PROPERTIES, ctx)
+    remove_runtime_properties(RESOURCE_POOL_RUNTIME_PROPERTIES, ctx)

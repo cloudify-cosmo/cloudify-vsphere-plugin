@@ -170,6 +170,14 @@ node_types:
         default: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config
+      force_stop:
+        description: |
+          Force stop vm for external resource
+        default: false
+      force_delete:
+        description: |
+          Force delete vm for external resource
+        default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         start:
@@ -473,7 +481,8 @@ node_types:
         description: >
           Whether to use a datastore that already exists on vSphere.
           Currently, datastores cannot be created or deleted,
-          and this node type exists only for compatibility with the NSX plugin.
+          and this node type exists only for compatibility with the NSX/Content
+          Library plugin.
         default: True
       use_external_resource:
         description: >
@@ -517,6 +526,64 @@ node_types:
           inputs: {}
         delete:
           implementation: vsphere.cloudify_vsphere.cluster.delete
+          inputs: {}
+
+  cloudify.vsphere.nodes.ResourcePool:
+    derived_from: cloudify.nodes.Root
+    properties:
+      name:
+        description: >
+          The name of the resource_pool.
+      use_existing_resource:
+        description: >
+          Whether to use a resource pool that already exists on vSphere.
+          Currently, resource pools cannot be created or deleted,
+          and this node type exists only for compatibility with the NSX/Content
+          Library plugin.
+        default: True
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.resource_pool.create
+          inputs: {}
+        delete:
+          implementation: vsphere.cloudify_vsphere.resource_pool.delete
+          inputs: {}
+
+  cloudify.vsphere.nodes.Host:
+    derived_from: cloudify.nodes.Root
+    properties:
+      name:
+        description: >
+          The name of the resource_pool.
+      use_existing_resource:
+        description: >
+          Whether to use a hypervisor host that already exists on vSphere.
+          Currently, hypervisor hosts cannot be created or deleted,
+          and this node type exists only for compatibility with the NSX/Content
+          Library plugin.
+        default: True
+      use_external_resource:
+        description: >
+          Whether to use a vm that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.hypervisor_host.create
+          inputs: {}
+        delete:
+          implementation: vsphere.cloudify_vsphere.hypervisor_host.delete
           inputs: {}
 
   cloudify.vsphere.nodes.NIC:

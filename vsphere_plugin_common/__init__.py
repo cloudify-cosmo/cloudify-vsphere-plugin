@@ -1395,6 +1395,82 @@ class ServerClient(VsphereClient):
             guest_map.adapter.subnetMask = str(nw.netmask)
         return nicspec, guest_map
 
+    def _update_vm(self, server, cdrom_image=None, remove_networks=False):
+        # update vm with attach cdrom image and remove network adapters
+        devices = []
+        ide_controller = None
+        cdrom_attached = False
+        for device in server.config.hardware.device:
+            # delete network interface
+            if remove_networks and hasattr(device, 'macAddress'):
+                nicspec = vim.vm.device.VirtualDeviceSpec()
+                nicspec.device = device
+                logger().warn(
+                    'Removing network adapter from template. '
+                    'Template should have no attached adapters.')
+                nicspec.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.remove
+                devices.append(nicspec)
+            # remove cdrom when we have cloudinit
+            elif (
+                isinstance(device, vim.vm.device.VirtualCdrom) and
+                cdrom_image
+            ):
+                logger().warn(
+                    'Edit cdrom from template. '
+                    'Template should have no inserted cdroms.')
+                cdrom_attached = True
+                cdrom = vim.vm.device.VirtualDeviceSpec()
+                cdrom.device = device
+                device.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
+                    fileName=cdrom_image)
+                cdrom.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.edit
+                connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+                connectable.allowGuestControl = True
+                connectable.startConnected = True
+                device.connectable = connectable
+                devices.append(cdrom)
+                ide_controller = device.controllerKey
+            # ide controller
+            elif isinstance(device, vim.vm.device.VirtualIDEController):
+                # skip fully attached controllers
+                if len(device.device) < 2:
+                    ide_controller = device.key
+
+        # attach cdrom
+        if cdrom_image and not cdrom_attached:
+            if not ide_controller:
+                raise NonRecoverableError(
+                    'IDE controller is required for attach cloudinit cdrom.')
+
+            cdrom_device = vim.vm.device.VirtualDeviceSpec()
+            cdrom_device.operation = \
+                vim.vm.device.VirtualDeviceSpec.Operation.add
+            connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+            connectable.allowGuestControl = True
+            connectable.startConnected = True
+
+            cdrom = vim.vm.device.VirtualCdrom()
+            cdrom.controllerKey = ide_controller
+            cdrom.key = -1
+            cdrom.connectable = connectable
+            cdrom.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
+                fileName=cdrom_image)
+            cdrom_device.device = cdrom
+            devices.append(cdrom_device)
+        return devices
+
+    def update_server(self, server, cdrom_image=None):
+        # Attrach cdrom image to vm without change networks list
+        devices_changes = self._update_vm(server, cdrom_image=cdrom_image,
+                                          remove_networks=False)
+        if devices_changes:
+            spec = vim.vm.ConfigSpec()
+            spec.deviceChange = devices_changes
+            task = server.obj.ReconfigVM_Task(spec=spec)
+            self._wait_for_task(task)
+
     def create_server(
             self,
             auto_placement,
@@ -1466,7 +1542,6 @@ class ServerClient(VsphereClient):
             )
         )
 
-        devices = []
         adaptermaps = []
 
         resource_pool = self.get_resource_pool(
@@ -1489,45 +1564,9 @@ class ServerClient(VsphereClient):
             )
             relospec.host = host.obj
 
-        ide_controller = None
-        cdrom_attached = False
-        for device in template_vm.config.hardware.device:
-            # delete network interface
-            if hasattr(device, 'macAddress'):
-                nicspec = vim.vm.device.VirtualDeviceSpec()
-                nicspec.device = device
-                logger().warn(
-                    'Removing network adapter from template. '
-                    'Template should have no attached adapters.')
-                nicspec.operation = \
-                    vim.vm.device.VirtualDeviceSpec.Operation.remove
-                devices.append(nicspec)
-            # remove cdrom when we have cloudinit
-            elif (
-                isinstance(device, vim.vm.device.VirtualCdrom) and
-                cdrom_image
-            ):
-                logger().warn(
-                    'Edit cdrom from template. '
-                    'Template should have no inserted cdroms.')
-                cdrom_attached = True
-                cdrom = vim.vm.device.VirtualDeviceSpec()
-                cdrom.device = device
-                device.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
-                    fileName=cdrom_image)
-                cdrom.operation = \
-                    vim.vm.device.VirtualDeviceSpec.Operation.edit
-                connectable = vim.vm.device.VirtualDevice.ConnectInfo()
-                connectable.allowGuestControl = True
-                connectable.startConnected = True
-                device.connectable = connectable
-                devices.append(cdrom)
-                ide_controller = device.controllerKey
-            # ide controller
-            elif isinstance(device, vim.vm.device.VirtualIDEController):
-                # skip fully attached controllers
-                if len(device.device) < 2:
-                    ide_controller = device.key
+        # attach cdrom image and remove all networks
+        devices = self._update_vm(template_vm, cdrom_image=cdrom_image,
+                                  remove_networks=True)
 
         port_groups, distributed_port_groups = self._get_port_group_names()
 
@@ -1535,28 +1574,6 @@ class ServerClient(VsphereClient):
             nicspec, guest_map = self._add_network(network)
             devices.append(nicspec)
             adaptermaps.append(guest_map)
-
-        # attach cdrom
-        if cdrom_image and not cdrom_attached:
-            if not ide_controller:
-                raise NonRecoverableError(
-                    'IDE controller is required for attach cloudinit cdrom.')
-
-            cdrom_device = vim.vm.device.VirtualDeviceSpec()
-            cdrom_device.operation = \
-                vim.vm.device.VirtualDeviceSpec.Operation.add
-            connectable = vim.vm.device.VirtualDevice.ConnectInfo()
-            connectable.allowGuestControl = True
-            connectable.startConnected = True
-
-            cdrom = vim.vm.device.VirtualCdrom()
-            cdrom.controllerKey = ide_controller
-            cdrom.key = -1
-            cdrom.connectable = connectable
-            cdrom.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
-                fileName=cdrom_image)
-            cdrom_device.device = cdrom
-            devices.append(cdrom_device)
 
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
