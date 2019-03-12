@@ -570,6 +570,18 @@ class VsphereClient(object):
 
         return resource_pools
 
+    def _get_vm_folders(self, use_cache=True):
+        properties = [
+            'name'
+        ]
+
+        return self._get_entity(
+            entity_name='vm_folder',
+            props=properties,
+            vimtype=vim.Folder,
+            use_cache=use_cache,
+        )
+
     def _get_clusters(self, use_cache=True):
         properties = [
             'name',
@@ -897,6 +909,7 @@ class VsphereClient(object):
             vim.DistributedVirtualSwitch: self._get_dvswitches,
             vim.HostSystem: self._get_hosts,
             vim.dvs.DistributedVirtualPortgroup: self._get_dv_networks,
+            vim.Folder: self._get_vm_folders,
         }.get(vimtype)
         if getter_method is None:
             raise NonRecoverableError(

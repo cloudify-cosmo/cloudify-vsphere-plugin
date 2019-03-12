@@ -457,7 +457,7 @@ node_types:
         default: True
       use_external_resource:
         description: >
-          Whether to use a vm that already exists on vSphere.
+          Whether to use a datacenter that already exists on vSphere.
         default: { get_property: [ SELF, use_existing_resource] }
       connection_config:
         default: {}
@@ -486,7 +486,7 @@ node_types:
         default: True
       use_external_resource:
         description: >
-          Whether to use a vm that already exists on vSphere.
+          Whether to use a datastore that already exists on vSphere.
         default: { get_property: [ SELF, use_existing_resource] }
       connection_config:
         default: {}
@@ -514,7 +514,7 @@ node_types:
         default: True
       use_external_resource:
         description: >
-          Whether to use a vm that already exists on vSphere.
+          Whether to use a cluster that already exists on vSphere.
         default: { get_property: [ SELF, use_existing_resource] }
       connection_config:
         default: {}
@@ -543,7 +543,7 @@ node_types:
         default: True
       use_external_resource:
         description: >
-          Whether to use a vm that already exists on vSphere.
+          Whether to use a resource pool that already exists on vSphere.
         default: { get_property: [ SELF, use_existing_resource] }
       connection_config:
         default: {}
@@ -557,12 +557,41 @@ node_types:
           implementation: vsphere.cloudify_vsphere.resource_pool.delete
           inputs: {}
 
+  cloudify.vsphere.nodes.VMFolder:
+    derived_from: cloudify.nodes.Root
+    properties:
+      name:
+        description: >
+          The name of the VM folder.
+      use_existing_resource:
+        description: >
+          Whether to use a VM folder that already exists on vSphere.
+          Currently, VM folder cannot be created or deleted,
+          and this node type exists only for compatibility with the NSX/Content
+          Library plugin.
+        default: True
+      use_external_resource:
+        description: >
+          Whether to use a VM folder that already exists on vSphere.
+        default: { get_property: [ SELF, use_existing_resource] }
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.vm_folder.create
+          inputs: {}
+        delete:
+          implementation: vsphere.cloudify_vsphere.vm_folder.delete
+          inputs: {}
+
   cloudify.vsphere.nodes.Host:
     derived_from: cloudify.nodes.Root
     properties:
       name:
         description: >
-          The name of the resource_pool.
+          The name of the hypervisor host.
       use_existing_resource:
         description: >
           Whether to use a hypervisor host that already exists on vSphere.
@@ -572,7 +601,7 @@ node_types:
         default: True
       use_external_resource:
         description: >
-          Whether to use a vm that already exists on vSphere.
+          Whether to use a hypervisor host that already exists on vSphere.
         default: { get_property: [ SELF, use_existing_resource] }
       connection_config:
         default: {}
