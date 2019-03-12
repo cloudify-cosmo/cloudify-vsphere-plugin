@@ -1,0 +1,213 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
+  - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.13.0/plugin.yaml
+  - ../../../plugin.yaml
+
+inputs:
+
+  vcenter_user:
+    type: string
+
+  vcenter_password:
+    type: string
+
+  vcenter_ip:
+    type: string
+
+  vcenter_port:
+    type: string
+    default: 443
+
+  vcenter_datacenter:
+    type: string
+    description: >
+       vcenter datacenter
+    default: Datacenter
+
+  vcenter_resource_pool:
+    description: >
+      Resource pool name
+    default: Resources
+
+  vcenter_datastore:
+    type: string
+    description: >
+      vcenter datastore
+    default: datastore1
+
+  vcenter_hypervisor_host:
+    type: string
+    description: >
+      vcenter host
+
+  vsphere_auto_placement:
+    type: string
+    default: true
+
+  test_network_distributed:
+    default: false
+
+  template_library:
+    type: string
+    description: >
+      "CentOS template library"
+    default: "Centos"
+
+  template_name:
+    type: string
+    description: >
+      "CentOS template name"
+    default: "CentOS-7.6-Cloud-Init-tmpl"
+
+
+###############################################################################
+#  DSL section
+###############################################################################
+dsl_definitions:
+
+  connection_config: &connection_config
+    username: { get_input: vcenter_user }
+    password: {get_input: vcenter_password }
+    host: { get_input: vcenter_ip }
+    port: { get_input: vcenter_port }
+    datacenter_name: {get_input: vcenter_datacenter }
+    resource_pool_name: { get_input: vcenter_resource_pool }
+    auto_placement: { get_input: vsphere_auto_placement }
+    allow_insecure: true
+
+node_templates:
+
+  cloud_init:
+    type: cloudify.nodes.CloudInit.CloudConfig
+    properties:
+      resource_config:
+        password: passw0rd
+        chpasswd:
+           expire: False
+        ssh_pwauth: True
+        #network:
+          #version: 1
+          #config:
+          #- type: physical
+            #name: ens192
+            #subnets:
+            #- type: static
+              #address: 172.16.168.156/24
+              #gateway: 172.16.168.1
+
+  cloud_init_image:
+    type: cloudify.vsphere.nodes.CloudInitISO
+    properties:
+      connection_config: *connection_config
+      datacenter_name: { get_input: vcenter_datacenter }
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            allowed_datastores:
+            - { get_input: vcenter_datastore }
+            vol_ident: cidata
+            raw_files:
+              meta-data: cloudinit_meta_data.yaml
+            files:
+              user-data: { get_attribute: [cloud_init, cloud_config ] }
+    relationships:
+    - target: cloud_init
+      type: cloudify.relationships.depends_on
+
+  vm_folder:
+    type: cloudify.vsphere.nodes.VMFolder
+    properties:
+      use_external_resource: true
+      name: vm
+      connection_config: *connection_config
+
+  resource_pool:
+    type: cloudify.vsphere.nodes.ResourcePool
+    properties:
+      use_external_resource: true
+      name: { get_input: vcenter_resource_pool }
+      connection_config: *connection_config
+
+  datastore:
+    type: cloudify.vsphere.nodes.Datastore
+    properties:
+      use_external_resource: true
+      name: { get_input: vcenter_datastore }
+      connection_config: *connection_config
+
+  hypervisor_host:
+    type: cloudify.vsphere.nodes.Host
+    properties:
+      use_external_resource: true
+      name: { get_input: vcenter_hypervisor_host }
+      connection_config: *connection_config
+
+  network:
+    type: cloudify.vsphere.nodes.Network
+    properties:
+      use_external_resource: true
+      network:
+        name: External
+        switch_distributed: false
+      connection_config: *connection_config
+
+  vm_content_library:
+    type: cloudify.vsphere.nodes.ContentLibraryDeployment
+    properties:
+      library_name:  { get_input: template_library }
+      template_name: { get_input: template_name }
+      connection_config: *connection_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            target:
+              folder_id: { get_attribute: [vm_folder, vsphere_vm_folder_id] }
+              host_id: { get_attribute: [resource_pool, vsphere_hypervisor_host_id] }
+              resource_pool_id: { get_attribute: [resource_pool, vsphere_resource_pool_id] }
+            deployment_spec:
+              default_datastore_id: { get_attribute: [datastore, vsphere_datastore_id] }
+              annotation: Template annotation
+              network_mappings:
+              - key: test_ippool
+                value: { get_attribute: [network, vsphere_network_id, 0] }
+    relationships:
+    - target: datastore
+      type: cloudify.relationships.depends_on
+    - target: vm_folder
+      type: cloudify.relationships.depends_on
+    - target: resource_pool
+      type: cloudify.relationships.depends_on
+    - target: hypervisor_host
+      type: cloudify.relationships.depends_on
+    - target: network
+      type: cloudify.relationships.depends_on
+
+  vm_instance:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      use_external_resource: true
+      connection_config: *connection_config
+      agent_config:
+        install_method: none
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          inputs:
+            cdrom_image: { get_attribute: [cloud_init_image, storage_image ] }
+            server:
+              name: { get_attribute: [vm_content_library, vm_name] }
+        stop:
+          inputs:
+            force_stop: true
+        delete:
+          inputs:
+            force_delete: true
+    relationships:
+    - target: vm_content_library
+      type: cloudify.relationships.depends_on
+    - target: cloud_init_image
+      type: cloudify.relationships.depends_on

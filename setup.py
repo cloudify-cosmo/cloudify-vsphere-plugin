@@ -39,6 +39,7 @@ setuptools.setup(
         "pyvmomi>=6.5.0.2017.5",
         "netaddr==0.7.18",
         "pyyaml>=3.10",
-        "pycdlib",
+        "pycdlib", # cdrom image
+        "requests", # content library
     ],
 )

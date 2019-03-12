@@ -41,42 +41,11 @@ inputs:
       "CentOS 7 template name"
     default: "CentOS-7.6-Cloud-Init-tmpl"
 
-  vcenter_network:
-    type: string
-    description: >
-      vcenter network
-    default: Internal
-
-  management_name:
-    type: string
-    description: >
-      Management network
-    default: Management
-
-  management_distributed:
-    type: boolean
-    description: >
-      Management distributed
-    default: true
-
   vcenter_datastore:
     type: string
     description: >
       vcenter datastore
     default: datastore1
-
-  agent_user:
-    default: root
-    type: string
-
-  agent_group:
-    default: root
-
-  manager_network:
-    default: default
-
-  install_method:
-    default: remote
 
   allowed_hosts:
     default: []
@@ -92,17 +61,20 @@ inputs:
       The name to give to the new test network
     type: string
     default: systestnetwork
+
   test_network_distributed:
     description: >
       Whether the test network is distributed
     type: boolean
     default: false
+
   test_network_vlan:
     description: >
       Which VLAN to use for the test network.
       It is not recommended that this is set to 1
     type: integer
     default: 404
+
   test_network_vswitch:
     description: >
       The vswitch/dvswitch to attach this portgroup (network) to
@@ -164,15 +136,6 @@ node_templates:
         chpasswd:
            expire: False
         ssh_pwauth: True
-        #network:
-          #version: 1
-          #config:
-          #- type: physical
-            #name: ens192
-            #subnets:
-            #- type: static
-              #address: 172.16.168.156/24
-              #gateway: 172.16.168.1
 
   cloud_init_image:
     type: cloudify.vsphere.nodes.CloudInitISO
@@ -186,10 +149,10 @@ node_templates:
             allowed_datastores:
             - { get_input: vcenter_datastore }
             vol_ident: cidata
-            raw_files:
-              meta-data: cloudinit_meta_data.yaml
             files:
               user-data: { get_attribute: [cloud_init, cloud_config ] }
+              meta-data: >
+                instance-id: localhost
     relationships:
     - target: cloud_init
       type: cloudify.relationships.depends_on
