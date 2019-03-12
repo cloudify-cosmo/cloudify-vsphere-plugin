@@ -615,6 +615,69 @@ node_types:
           implementation: vsphere.cloudify_vsphere.hypervisor_host.delete
           inputs: {}
 
+# For more information look to https://vdc-repo.vmware.com/vmwb-repository/dcr-public/1cd28284-3b72-4885-9e31-d1c6d9e26686/71ef7304-a6c9-43b3-a3cd-868b2c236c81/doc/operations/com/vmware/vcenter/ovf/library_item.deploy-operation.html
+  cloudify.vsphere.nodes.ContentLibraryDeployment:
+    derived_from: cloudify.nodes.Root
+    properties:
+      library_name:
+        description: >
+          The name of the content library name.
+        default: ""
+      template_name:
+        description: >
+          The name of the content library item name.
+        default: ""
+      target:
+        description: >
+          Target settings for install:
+            resource_pool_id: Identifier of the resource pool to which the
+                virtual machine or virtual appliance should be attached.
+            host_id: Identifier of the target host on which the virtual
+                machine or virtual appliance will run. Optional. If unset,
+                the server will automatically select a target host from the
+                resource pool.
+            folder_id: Identifier of the vCenter folder that should contain
+                the virtual machine or virtual appliance. The folder must be
+                virtual machine folder. Optional. If unset, the server will
+                choose the deployment folder.
+        default: {}
+      deployment_spec:
+        description: >
+          Deployment settings for install:
+            name: Name assigned to the deployed target virtual machine or
+                virtual appliance. Optional. If unset, the server will use
+                the name from the instance.id.
+            annotation: Annotation assigned to the deployed target virtual
+                machine or virtual appliance. Optional. If unset, the server
+                will use the annotation from the OVF package.
+            network_mappings: Specification of the target network to use for
+                sections of type ovf:NetworkSection in the OVF descriptor.
+            storage_mappings: Specification of the target storage to use for
+                sections of type vmw:StorageGroupSection in the OVF descriptor.
+            storage_provisioning: Default storage provisioning type to use for
+                all sections of type vmw:StorageSection in the OVF descriptor.
+            storage_profile_id: Default storage profile to use for all sections
+                of type vmw:StorageSection in the OVF descriptor.
+            locale: The locale to use for parsing the OVF descriptor.
+            flags: Flags to be use for deployment.
+            additional_parameters: Additional OVF parameters that may be needed
+                for the deployment.
+            default_datastore_id: Default datastore to use for all sections of
+                type vmw:StorageSection in the OVF descriptor. Optional.
+                If unset, the server will choose the default datastore.
+        default: {}
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.contentlibrary.deployment.create
+          inputs: {}
+        delete:
+          implementation: vsphere.cloudify_vsphere.contentlibrary.deployment.delete
+          inputs: {}
+
   cloudify.vsphere.nodes.NIC:
     derived_from: cloudify.nodes.Root
     properties:
