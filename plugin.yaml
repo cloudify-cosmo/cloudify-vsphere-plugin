@@ -166,6 +166,10 @@ node_types:
         required: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config
+      ignore_state_changes:
+        description: |
+          Whether to ignore start action.
+        default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         start:
