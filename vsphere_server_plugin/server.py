@@ -318,6 +318,7 @@ def start(
         custom_sysprep,
         custom_attributes,
         use_external_resource,
+        ignore_state_changes,
         cdrom_image=None,
         ):
     ctx.logger.debug("Checking whether server exists...")
@@ -362,9 +363,13 @@ def start(
             )
     else:
         server_client.update_server(server=server_obj, cdrom_image=cdrom_image)
-        ctx.logger.info("Server already exists, powering on.")
-        server_client.start_server(server=server_obj)
-        ctx.logger.info("Server powered on.")
+        if ignore_state_changes:
+            ctx.logger.info("Server already exists, but will not be powered on as ignore_state_changes is set to true")
+        else:
+            ctx.logger.info("Server already exists, powering on.")
+            server_client.start_server(server=server_obj)
+            ctx.logger.info("Server powered on.")
+        _get_existing_server_details(ctx, server_client, server)
 
 
 @op
@@ -759,15 +764,6 @@ def resize(ctx, server_client, server, os_family):
         raise NonRecoverableError(
             "Server resize parameters should be specified.")
 
-@op
-@with_server_client
-def get_existing_server_details(
-        ctx,
-        server_client,
-        server
-        ):
-    _get_existing_server_details(ctx,server_client,server)
-
 
 def _get_existing_server_details(
         ctx,
@@ -776,7 +772,7 @@ def _get_existing_server_details(
         ):
     server_obj = server_client.get_server_by_name(server.get("name"))
     if server_obj is None:
-        raise NonRecoverableError('Have not found preexisting vm')
+        raise NonRecoverableError('Have not found preexisting vm.')
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
     ctx.instance.runtime_properties['name'] = server_obj.name
     ctx.instance.runtime_properties[NETWORKS] = \
@@ -784,6 +780,7 @@ def _get_existing_server_details(
     ctx.instance.runtime_properties['use_existing_resource'] = True
     ctx.instance.runtime_properties['use_external_resource'] = True
     return server_obj
+
 
 def get_vm_name(ctx, server, os_family):
     # VM name may be at most 15 characters for Windows.

@@ -178,6 +178,10 @@ node_types:
         description: |
           Force delete vm for external resource
         default: false
+      ignore_state_changes:
+        description: |
+          Whether to ignore start action.
+        default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         start:
