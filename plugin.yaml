@@ -166,10 +166,10 @@ node_types:
         required: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config
-      ignore_state_changes:
+      enable_start_vm:
         description: |
-          Whether to ignore start action.
-        default: false
+          Enable start (power on) operation for VM.
+        default: true
     interfaces:
       cloudify.interfaces.lifecycle:
         start:
