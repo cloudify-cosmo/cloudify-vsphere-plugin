@@ -318,7 +318,7 @@ def start(
         custom_sysprep,
         custom_attributes,
         use_external_resource,
-        ignore_state_changes,
+        enable_start_vm,
         cdrom_image=None,
         ):
     ctx.logger.debug("Checking whether server exists...")
@@ -363,12 +363,12 @@ def start(
             )
     else:
         server_client.update_server(server=server_obj, cdrom_image=cdrom_image)
-        if ignore_state_changes:
-            ctx.logger.info("Server already exists, but will not be powered on as ignore_state_changes is set to true")
-        else:
+        if enable_start_vm:
             ctx.logger.info("Server already exists, powering on.")
             server_client.start_server(server=server_obj)
             ctx.logger.info("Server powered on.")
+        else:
+            ctx.logger.info("Server already exists, but will not be powered on as enable_start_vm is set to false")
         _get_existing_server_details(ctx, server_client, server)
 
 
