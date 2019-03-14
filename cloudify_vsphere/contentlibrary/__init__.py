@@ -22,24 +22,33 @@ class ContentLibrary(object):
 
     def __init__(self, connection_config):
         self.config = connection_config
-        response = requests.request(
+        # we need set it empty for correct delete
+        self.session_id = None
+        value = self._call(
             "POST", "https://{host}/rest/com/vmware/cis/session"
                     .format(host=self.config['host']),
             auth=(self.config['username'], self.config['password']),
             verify=not self.config.get('allow_insecure', False))
-        response.raise_for_status()
-        self.session_id = response.cookies['vmware-api-session-id']
-        json_value = response.json()
-        if self.session_id != json_value.get('value'):
+        if self.session_id != value:
             raise NonRecoverableError(
                 "Cookies should be same: {response} != {session_id}"
-                .format(response=json_value('value'),
-                        session_id=self.session_id))
+                .format(response=value, session_id=self.session_id))
+
+    def _call(self, *argc, **kwargs):
+        response = requests.request(*argc, **kwargs)
+        response.raise_for_status()
+        if 'vmware-api-session-id' in response.cookies:
+            self.session_id = response.cookies['vmware-api-session-id']
+        value = response.json()
+        ctx.logger.debug("Response is {value}".format(value=value))
+        if "value" not in value:
+            raise NonRecoverableError("No results provided.")
+        return value["value"]
 
     def __del__(self):
         if self.session_id:
             try:
-                requests.request(
+                self._call(
                     "DELETE", "https://{host}/rest/com/vmware/cis/session"
                               .format(host=self.config['host']),
                     cookies={'vmware-api-session-id': self.session_id},
@@ -48,20 +57,18 @@ class ContentLibrary(object):
                 ctx.logger.debug("Exception raised on log out: {ex}"
                                  .format(ex=repr(ex)))
 
-    def get_content_library(self, library_name):
+    def content_library_get(self, library_name):
+        url = (
+            "https://{host}/rest/com/vmware/content/library?~action=find"
+            .format(host=self.config['host'])
+        )
         # get libraries
-        response = requests.request(
-            "GET", "https://{host}/rest/com/vmware/content/library"
-                   .format(host=self.config['host']),
+        libraries = self._call(
+            "POST", url,
+            json={"spec": {
+                "name": library_name}},
             cookies={'vmware-api-session-id': self.session_id},
             verify=not self.config.get('allow_insecure', False))
-        response.raise_for_status()
-        value = response.json()
-        if "value" not in value:
-            raise NonRecoverableError("No results provided.")
-        libraries = value["value"]
-        ctx.logger.debug("Libraries list are {libraries}"
-                         .format(libraries=repr(libraries)))
 
         # search our library
         for library_id in libraries:
@@ -70,36 +77,29 @@ class ContentLibrary(object):
                 "id:{library_id}"
                 .format(host=self.config['host'], library_id=library_id)
             )
-            response = requests.request(
+            library = self._call(
                 "GET", url,
                 cookies={'vmware-api-session-id': self.session_id},
                 verify=not self.config.get('allow_insecure', False))
-            response.raise_for_status()
-            value = response.json()
-            if "value" not in value:
-                raise NonRecoverableError("No results provided.")
-            library = value["value"]
-            ctx.logger.debug("Library is {library}".format(library=library))
             if library.get('name') == library_name:
                 return library
         else:
             raise NonRecoverableError("Library doesn't exist.")
 
-    def get_content_item(self, library_id, template_name):
+    def content_item_get(self, library_id, template_name):
+        url = (
+            "https://{host}/rest/com/vmware/content/library/item?~action=find"
+            .format(host=self.config['host'])
+        )
         # get list templates
-        response = requests.request(
-            "GET", "https://{host}/rest/com/vmware/content/library/item"
-                   .format(host=self.config['host']),
-            params={"library_id": library_id},
+        templates = self._call(
+            "POST", url,
+            json={"spec": {
+                "cached": True,
+                "library_id": library_id,
+                "name": template_name}},
             cookies={'vmware-api-session-id': self.session_id},
             verify=not self.config.get('allow_insecure', False))
-        response.raise_for_status()
-        value = response.json()
-        if "value" not in value:
-            raise NonRecoverableError("No results provided.")
-        templates = value["value"]
-        ctx.logger.debug("Templates are {templates}"
-                         .format(templates=templates))
 
         # search our template
         for template_id in templates:
@@ -107,47 +107,34 @@ class ContentLibrary(object):
                 "https://{host}/rest/com/vmware/content/library/item/"
                 "id:{template_id}"
                 .format(host=self.config['host'], template_id=template_id))
-            response = requests.request(
+            template = self._call(
                 "GET", url,
                 cookies={'vmware-api-session-id': self.session_id},
                 verify=not self.config.get('allow_insecure', False))
-            response.raise_for_status()
-            value = response.json()
-            if "value" not in value:
-                raise NonRecoverableError("No results provided.")
-            template = value["value"]
-            ctx.logger.debug("Template {template}".format(template=template))
             if template.get('name') == template_name:
                 return template
         else:
             raise NonRecoverableError("Template doesn't exist.")
 
-    def deploy_content_item(self, template_id, target, parameters):
+    def content_item_deploy(self, template_id, target, parameters):
         url = (
             "https://{host}/rest/com/vmware/vcenter/ovf/library-item/"
             "id:{template_id}?~action="
             .format(host=self.config['host'], template_id=template_id)
         )
-        # get deployments details
-        response = requests.request(
+        # get deployments details / dump to logs
+        self._call(
             "POST", url + "filter",
             cookies={'vmware-api-session-id': self.session_id},
             json={"target": target},
             verify=not self.config.get('allow_insecure', False))
-        response.raise_for_status()
-        value = response.json()
-        if "value" not in value:
-            raise NonRecoverableError("No results provided.")
-        deployment = value["value"]
-        ctx.logger.debug("Deployment is {deployment}"
-                         .format(deployment=deployment))
 
         # deploy
         deployment_spec = {
             "accept_all_EULA": True
         }
         deployment_spec.update(parameters)
-        response = requests.request(
+        deployment = self._call(
             "POST", url + "deploy",
             cookies={'vmware-api-session-id': self.session_id},
             json={
@@ -155,13 +142,6 @@ class ContentLibrary(object):
                 "target": target
             },
             verify=not self.config.get('allow_insecure', False))
-        response.raise_for_status()
-        value = response.json()
-        if "value" not in value:
-            raise NonRecoverableError("No results provided.")
-        deployment = value["value"]
-        ctx.logger.debug("Deployed {deployment}"
-                         .format(deployment=deployment))
         if not deployment.get('succeeded'):
             raise NonRecoverableError("Deploy is failed: {deployment}"
                                       .format(deployment=deployment))
