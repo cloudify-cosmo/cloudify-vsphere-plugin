@@ -318,7 +318,7 @@ def start(
         custom_sysprep,
         custom_attributes,
         use_external_resource,
-        enable_start_vm,
+        enable_start_vm=True,
         cdrom_image=None,
         ):
     ctx.logger.debug("Checking whether server exists...")

@@ -1,3 +1,8 @@
+2.12.0:
+  - Add `enable_start_vm flag` for external VM's
+  - Add support Content Library support
+  - Support OVA deployments from Content Library
+  - Export external id for Hypervisor Host, Resource Pool and VM Folder.
 2.11.0:
   - IP Pool support
   - CIDR/MTU export for external network based on assigned IP Pool and
