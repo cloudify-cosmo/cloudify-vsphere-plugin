@@ -17,7 +17,6 @@
 # Third party imports
 
 # Cloudify imports
-from cloudify.exceptions import NonRecoverableError
 
 # This package imports
 from cloudify_vsphere.utils import op
@@ -38,29 +37,12 @@ def create(ctx, connection_config, library_name, template_name, target,
            deployment_spec):
     runtime_properties = ctx.instance.runtime_properties
     content = ContentLibrary(connection_config)
-    library = content.get_content_library(library_name)
-    content_library_id = library["id"] if library else None
-
-    if not content_library_id:
-        raise NonRecoverableError(
-            'Could not use existing content library "{name}" as no '
-            'library by that name exists!'.format(
-                name=library_name,
-            )
-        )
-
+    library = content.content_library_get(library_name)
+    content_library_id = library["id"]
     runtime_properties[CONTENT_LIBRARY_ID] = content_library_id
 
-    item = content.get_content_item(content_library_id, template_name)
-    content_item_id = item["id"] if item else None
-
-    if not content_item_id:
-        raise NonRecoverableError(
-            'Could not use existing content library item "{name}" as no '
-            'item by that name exists!'.format(
-                name=template_name,
-            )
-        )
+    item = content.content_item_get(content_library_id, template_name)
+    content_item_id = item["id"]
     runtime_properties[CONTENT_ITEM_ID] = content_item_id
 
     if "name" not in deployment_spec:
@@ -77,7 +59,7 @@ def create(ctx, connection_config, library_name, template_name, target,
             )
         )
 
-    deployment = content.deploy_content_item(content_item_id, target,
+    deployment = content.content_item_deploy(content_item_id, target,
                                              deployment_spec)
     ctx.logger.debug("Deployed VM id: {vm_id}"
                      .format(vm_id=deployment['resource_id']['id']))
@@ -87,5 +69,5 @@ def create(ctx, connection_config, library_name, template_name, target,
 
 
 @op
-def delete(ctx, connection_config, name, use_external_resource):
+def delete(ctx):
     remove_runtime_properties(CONTENT_LIBRARY_PROPERTIES, ctx)
