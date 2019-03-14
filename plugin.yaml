@@ -178,6 +178,10 @@ node_types:
         description: |
           Force delete vm for external resource
         default: false
+      enable_start_vm:
+        description: |
+          Enable start (power on) operation for VM.
+        default: true
     interfaces:
       cloudify.interfaces.lifecycle:
         start:
