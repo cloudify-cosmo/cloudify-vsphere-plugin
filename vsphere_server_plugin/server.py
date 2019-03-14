@@ -368,7 +368,8 @@ def start(
             server_client.start_server(server=server_obj)
             ctx.logger.info("Server powered on.")
         else:
-            ctx.logger.info("Server already exists, but will not be powered on as enable_start_vm is set to false")
+            ctx.logger.info("Server already exists, but will not be powered"
+                            "on as enable_start_vm is set to false")
         _get_existing_server_details(ctx, server_client, server)
 
 
