@@ -29,7 +29,9 @@ class ContentLibrary(object):
                     .format(host=self.config['host']),
             auth=(self.config['username'], self.config['password']),
             verify=not self.config.get('allow_insecure', False))
-        if self.session_id != value:
+        # _call has side effect, _call always update self.session_id from
+        # last succesful call
+        if self.session_id != value or not self.session_id:
             raise NonRecoverableError(
                 "Cookies should be same: {response} != {session_id}"
                 .format(response=value, session_id=self.session_id))
