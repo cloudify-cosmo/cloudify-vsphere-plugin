@@ -102,6 +102,8 @@ node_types:
   host:
     derived_from: cloudify.vsphere.nodes.Server
     properties:
+      vm_folder:
+        default: vm
       connection_config:
         default: *connection_config
       os_family:
