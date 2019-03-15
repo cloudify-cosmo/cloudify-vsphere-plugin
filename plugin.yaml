@@ -7,8 +7,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.12.0'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.12.0.zip
+    package_version: '2.13.0'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.13.0.zip
 
 data_types:
 
@@ -167,6 +167,10 @@ node_types:
       cdrom_image:
         description: |
           Cdrom image path
+        default: false
+      vm_folder:
+        description: |
+          Folder name for place new created VM
         default: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config

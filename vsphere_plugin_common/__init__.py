@@ -1507,6 +1507,7 @@ class ServerClient(VsphereClient):
             allowed_clusters=None,
             allowed_datastores=None,
             cdrom_image=None,
+            vm_folder=None,
             ):
         logger().debug(
             "Entering create_server with parameters %s"
@@ -1565,7 +1566,18 @@ class ServerClient(VsphereClient):
         datacenter = self._get_obj_by_name(vim.Datacenter,
                                            datacenter_name)
 
-        destfolder = datacenter.vmFolder
+        if not vm_folder:
+            destfolder = datacenter.vmFolder
+        else:
+            folder = self._get_obj_by_name(vim.Folder, vm_folder)
+            if not folder:
+                raise NonRecoverableError(
+                    'Could not use vm_folder "{name}" as no '
+                    'vm folder by that name exists!'.format(
+                        name=vm_folder,
+                    )
+                )
+            destfolder = folder.obj
         relospec = vim.vm.RelocateSpec()
         relospec.datastore = datastore.obj
         relospec.pool = resource_pool.obj
