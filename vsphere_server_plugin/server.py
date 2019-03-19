@@ -241,15 +241,15 @@ def create_new_server(
                 if network.get('management', False)]) > 1:
             raise NonRecoverableError(err_msg % 'management')
 
-        for network_index in range(0, len(connect_networks)):
-            network = connect_networks.pop(network_index)
+        reordered_networks = []
+        for network in connect_networks:
             ctx.logger.info('connected_network: {0}'.format(network))
             validate_connect_network(network)
             if network['external']:
-                connect_networks.insert(0, network)
+                reordered_networks.insert(0, network)
             else:
-                connect_networks.append(network)
-        del network_index
+                reordered_networks.append(network)
+        connect_networks = reordered_networks
 
     connection_config = server_client.cfg
     datacenter_name = connection_config['datacenter_name']
