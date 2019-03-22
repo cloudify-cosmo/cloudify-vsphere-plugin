@@ -53,13 +53,13 @@ inputs:
     type: string
     description: >
       "CentOS template library"
-    default: "Centos"
+    default: "CentOS"
 
   template_name:
     type: string
     description: >
       "CentOS template name"
-    default: "CentOS-7.6-Cloud-Init-tmpl"
+    default: "CentOS-7-x86_64-GenericCloud-ContainerHost"
 
 
 ###############################################################################
@@ -87,15 +87,6 @@ node_templates:
         chpasswd:
            expire: False
         ssh_pwauth: True
-        #network:
-          #version: 1
-          #config:
-          #- type: physical
-            #name: ens192
-            #subnets:
-            #- type: static
-              #address: 172.16.168.156/24
-              #gateway: 172.16.168.1
 
   cloud_init_image:
     type: cloudify.vsphere.nodes.CloudInitISO
@@ -110,7 +101,7 @@ node_templates:
             - { get_input: vcenter_datastore }
             vol_ident: cidata
             raw_files:
-              meta-data: cloudinit_meta_data.yaml
+              meta-data: templates/cloudinit_meta_data.yaml
             files:
               user-data: { get_attribute: [cloud_init, cloud_config ] }
     relationships:
@@ -150,7 +141,7 @@ node_templates:
     properties:
       use_external_resource: true
       network:
-        name: External
+        name: Internal
         switch_distributed: false
       connection_config: *connection_config
 
@@ -172,7 +163,7 @@ node_templates:
               default_datastore_id: { get_attribute: [datastore, vsphere_datastore_id] }
               annotation: Template annotation
               network_mappings:
-              - key: test_ippool
+              - key: management
                 value: { get_attribute: [network, vsphere_network_id, 0] }
     relationships:
     - target: datastore
@@ -191,6 +182,7 @@ node_templates:
     properties:
       use_external_resource: true
       connection_config: *connection_config
+      os_family: other
       agent_config:
         install_method: none
     interfaces:

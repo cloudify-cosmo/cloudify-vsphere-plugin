@@ -581,11 +581,17 @@ def get_state(ctx, server_client, server, networking, os_family):
             )
         )
     vm_name = get_vm_name(ctx, server, os_family)
-    ctx.logger.info('Getting state for server {name}'.format(name=vm_name))
+    ctx.logger.info('Getting state for server {name} ({os_family})'
+                    .format(name=vm_name, os_family=os_family))
+
+    if os_family == "other":
+        ctx.logger.info("Skip guest checks for other os: {info}"
+                        .format(info=repr(server_obj.guest)))
+        return True
 
     nets = ctx.instance.runtime_properties[NETWORKS]
     if server_client.is_server_guest_running(server_obj):
-        ctx.logger.debug("Server is running, getting network details.")
+        ctx.logger.info("Server is running, getting network details.")
         ctx.logger.info("Guest info: {info}"
                         .format(info=repr(server_obj.guest)))
         networks = networking.get('connect_networks', []) if networking else []
