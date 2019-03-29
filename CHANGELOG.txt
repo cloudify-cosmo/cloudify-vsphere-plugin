@@ -1,4 +1,6 @@
 2.13.0:
+  - Rename `raw_files` to `files_raw`
+  - Fix start external VM without VMware tools
   - Put VM to prexisted folder
 2.12.0:
   - Add `enable_start_vm flag` for external VM's
