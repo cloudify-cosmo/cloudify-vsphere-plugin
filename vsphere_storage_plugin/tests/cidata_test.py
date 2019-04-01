@@ -51,7 +51,7 @@ class VsphereCIDataTest(unittest.TestCase):
             vol_ident='vol', sys_ident='sys', files={
                 "a/b/c": "d",
                 'c': 'f'
-            }, raw_files={
+            }, files_raw={
                 'g': 'file_call'
             }, get_resource=_get_resource)
         _get_resource.assert_called_once_with('file_call')
