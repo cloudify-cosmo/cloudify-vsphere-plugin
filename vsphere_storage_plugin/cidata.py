@@ -51,7 +51,7 @@ def _iso_name(name):
         return "/{name}.;3".format(name=_name_cleanup(name))
 
 
-def _create_iso(vol_ident, sys_ident, files, raw_files, get_resource):
+def _create_iso(vol_ident, sys_ident, files, files_raw, get_resource):
     iso = pycdlib.PyCdlib()
     iso.new(interchange_level=3, joliet=3,
             vol_ident=vol_ident, sys_ident=sys_ident)
@@ -60,9 +60,9 @@ def _create_iso(vol_ident, sys_ident, files, raw_files, get_resource):
         files = {}
 
     # apply raw files over files content
-    if raw_files:
-        for name in raw_files:
-            files[name] = get_resource(raw_files[name])
+    if files_raw:
+        for name in files_raw:
+            files[name] = get_resource(files_raw[name])
 
     # existed directories
     dirs = []
@@ -98,13 +98,18 @@ def _create_iso(vol_ident, sys_ident, files, raw_files, get_resource):
 
 @op
 @with_rawvolume_client
-def create(rawvolume_client, files, raw_files, datacenter_name,
-           allowed_datastores, vol_ident, sys_ident, volume_prefix, **kwargs):
+def create(rawvolume_client, files, files_raw, datacenter_name,
+           allowed_datastores, vol_ident, sys_ident, volume_prefix,
+           raw_files=None, **kwargs):
     ctx.logger.info("Creating new iso image.")
+
+    if raw_files:
+        ctx.logger.warn("`raw_files` is deprecated, use `files_raw`.")
+        files_raw = files_raw.update(raw_files) if files_raw else raw_files
 
     outiso = _create_iso(vol_ident=vol_ident, sys_ident=sys_ident,
                          get_resource=ctx.get_resource, files=files,
-                         raw_files=raw_files)
+                         files_raw=files_raw)
 
     iso_disk = "/{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)

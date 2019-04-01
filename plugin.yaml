@@ -433,6 +433,11 @@ node_types:
       raw_files:
         default: {}
         description: >
+          Deprecated. List files for save to CloudInit iso image with file
+          name from blueprint.
+      files_raw:
+        default: { get_property: [ SELF, raw_files] }
+        description: >
           List files for save to CloudInit iso image with file name from
           blueprint.
           Example:
