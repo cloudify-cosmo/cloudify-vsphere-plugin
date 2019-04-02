@@ -157,7 +157,7 @@ node_templates:
           inputs:
             target:
               folder_id: { get_attribute: [vm_folder, vsphere_vm_folder_id] }
-              host_id: { get_attribute: [resource_pool, vsphere_hypervisor_host_id] }
+              host_id: { get_attribute: [hypervisor_host, vsphere_hypervisor_host_id] }
               resource_pool_id: { get_attribute: [resource_pool, vsphere_resource_pool_id] }
             deployment_spec:
               default_datastore_id: { get_attribute: [datastore, vsphere_datastore_id] }
