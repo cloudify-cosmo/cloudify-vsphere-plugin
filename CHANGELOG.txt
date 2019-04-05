@@ -1,3 +1,6 @@
+2.13.1:
+  - Fix json keys order in deployments additional parameters for content
+    library.
 2.13.0:
   - Rename `raw_files` to `files_raw`
   - Fix start external VM without VMware tools

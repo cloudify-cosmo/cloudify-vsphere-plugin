@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections
 import requests
 
 # Cloudify imports
@@ -118,6 +119,20 @@ class ContentLibrary(object):
         else:
             raise NonRecoverableError("Template doesn't exist.")
 
+    def _cleanup_parmeters(self, v):
+        """Put class as first element in dict"""
+        precoded = [("@class", v["@class"])] if "@class" in v else []
+        precoded += [(k, v[k]) for k in v if k != "@class"]
+        return collections.OrderedDict(precoded)
+
+    def _cleanup_specs(self, deployment_spec):
+        """Clean up deployment specifiction"""
+        deployment_spec["additional_parameters"] = [
+            self._cleanup_parmeters(v)
+            for v in deployment_spec.get("additional_parameters", [])
+        ]
+        return deployment_spec
+
     def content_item_deploy(self, template_id, target, parameters):
         url = (
             "https://{host}/rest/com/vmware/vcenter/ovf/library-item/"
@@ -136,6 +151,7 @@ class ContentLibrary(object):
             "accept_all_EULA": True
         }
         deployment_spec.update(parameters)
+        deployment_spec = self._cleanup_specs(deployment_spec)
         deployment = self._call(
             "POST", url + "deploy",
             cookies={'vmware-api-session-id': self.session_id},

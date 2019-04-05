@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import collections
 
 import unittest
 
@@ -171,6 +172,34 @@ class ContentLibraryTest(unittest.TestCase):
 
             self.assertEqual(cl.content_item_get("abc", "def"),
                              {'name': 'def', 'id': 'id'})
+
+    def test_cleanup_parmeters(self):
+        _responses = [self.response_logout,
+                      self.response_login]
+
+        def _fake_response(*argc, **kwargs):
+            return _responses.pop()
+
+        requests = Mock()
+        requests.request = _fake_response
+        # check correct deployment
+        with patch("cloudify_vsphere.contentlibrary.requests", requests):
+            cl = contentlibrary.ContentLibrary({'host': 'host',
+                                                'username': 'username',
+                                                'password': 'password',
+                                                'allow_insecure': True})
+            self.assertEqual(
+                cl._cleanup_specs({"additional_parameters": [{
+                    "type": "DeploymentOptionParams",
+                    "@class": "com.vmware.vcenter.ovf.deployment_option_params"
+                }]}),
+                {'additional_parameters': [collections.OrderedDict([(
+                    # class should be always first in list
+                    '@class', 'com.vmware.vcenter.ovf.deployment_option_params'
+                ), (
+                    'type', 'DeploymentOptionParams'
+                )])]}
+            )
 
     def test_content_item_deploy(self):
         response_deployment = Mock()

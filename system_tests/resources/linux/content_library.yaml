@@ -162,6 +162,10 @@ node_templates:
             deployment_spec:
               default_datastore_id: { get_attribute: [datastore, vsphere_datastore_id] }
               annotation: Template annotation
+              additional_parameters:
+              - type: DeploymentOptionParams
+                selected_key: singlecpu
+                "@class": com.vmware.vcenter.ovf.deployment_option_params
               network_mappings:
               - key: management
                 value: { get_attribute: [network, vsphere_network_id, 0] }

@@ -13,6 +13,17 @@
       <Description>The management network</Description>
     </Network>
   </NetworkSection>
+  <DeploymentOptionSection>
+    <Info>DeploymentOption Info</Info>
+    <Configuration ovf:id="singlecpu">
+      <Label>1 CPU/2048 MB RAM</Label>
+      <Description>1 CPU and 2048 MB RAM.</Description>
+    </Configuration>
+    <Configuration ovf:id="dualcpu" ovf:default="true">
+      <Label>2 CPUs/4096 MB RAM</Label>
+      <Description>2 CPUs and 4096 MB RAM.</Description>
+    </Configuration>
+  </DeploymentOptionSection>
   <vmw:IpAssignmentSection vmw:schemes="ovfenv" vmw:protocols="IPv4">
     <Info>Supported IP assignment schemes</Info>
   </vmw:IpAssignmentSection>
@@ -30,22 +41,39 @@
         <vssd:InstanceID>0</vssd:InstanceID>
         <vssd:VirtualSystemType>vmx-13, xen3</vssd:VirtualSystemType>
       </System>
-      <Item>
+      <Item ovf:configuration="singlecpu">
         <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
         <rasd:Description>Number of Virtual CPUs</rasd:Description>
-        <rasd:ElementName>1 virtual CPU(s)</rasd:ElementName>
+        <rasd:ElementName>1 virtual CPU</rasd:ElementName>
         <rasd:InstanceID>1</rasd:InstanceID>
         <rasd:ResourceType>3</rasd:ResourceType>
         <rasd:VirtualQuantity>1</rasd:VirtualQuantity>
-        <vmw:CoresPerSocket ovf:required="false">1</vmw:CoresPerSocket>
       </Item>
-      <Item>
+      <Item ovf:configuration="singlecpu">
         <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
         <rasd:Description>Memory Size</rasd:Description>
-        <rasd:ElementName>1024MB of memory</rasd:ElementName>
+        <rasd:ElementName>2048MB of memory</rasd:ElementName>
         <rasd:InstanceID>2</rasd:InstanceID>
+        <rasd:Reservation>2048</rasd:Reservation>
         <rasd:ResourceType>4</rasd:ResourceType>
-        <rasd:VirtualQuantity>1024</rasd:VirtualQuantity>
+        <rasd:VirtualQuantity>2048</rasd:VirtualQuantity>
+      </Item>
+      <Item ovf:configuration="dualcpu">
+        <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
+        <rasd:Description>Number of Virtual CPUs</rasd:Description>
+        <rasd:ElementName>2 virtual CPU(s)</rasd:ElementName>
+        <rasd:InstanceID>1</rasd:InstanceID>
+        <rasd:ResourceType>3</rasd:ResourceType>
+        <rasd:VirtualQuantity>2</rasd:VirtualQuantity>
+      </Item>
+      <Item ovf:configuration="dualcpu">
+        <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
+        <rasd:Description>Memory Size</rasd:Description>
+        <rasd:ElementName>4096MB of memory</rasd:ElementName>
+        <rasd:InstanceID>2</rasd:InstanceID>
+        <rasd:Reservation>4096</rasd:Reservation>
+        <rasd:ResourceType>4</rasd:ResourceType>
+        <rasd:VirtualQuantity>4096</rasd:VirtualQuantity>
       </Item>
       <Item>
         <rasd:Address>0</rasd:Address>
@@ -107,7 +135,7 @@
         <vmw:Config ovf:required="false" vmw:key="use3dRenderer" vmw:value="automatic"/>
       </Item>
       <vmw:Config ovf:required="false" vmw:key="cpuHotAddEnabled" vmw:value="false"/>
-      <vmw:Config ovf:required="false" vmw:key="nestedHVEnabled" vmw:value="false"/>
+      <vmw:Config ovf:required="false" vmw:key="nestedHVEnabled" vmw:value="true"/>
       <vmw:Config ovf:required="false" vmw:key="virtualSMCPresent" vmw:value="false"/>
       <vmw:Config ovf:required="false" vmw:key="cpuHotRemoveEnabled" vmw:value="false"/>
       <vmw:Config ovf:required="false" vmw:key="memoryHotAddEnabled" vmw:value="false"/>
