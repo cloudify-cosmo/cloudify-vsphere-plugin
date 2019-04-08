@@ -68,3 +68,6 @@ cloudify_vsphere_plugin.egg-info/
 
 # vim
 *.sw[po]
+
+# vmware diskimages
+*.vmdk
