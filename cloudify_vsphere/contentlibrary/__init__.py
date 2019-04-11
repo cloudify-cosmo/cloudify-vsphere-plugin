@@ -59,6 +59,7 @@ class ContentLibrary(object):
             except Exception as ex:
                 ctx.logger.debug("Exception raised on log out: {ex}"
                                  .format(ex=repr(ex)))
+        self.session_id = None
 
     def content_library_get(self, library_name):
         url = (

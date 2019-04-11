@@ -2937,24 +2937,41 @@ class RawVolumeClient(VsphereClient):
         self.si.content.fileManager.DeleteFile(datastorepath, dc.obj)
 
     def upload_file(self, datacenter_name, allowed_datastores,
-                    remote_file, data, host, port):
+                    allowed_datastore_ids, remote_file, data, host,
+                    port):
         dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
         if not dc:
             raise NonRecoverableError(
                 "Unable to get datacenter: {datacenter}"
                 .format(datacenter=repr(datacenter_name)))
+        ctx.logger.debug(
+            "Will be checked storages with such ids: {ids}, and names: {names}"
+            .format(ids=repr(allowed_datastore_ids),
+                    names=repr(allowed_datastores)))
+
         datastores = self._get_datastores()
         ds = None
-        if not allowed_datastores and datastores:
+        if not allowed_datastores and not allowed_datastore_ids and datastores:
             ds = datastores[0]
         else:
-            for datastore in datastores:
-                if datastore.name in allowed_datastores:
-                    ds = datastore
-                    break
+            # select by datastore ids
+            if allowed_datastore_ids:
+                for datastore in datastores:
+                    if datastore.id in allowed_datastore_ids:
+                        ds = datastore
+                        break
+            # select by datastore names
+            if not ds and allowed_datastores:
+                for datastore in datastores:
+                    if datastore.name in allowed_datastores:
+                        ds = datastore
+                        break
         if not ds:
-            raise NonRecoverableError("Unable to get datastore: {}"
-                                      .format(repr(allowed_datastores)))
+            raise NonRecoverableError(
+                "Unable to get datastore {allowed} in {available}"
+                .format(allowed=repr(allowed_datastores),
+                        available=repr([datastore.name
+                                        for datastore in datastores])))
 
         params = {"dsName": ds.name,
                   "dcPath": dc.name}

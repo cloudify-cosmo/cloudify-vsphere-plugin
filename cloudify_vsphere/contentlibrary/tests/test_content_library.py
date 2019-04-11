@@ -47,10 +47,12 @@ class ContentLibraryTest(unittest.TestCase):
         requests.request = Mock(return_value=self.response_login)
         with patch("cloudify_vsphere.contentlibrary.requests", requests):
             # correct session id
-            contentlibrary.ContentLibrary({'host': 'host',
-                                           'username': 'username',
-                                           'password': 'password',
-                                           'allow_insecure': True})
+            cl = contentlibrary.ContentLibrary({'host': 'host',
+                                                'username': 'username',
+                                                'password': 'password',
+                                                'allow_insecure': True})
+            cl.__del__()
+
             # wrong session id
             response = Mock()
             response.json = Mock(return_value={"value": 'other_id'})
@@ -91,6 +93,7 @@ class ContentLibraryTest(unittest.TestCase):
 
             with self.assertRaises(NonRecoverableError):
                 cl.content_library_get("abc")
+            cl.__del__()
 
     def test_content_library_get(self):
         response_list = Mock()
@@ -121,6 +124,7 @@ class ContentLibraryTest(unittest.TestCase):
 
             self.assertEqual(cl.content_library_get("abc"),
                              {'name': 'abc', 'id': 'id'})
+            cl.__del__()
 
     def test_content_item_get_fail(self):
         _responses = [self.response_logout,
@@ -141,6 +145,7 @@ class ContentLibraryTest(unittest.TestCase):
 
             with self.assertRaises(NonRecoverableError):
                 cl.content_item_get("abc", "def")
+            cl.__del__()
 
     def test_content_item_get(self):
         response_list = Mock()
@@ -172,6 +177,7 @@ class ContentLibraryTest(unittest.TestCase):
 
             self.assertEqual(cl.content_item_get("abc", "def"),
                              {'name': 'def', 'id': 'id'})
+            cl.__del__()
 
     def test_cleanup_parmeters(self):
         _responses = [self.response_logout,
@@ -200,6 +206,7 @@ class ContentLibraryTest(unittest.TestCase):
                     'type', 'DeploymentOptionParams'
                 )])]}
             )
+            cl.__del__()
 
     def test_content_item_deploy(self):
         response_deployment = Mock()
@@ -236,6 +243,7 @@ class ContentLibraryTest(unittest.TestCase):
                 cl.content_item_deploy(
                     "abc", {'target': '_target'}, {'param': '_param'}),
                 {'name': 'def', 'succeeded': True, 'id': 'id'})
+            cl.__del__()
 
     def test_content_item_deploy_fail(self):
         # failed deployment
@@ -271,6 +279,7 @@ class ContentLibraryTest(unittest.TestCase):
                                                     'allow_insecure': True})
                 cl.content_item_deploy(
                     "abc", {'target': '_target'}, {'param': '_param'})
+            cl.__del__()
 
 
 if __name__ == '__main__':

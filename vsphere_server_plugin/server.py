@@ -34,6 +34,9 @@ from vsphere_plugin_common.constants import (
     PUBLIC_IP,
     SERVER_RUNTIME_PROPERTIES,
     VSPHERE_SERVER_ID,
+    VSPHERE_SERVER_HOST,
+    VSPHERE_SERVER_DATASTORE_IDS,
+    VSPHERE_SERVER_DATASTORE,
 )
 
 RELATIONSHIP_VM_TO_NIC = \
@@ -300,6 +303,7 @@ def create_new_server(
                     name=vm_name))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj._moId
     ctx.instance.runtime_properties['name'] = vm_name
+    _update_vm_properties(ctx, server_obj)
 
 
 @op
@@ -374,7 +378,8 @@ def start(
         else:
             ctx.logger.info("Server already exists, but will not be powered"
                             "on as enable_start_vm is set to false")
-        _get_existing_server_details(ctx, server_client, server)
+        _get_existing_server_details(ctx, server_client, server_obj)
+        _update_vm_properties(ctx, server_obj)
 
 
 @op
@@ -776,21 +781,22 @@ def resize(ctx, server_client, server, os_family):
             "Server resize parameters should be specified.")
 
 
-def _get_existing_server_details(
-        ctx,
-        server_client,
-        server
-        ):
-    server_obj = server_client.get_server_by_name(server.get("name"))
-    if server_obj is None:
-        raise NonRecoverableError('Have not found preexisting vm.')
+def _update_vm_properties(ctx, server_obj):
+    ctx.instance.runtime_properties[VSPHERE_SERVER_HOST] = str(
+        server_obj.summary.runtime.host.name)
+    ctx.instance.runtime_properties[VSPHERE_SERVER_DATASTORE] = [
+        datastore.name for datastore in server_obj.datastore]
+
+
+def _get_existing_server_details(ctx, server_client, server_obj):
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
     ctx.instance.runtime_properties['name'] = server_obj.name
+    ctx.instance.runtime_properties[VSPHERE_SERVER_DATASTORE_IDS] = [
+        datastore.id for datastore in server_obj.datastore]
     ctx.instance.runtime_properties[NETWORKS] = \
         server_client.get_vm_networks(server_obj)
     ctx.instance.runtime_properties['use_existing_resource'] = True
     ctx.instance.runtime_properties['use_external_resource'] = True
-    return server_obj
 
 
 def get_vm_name(ctx, server, os_family):
