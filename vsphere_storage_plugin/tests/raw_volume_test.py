@@ -53,6 +53,7 @@ class RawVolumeTest(unittest.TestCase):
         client._get_obj_by_name = Mock(return_value=datacenter)
         datastore = Mock()
         datastore.name = "datastore"
+        datastore.id = "datastore_id"
         client._get_datastores = Mock(return_value=[datastore])
         client.si = Mock()
         client.si._stub.cookie = ('vmware_soap_session="'
@@ -61,8 +62,13 @@ class RawVolumeTest(unittest.TestCase):
         with patch("vsphere_plugin_common.requests.put", put_mock):
             # check upload code
             self.assertEqual(
-                client.upload_file("datacenter", ["datastore"], "file", "data",
-                                   "host", 80),
+                client.upload_file(datacenter_name="datacenter",
+                                   allowed_datastores=["datastore"],
+                                   allowed_datastore_ids=[],
+                                   remote_file="file",
+                                   data="data",
+                                   host="host",
+                                   port=80),
                 '[datastore] file'
             )
         # checks
@@ -84,13 +90,33 @@ class RawVolumeTest(unittest.TestCase):
             vsphere_plugin_common.vim.Datacenter, "datacenter")
         client._get_datastores.assert_called_once_with()
 
+        # check by id
+        put_mock = Mock()
+        with patch("vsphere_plugin_common.requests.put", put_mock):
+            # check upload code
+            self.assertEqual(
+                client.upload_file(datacenter_name="datacenter",
+                                   allowed_datastores=[],
+                                   allowed_datastore_ids=["datastore_id"],
+                                   remote_file="file",
+                                   data="data",
+                                   host="host",
+                                   port=80),
+                '[datastore] file'
+            )
+
         # without specific datastore
         put_mock = Mock()
         with patch("vsphere_plugin_common.requests.put", put_mock):
             # check upload code
             self.assertEqual(
-                client.upload_file("datacenter", [], "file", "data",
-                                   "host", 80),
+                client.upload_file(datacenter_name="datacenter",
+                                   allowed_datastores=[],
+                                   allowed_datastore_ids=[],
+                                   remote_file="file",
+                                   data="data",
+                                   host="host",
+                                   port=80),
                 '[datastore] file'
             )
         put_mock.assert_called_once_with(
@@ -111,14 +137,24 @@ class RawVolumeTest(unittest.TestCase):
         # unknown datastores
         client._get_datastores = Mock(return_value=[])
         with self.assertRaises(NonRecoverableError):
-            client.upload_file("datacenter", ["datastore"], "file", "data",
-                               "host", 80)
+            client.upload_file(datacenter_name="datacenter",
+                               allowed_datastores=["datastore"],
+                               allowed_datastore_ids=[],
+                               remote_file="file",
+                               data="data",
+                               host="host",
+                               port=80)
 
         # unknown datacenter
         client._get_obj_by_name = Mock(return_value=None)
         with self.assertRaises(NonRecoverableError):
-            client.upload_file("datacenter", ["datastore"], "file", "data",
-                               "host", 80)
+            client.upload_file(datacenter_name="datacenter",
+                               allowed_datastores=["datastore"],
+                               allowed_datastore_ids=[],
+                               remote_file="file",
+                               data="data",
+                               host="host",
+                               port=80)
 
 
 if __name__ == '__main__':

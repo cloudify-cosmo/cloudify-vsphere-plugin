@@ -1,7 +1,7 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - http://www.getcloudify.org/spec/cloudify/4.5/types.yaml
+  - http://www.getcloudify.org/spec/cloudify/4.5.5/types.yaml
   - https://raw.githubusercontent.com/cloudify-incubator/cloudify-utilities-plugin/1.13.0/plugin.yaml
   - ../../../plugin.yaml
 
@@ -88,26 +88,6 @@ node_templates:
            expire: False
         ssh_pwauth: True
 
-  cloud_init_image:
-    type: cloudify.vsphere.nodes.CloudInitISO
-    properties:
-      connection_config: *connection_config
-      datacenter_name: { get_input: vcenter_datacenter }
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        create:
-          inputs:
-            allowed_datastores:
-            - { get_input: vcenter_datastore }
-            vol_ident: cidata
-            raw_files:
-              meta-data: templates/cloudinit_meta_data.yaml
-            files:
-              user-data: { get_attribute: [cloud_init, cloud_config ] }
-    relationships:
-    - target: cloud_init
-      type: cloudify.relationships.depends_on
-
   vm_folder:
     type: cloudify.vsphere.nodes.VMFolder
     properties:
@@ -186,6 +166,46 @@ node_templates:
     properties:
       use_external_resource: true
       connection_config: *connection_config
+      enable_start_vm: false
+      os_family: other
+      agent_config:
+        install_method: none
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          inputs:
+            server:
+              name: { get_attribute: [vm_content_library, vm_name] }
+    relationships:
+    - target: vm_content_library
+      type: cloudify.relationships.depends_on
+
+  cloud_init_image:
+    type: cloudify.vsphere.nodes.CloudInitISO
+    properties:
+      connection_config: *connection_config
+      datacenter_name: { get_input: vcenter_datacenter }
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            allowed_datastore_ids: { get_attribute: [vm_instance, datastore_ids] }
+            vol_ident: cidata
+            raw_files:
+              meta-data: templates/cloudinit_meta_data.yaml
+            files:
+              user-data: { get_attribute: [cloud_init, cloud_config ] }
+    relationships:
+    - target: vm_instance
+      type: cloudify.relationships.depends_on
+    - target: cloud_init
+      type: cloudify.relationships.depends_on
+
+  instance_with_cdrom:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      use_external_resource: true
+      connection_config: *connection_config
       os_family: other
       agent_config:
         install_method: none
@@ -203,7 +223,7 @@ node_templates:
           inputs:
             force_delete: true
     relationships:
-    - target: vm_content_library
+    - target: vm_instance
       type: cloudify.relationships.depends_on
     - target: cloud_init_image
       type: cloudify.relationships.depends_on
