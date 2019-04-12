@@ -1,4 +1,4 @@
-2.13.2:
+2.14.0:
   - Export host and datastore for external VM
 2.13.1:
   - Fix json keys order in deployments additional parameters for content

@@ -2945,7 +2945,7 @@ class RawVolumeClient(VsphereClient):
                 "Unable to get datacenter: {datacenter}"
                 .format(datacenter=repr(datacenter_name)))
         ctx.logger.debug(
-            "Will be checked storages with such ids: {ids}, and names: {names}"
+            "Will check storage with IDs: {ids}; and names: {names}"
             .format(ids=repr(allowed_datastore_ids),
                     names=repr(allowed_datastores)))
 
