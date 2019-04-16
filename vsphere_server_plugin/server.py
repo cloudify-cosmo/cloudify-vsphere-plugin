@@ -812,14 +812,20 @@ def _get_existing_server_details(ctx, server_client, server_obj):
 
 
 def get_vm_name(ctx, server, os_family):
-    # VM name may be at most 15 characters for Windows.
+    # If the name is provided on the server, use that.
+    vm_name = server.get('name')
+    if vm_name is not None:
+        return vm_name
+
+    # If we've already set the name on this instance, use that.
+    vm_name = ctx.instance.runtime_properties.get('name')
+    if vm_name is not None:
+        return vm_name
 
     # Expecting an ID in the format <name>_<id>
     name_prefix, id_suffix = ctx.instance.id.rsplit('_', 1)
 
-    if 'name' in server and server['name'] != ctx.instance.id:
-        name_prefix = server['name']
-
+    # VM name may be at most 15 characters for Windows.
     if os_family.lower() == 'windows':
         max_prefix = 14 - (len(id_suffix) + 1)
         name_prefix = name_prefix[:max_prefix]
