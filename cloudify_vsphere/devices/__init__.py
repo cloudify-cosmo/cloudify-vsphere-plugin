@@ -22,7 +22,7 @@ from vsphere_plugin_common.constants import (
     NETWORK_NAME,
     IP,
     SWITCH_DISTRIBUTED)
-from vsphere_plugin_common import ContollerClient, ServerClient
+from vsphere_plugin_common import ControllerClient, ServerClient
 
 RELATIONSHIP_NIC_TO_NETWORK = \
     'cloudify.relationships.vsphere.nic_connected_to_network'
@@ -73,7 +73,7 @@ def controller_without_connected_networks(runtime_properties):
 
 
 @operation
-def create_contoller(ctx, **kwargs):
+def create_controller(ctx, **kwargs):
     controller_properties = ctx.instance.runtime_properties
     controller_properties.update(kwargs)
     ctx.logger.info("Properties {0}".format(repr(controller_properties)))
@@ -81,20 +81,20 @@ def create_contoller(ctx, **kwargs):
 
 
 @operation
-def delete_contoller(ctx, **kwargs):
+def delete_controller(ctx, **kwargs):
     for key in list(ctx.instance.runtime_properties.keys()):
         del ctx.instance.runtime_properties[key]
 
 
 @operation
-def attach_scsi_contoller(ctx, **kwargs):
+def attach_scsi_controller(ctx, **kwargs):
     scsi_properties = controller_without_connected_networks(
         ctx.source.instance.runtime_properties)
     hostvm_properties = ctx.target.instance.runtime_properties
     ctx.logger.debug("Source {0}".format(repr(scsi_properties)))
     ctx.logger.debug("Target {0}".format(repr(hostvm_properties)))
 
-    cl = ContollerClient()
+    cl = ControllerClient()
     cl.get(config=ctx.source.node.properties.get("connection_config"))
 
     scsi_spec, controller_type = cl.generate_scsi_card(
@@ -134,7 +134,7 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
 
 
 @operation
-def detach_contoller(ctx, **kwargs):
+def detach_controller(ctx, **kwargs):
     _detach_controller(
         ctx.source.node.properties.get("connection_config"),
         ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
@@ -145,7 +145,7 @@ def detach_contoller(ctx, **kwargs):
 
 
 @operation
-def detach_server_from_contoller(ctx, **kwargs):
+def detach_server_from_controller(ctx, **kwargs):
     if ctx.target.instance.id not in \
             ctx.source.instance.runtime_properties.get('connected_nics',
                                                        []):
@@ -160,7 +160,7 @@ def detach_server_from_contoller(ctx, **kwargs):
 
 
 def _attach_ethernet_card(client_config, server_id, ethernet_card_properties):
-    cl = ContollerClient()
+    cl = ControllerClient()
     cl.get(config=client_config)
 
     nicspec, controller_type = cl.generate_ethernet_card(
@@ -169,9 +169,9 @@ def _attach_ethernet_card(client_config, server_id, ethernet_card_properties):
 
 
 def _detach_controller(client_config, server_id, bus_key):
-    cl = ContollerClient()
+    cl = ControllerClient()
     cl.get(config=client_config)
-    cl.detach_contoller(server_id, bus_key)
+    cl.detach_controller(server_id, bus_key)
 
 
 def _get_card_ip(client_config, server_id, nic_name):

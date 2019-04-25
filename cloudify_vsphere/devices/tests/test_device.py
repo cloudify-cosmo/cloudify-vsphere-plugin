@@ -15,7 +15,7 @@ import unittest
 from mock import MagicMock, Mock, patch, call
 from pyVmomi import vim
 
-from vsphere_plugin_common import ContollerClient
+from vsphere_plugin_common import ControllerClient
 
 
 class VsphereDeviceTest(unittest.TestCase):
@@ -36,7 +36,7 @@ class VsphereDeviceTest(unittest.TestCase):
         return vm
 
     def test_check_attach_card(self):
-        cl = ContollerClient()
+        cl = ControllerClient()
 
         vm_original = self._get_vm()
         vm_get_mock = MagicMock(return_value=vm_original)

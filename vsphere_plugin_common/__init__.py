@@ -3276,9 +3276,9 @@ class StorageClient(VsphereClient):
         logger().debug("Storage resized to a new size %s." % storage_size)
 
 
-class ContollerClient(VsphereClient):
+class ControllerClient(VsphereClient):
 
-    def detach_contoller(self, vm_id, bus_key):
+    def detach_controller(self, vm_id, bus_key):
         if not vm_id:
             raise NonRecoverableError("VM is not defined")
         if not bus_key:
@@ -3296,7 +3296,7 @@ class ContollerClient(VsphereClient):
                     config_spec.device = dev
                     break
         else:
-            logger().debug("Contoller is not defined {}".format(bus_key))
+            logger().debug("Controller is not defined {}".format(bus_key))
             return
 
         spec = vim.vm.ConfigSpec()

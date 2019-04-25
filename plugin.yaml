@@ -771,7 +771,7 @@ node_types:
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
-          implementation: vsphere.cloudify_vsphere.devices.create_contoller
+          implementation: vsphere.cloudify_vsphere.devices.create_controller
           inputs:
             name:
               default: { get_attribute: [ SELF, name ] }
@@ -794,7 +794,7 @@ node_types:
             network_configuration:
               default: { get_attribute: [ SELF, network_configuration ] }
         delete:
-          implementation: vsphere.cloudify_vsphere.devices.delete_contoller
+          implementation: vsphere.cloudify_vsphere.devices.delete_controller
 
   cloudify.vsphere.nodes.SCSIController:
     derived_from: cloudify.nodes.Root
@@ -805,8 +805,8 @@ node_types:
         default: 0
       label:
         description: >
-          Label for SCSI contoller
-        default: SCSIContoller
+          Label for SCSI controller
+        default: SCSIController
       adapterType:
         description: >
           Possible: paravirtual, lsilogic_sas, lsilogic
@@ -835,7 +835,7 @@ node_types:
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
-          implementation: vsphere.cloudify_vsphere.devices.create_contoller
+          implementation: vsphere.cloudify_vsphere.devices.create_controller
           inputs:
             busNumber:
               default: { get_attribute: [ SELF, busNumber ] }
@@ -850,7 +850,7 @@ node_types:
             label:
               default: { get_attribute: [ SELF, label ] }
         delete:
-          implementation: vsphere.cloudify_vsphere.devices.delete_contoller
+          implementation: vsphere.cloudify_vsphere.devices.delete_controller
 
 relationships:
 
@@ -870,16 +870,16 @@ relationships:
         preconfigure:
           implementation: vsphere.cloudify_vsphere.devices.attach_ethernet_card
         unlink:
-          implementation: vsphere.cloudify_vsphere.devices.detach_contoller
+          implementation: vsphere.cloudify_vsphere.devices.detach_controller
 
   cloudify.vsphere.controller_connected_to_vm:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
         preconfigure:
-          implementation: vsphere.cloudify_vsphere.devices.attach_scsi_contoller
+          implementation: vsphere.cloudify_vsphere.devices.attach_scsi_controller
         unlink:
-          implementation: vsphere.cloudify_vsphere.devices.detach_contoller
+          implementation: vsphere.cloudify_vsphere.devices.detach_controller
 
   cloudify.relationships.vsphere.nic_connected_to_network:
     derived_from: cloudify.relationships.contained_in
@@ -891,7 +891,7 @@ relationships:
         establish:
           implementation: vsphere.cloudify_vsphere.devices.attach_server_to_ethernet_card
         unlink:
-          implementation: vsphere.cloudify_vsphere.devices.detach_server_from_contoller
+          implementation: vsphere.cloudify_vsphere.devices.detach_server_from_controller
 
   cloudify.relationships.vsphere.ippool_connected_to_network:
     derived_from: cloudify.relationships.depends_on
