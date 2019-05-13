@@ -1,3 +1,7 @@
+2.15.0:
+  - Support Solaris guests (OmniOS CE)
+  - Wait IP flag for wait any ip's on connected NIC
+  - Set extra properties set to VM
 2.14.0:
   - Export host and datastore for external VM
 2.13.1:

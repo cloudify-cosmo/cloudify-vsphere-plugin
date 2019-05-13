@@ -49,15 +49,44 @@ inputs:
   template_library:
     type: string
     description: >
-      "CentOS template library"
-    default: "CentOS"
+      "Custom Solaris template library"
+    default: "Solaris"
 
   template_name:
     type: string
     description: >
-      "CentOS template name"
-    default: "CentOS-7-x86_64-GenericCloud-ContainerHost"
+      "Custom Solaris template template name"
+    default: "Solaris"
 
+  vm_ip:
+    type: string
+    description: >
+      VM ip
+    default: 172.16.168.156
+
+  vm_netmask:
+    type: string
+    description: >
+      VM netmask
+    default: 255.255.255.0
+
+  vm_gateway:
+    type: string
+    description: >
+      VM gateway
+    default: 172.16.168.1
+
+  vm_user:
+    type: string
+    description: >
+      VM user
+    default: root
+
+  vm_password:
+    type: string
+    description: >
+      VM password
+    default: root
 
 ###############################################################################
 #  DSL section
@@ -75,15 +104,6 @@ dsl_definitions:
     allow_insecure: true
 
 node_templates:
-
-  cloud_init:
-    type: cloudify.nodes.CloudInit.CloudConfig
-    properties:
-      resource_config:
-        password: passw0rd
-        chpasswd:
-           expire: False
-        ssh_pwauth: True
 
   vm_folder:
     type: cloudify.vsphere.nodes.VMFolder
@@ -138,13 +158,8 @@ node_templates:
               resource_pool_id: { get_attribute: [resource_pool, vsphere_resource_pool_id] }
             deployment_spec:
               default_datastore_id: { get_attribute: [datastore, vsphere_datastore_id] }
-              annotation: Template annotation
-              additional_parameters:
-              - type: DeploymentOptionParams
-                selected_key: singlecpu
-                "@class": com.vmware.vcenter.ovf.deployment_option_params
               network_mappings:
-              - key: management
+              - key: 'VM Network'
                 value: { get_attribute: [network, vsphere_network_id, 0] }
     relationships:
     - target: datastore
@@ -163,8 +178,8 @@ node_templates:
     properties:
       use_external_resource: true
       connection_config: *connection_config
-      enable_start_vm: false
-      os_family: other
+      os_family: solaris
+      wait_ip: true
       agent_config:
         install_method: none
     interfaces:
@@ -173,46 +188,8 @@ node_templates:
           inputs:
             server:
               name: { get_attribute: [vm_content_library, vm_name] }
-    relationships:
-    - target: vm_content_library
-      type: cloudify.relationships.depends_on
-
-  cloud_init_image:
-    type: cloudify.vsphere.nodes.CloudInitISO
-    properties:
-      connection_config: *connection_config
-      datacenter_name: { get_input: vcenter_datacenter }
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        create:
-          inputs:
-            allowed_datastore_ids: { get_attribute: [vm_instance, datastore_ids] }
-            vol_ident: cidata
-            raw_files:
-              meta-data: templates/cloudinit_meta_data.yaml
-            files:
-              user-data: { get_attribute: [cloud_init, cloud_config ] }
-    relationships:
-    - target: vm_instance
-      type: cloudify.relationships.depends_on
-    - target: cloud_init
-      type: cloudify.relationships.depends_on
-
-  instance_with_cdrom:
-    type: cloudify.vsphere.nodes.Server
-    properties:
-      use_external_resource: true
-      connection_config: *connection_config
-      os_family: other
-      agent_config:
-        install_method: none
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        start:
-          inputs:
-            cdrom_image: { get_attribute: [cloud_init_image, storage_image ] }
-            server:
-              name: { get_attribute: [vm_content_library, vm_name] }
+            extra_config:
+              machine.id: { concat: [ 'ip=', { get_input: vm_ip }, '&netmask=', { get_input: vm_netmask }, '&gateway=', { get_input: vm_gateway } ] }
         stop:
           inputs:
             force_stop: true
@@ -220,7 +197,25 @@ node_templates:
           inputs:
             force_delete: true
     relationships:
-    - target: vm_instance
+    - target: vm_content_library
       type: cloudify.relationships.depends_on
-    - target: cloud_init_image
+
+  state_check:
+    type: cloudify.terminal.raw
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            terminal_auth:
+              user: { get_input: vm_user }
+              password: { get_input: vm_password }
+              ip: { get_attribute: [vm_instance, ip] }
+              exit_command: quit
+              promt_check:
+                - '>'
+            calls:
+              - action: show ip
+                save_to: ips
+    relationships:
+    - target: vm_instance
       type: cloudify.relationships.depends_on

@@ -190,6 +190,7 @@ def create_new_server(
         os_family='linux',
         cdrom_image=None,
         vm_folder=None,
+        extra_config=None,
         ):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info(
@@ -298,7 +299,8 @@ def create_new_server(
         allowed_clusters,
         allowed_datastores,
         cdrom_image=cdrom_image,
-        vm_folder=vm_folder)
+        vm_folder=vm_folder,
+        extra_config=extra_config)
     ctx.logger.info('Successfully created server called {name}'.format(
                     name=vm_name))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj._moId
@@ -327,6 +329,7 @@ def start(
         enable_start_vm=True,
         cdrom_image=None,
         vm_folder=None,
+        extra_config=None,
         ):
     ctx.logger.debug("Checking whether server exists...")
 
@@ -368,9 +371,12 @@ def start(
             os_family=os_family,
             cdrom_image=cdrom_image,
             vm_folder=vm_folder,
+            extra_config=extra_config
             )
     else:
-        server_client.update_server(server=server_obj, cdrom_image=cdrom_image)
+        server_client.update_server(server=server_obj,
+                                    cdrom_image=cdrom_image,
+                                    extra_config=extra_config)
         if enable_start_vm:
             ctx.logger.info("Server already exists, powering on.")
             server_client.start_server(server=server_obj)
@@ -577,7 +583,7 @@ def delete(ctx, server_client, server, os_family, force_delete):
 
 @op
 @with_server_client
-def get_state(ctx, server_client, server, networking, os_family):
+def get_state(ctx, server_client, server, networking, os_family, wait_ip):
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
@@ -599,6 +605,7 @@ def get_state(ctx, server_client, server, networking, os_family):
         ctx.logger.info("Server is running, getting network details.")
         ctx.logger.info("Guest info: {info}"
                         .format(info=repr(server_obj.guest)))
+
         networks = networking.get('connect_networks', []) if networking else []
         manager_network_ip = None
         management_networks = \
@@ -611,10 +618,16 @@ def get_state(ctx, server_client, server, networking, os_family):
         ctx.logger.info("Server management networks: {networks}"
                         .format(networks=repr(management_networks)))
 
+        # used for guest ip checks
+        default_ip = None
         # We must obtain IPs at this stage, as they are not populated until
         # after the VM is fully booted
         for network in server_obj.guest.net:
             network_name = network.network
+            # save ip as default
+            if not default_ip:
+                default_ip = get_ip_from_vsphere_nic_ips(network)
+            # check management
             if management_network_name and \
                     (network_name == management_network_name):
                 manager_network_ip = get_ip_from_vsphere_nic_ips(network)
@@ -643,14 +656,13 @@ def get_state(ctx, server_client, server, networking, os_family):
             )
 
         ctx.instance.runtime_properties[NETWORKS] = nets
-        try:
-            ctx.instance.runtime_properties[IP] = (
-                manager_network_ip or
-                get_ip_from_vsphere_nic_ips(server_obj.guest.net[0])
-            )
-        except IndexError:
+        ctx.instance.runtime_properties[IP] = manager_network_ip or default_ip
+        if not ctx.instance.runtime_properties[IP]:
             ctx.logger.warn("Server has no IP addresses.")
-            ctx.instance.runtime_properties[IP] = None
+            # wait for any ip before next steps
+            if wait_ip:
+                ctx.logger.info("Waiting ip export from guest.")
+                return False
 
         if len(server_obj.guest.net):
             public_ips = [

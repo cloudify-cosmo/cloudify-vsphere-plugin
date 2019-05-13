@@ -1474,13 +1474,22 @@ class ServerClient(VsphereClient):
             devices.append(cdrom_device)
         return devices
 
-    def update_server(self, server, cdrom_image=None):
+    def update_server(self, server, cdrom_image=None, extra_config=None):
         # Attrach cdrom image to vm without change networks list
         devices_changes = self._update_vm(server, cdrom_image=cdrom_image,
                                           remove_networks=False)
-        if devices_changes:
+        if devices_changes or extra_config:
             spec = vim.vm.ConfigSpec()
-            spec.deviceChange = devices_changes
+            # changed devices
+            if devices_changes:
+                spec.deviceChange = devices_changes
+            # add extra config
+            if extra_config and isinstance(extra_config, dict):
+                logger().debug('Extra config: {config}'
+                               .format(config=repr(extra_config)))
+                for k in extra_config:
+                    spec.extraConfig.append(
+                        vim.option.OptionValue(key=k, value=extra_config[k]))
             task = server.obj.ReconfigVM_Task(spec=spec)
             self._wait_for_task(task)
 
@@ -1508,6 +1517,7 @@ class ServerClient(VsphereClient):
             allowed_datastores=None,
             cdrom_image=None,
             vm_folder=None,
+            extra_config=None,
             ):
         logger().debug(
             "Entering create_server with parameters %s"
@@ -1614,6 +1624,14 @@ class ServerClient(VsphereClient):
         clonespec.powerOn = True
         clonespec.template = False
 
+        # add extra config
+        if extra_config and isinstance(extra_config, dict):
+            logger().debug('Extra config: {config}'
+                           .format(config=repr(extra_config)))
+            for k in extra_config:
+                clonespec.extraConfig.append(
+                    vim.option.OptionValue(key=k, value=extra_config[k]))
+
         if adaptermaps:
             logger().debug(
                 'Preparing OS customization spec for {server}'.format(
@@ -1682,11 +1700,17 @@ class ServerClient(VsphereClient):
                 options.changeSID = True
                 options.deleteAccounts = False
                 customspec.options = options
+            elif os_type == 'solaris':
+                ident = None
+                logger().info(
+                    'Customization of the Solaris OS is unsupported by '
+                    ' vSphere. Guest additions are required/supported.')
             else:
                 ident = None
                 logger().info(
-                    'os_type {os_type} was specified, but only "windows" and '
-                    '"linux" are supported. Customization is unsupported.'
+                    'os_type {os_type} was specified, but only "windows", '
+                    '"solaris" and "linux" are supported. Customization is '
+                    'unsupported.'
                     .format(os_type=os_type)
                 )
 
