@@ -5,6 +5,18 @@
   </References>
   <DiskSection>
     <Info>List of the virtual disks</Info>
+    <!--
+    # Create image:
+    sudo yum install -y qemu-kvm libvirt wget
+    wget -cv https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/master/system_tests/resources/linux/templates/CentOS-7-x86_64-GenericCloud-ContainerHost.ovf
+    wget -cv https://buildlogs.centos.org/centos/7/isos/x86_64/CentOS-7-x86_64-GenericCloud-ContainerHost.qcow2
+    qemu-img convert CentOS-7-x86_64-GenericCloud-ContainerHost.qcow2 -O vmdk -o subformat=streamOptimized CentOS-7-x86_64-GenericCloud-ContainerHost.vmdk
+    # fix format if needed: https://kb.vmware.com/s/article/2144687
+    printf '\x03' | dd conv=notrunc of=CentOS-7-x86_64-GenericCloud-ContainerHost.vmdk bs=1 seek=$((0x4))
+    #run http server:
+    python -m SimpleHTTPServer 8080
+    # and use link in content library: http://<host>:8080/CentOS-7-x86_64-GenericCloud-ContainerHost.ovf
+    -->
     <Disk ovf:capacityAllocationUnits="byte" ovf:format="http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized" ovf:diskId="vmdisk1" ovf:capacity="8589934592" ovf:fileRef="file1"/>
   </DiskSection>
   <NetworkSection>

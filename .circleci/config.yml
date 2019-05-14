@@ -18,7 +18,7 @@ jobs:
       - checkout
       - run:
           name: install python/pip/libvirt packages
-          command: sudo apt-get install -yq python-libvirt libvirt-dev python-dev python-pip
+          command: sudo apt-get install -yq python-dev python-pip
       - run:
           name: Download pip
           command: curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
