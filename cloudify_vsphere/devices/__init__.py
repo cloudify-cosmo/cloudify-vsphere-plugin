@@ -20,6 +20,7 @@ from cloudify_vsphere.utils import find_rels_by_type
 from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
     NETWORK_NAME,
+    IP,
     SWITCH_DISTRIBUTED)
 from vsphere_plugin_common import ContollerClient, ServerClient
 
@@ -129,7 +130,7 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
         ctx.source.node.properties.get("connection_config"),
         ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
         ctx.target.instance.runtime_properties.get('name'))
-    ctx.source.instance.runtime_properties['ip'] = ip
+    ctx.source.instance.runtime_properties[IP] = ip
 
 
 @operation

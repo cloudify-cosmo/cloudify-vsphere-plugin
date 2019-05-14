@@ -363,6 +363,176 @@ class BackupServerTest(unittest.TestCase):
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
     @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    def test_get_state(self, smart_m):
+        conn_mock = mock.Mock()
+        smart_m.return_value = conn_mock
+        ctx = self._gen_ctx()
+
+        # nosuch vm (we have vm_id)
+        ctx.instance.runtime_properties['use_external_resource'] = False
+        ctx.instance.runtime_properties['vsphere_server_id'] = 'vm-unknow'
+        ctx.instance.runtime_properties[server.NETWORKS] = []
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=None)
+        ):
+            with self.assertRaisesRegexp(
+                NonRecoverableError,
+                "Cannot get info - server doesn't exist for node: "
+                "node_name"
+            ):
+                server.get_state(server={"name": "server_name"},
+                                 os_family="other_os")
+
+        # skip other vm
+        vm = mock.Mock()
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            self.assertTrue(
+                server.get_state(server={"name": "server_name"},
+                                 os_family="other"))
+
+        # rerun solaris
+        vm = mock.Mock()
+        vm.obj.guest.guestState = 'stopped'
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            self.assertFalse(
+                server.get_state(server={"name": "server_name"},
+                                 os_family="solaris"))
+
+    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    def test_get_state_network(self, smart_m):
+        conn_mock = mock.Mock()
+        smart_m.return_value = conn_mock
+        ctx = self._gen_ctx()
+
+        # nosuch vm (we have vm_id)
+        ctx.instance.runtime_properties['use_external_resource'] = False
+        ctx.instance.runtime_properties['vsphere_server_id'] = 'vm-unknow'
+        ctx.instance.runtime_properties[server.NETWORKS] = []
+        # guest running, ignore no ip
+        vm = mock.Mock()
+        vm.obj.guest.guestState = 'running'
+        vm.guest.net = []
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            self.assertTrue(
+                server.get_state(server={"name": "server_name"},
+                                 os_family="solaris",
+                                 networking={}))
+
+        # guest running, check ip
+        vm = mock.Mock()
+        vm.obj.guest.guestState = 'running'
+        vm.guest.net = []
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            self.assertFalse(
+                server.get_state(server={"name": "server_name"},
+                                 os_family="solaris",
+                                 wait_ip=True,
+                                 networking={}))
+
+        # we have some ip
+        vm = mock.Mock()
+        vm.obj.guest.guestState = 'running'
+        network = mock.Mock()
+        network.network = 'some_net'
+        network.ipAddress = ["192.0.2.1"]
+        vm.guest.net = [network]
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            self.assertTrue(
+                server.get_state(server={"name": "server_name"},
+                                 os_family="solaris",
+                                 wait_ip=True,
+                                 networking={}))
+        self.assertEqual(
+            ctx.instance.runtime_properties[server.IP], "192.0.2.1")
+
+        # we have some ip
+        vm = mock.Mock()
+        vm.obj.guest.guestState = 'running'
+        network1 = mock.Mock()
+        network1.network = 'some_net'
+        network1.ipAddress = ["192.0.2.1"]
+        network2 = mock.Mock()
+        network2.network = 'other_net'
+        network2.ipAddress = ["192.0.2.2"]
+        vm.guest.net = [network1, network2]
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            self.assertTrue(
+                server.get_state(server={"name": "server_name"},
+                                 os_family="solaris",
+                                 wait_ip=True,
+                                 networking={
+                                    'connect_networks': [{
+                                        'name': 'other_net',
+                                        'management': True
+                                     }]
+                                }))
+        self.assertEqual(
+            ctx.instance.runtime_properties[server.IP], "192.0.2.2")
+
+        # no network with management name
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            ctx.operation.retry = mock.Mock(side_effect=Exception('retry?'))
+            with self.assertRaisesRegexp(
+                Exception,
+                'retry?'
+            ):
+                server.get_state(server={"name": "server_name"},
+                                 os_family="solaris",
+                                 wait_ip=True,
+                                 networking={
+                                    'connect_networks': [{
+                                        'name': 'broken',
+                                        'management': True
+                                     }]
+                                })
+
+        # managment network exists by without ip yet
+        vm = mock.Mock()
+        vm.obj.guest.guestState = 'running'
+        network2 = mock.Mock()
+        network2.network = 'other_net'
+        network2.ipAddress = ["169.254.1.1"]
+        vm.guest.net = [network1, network2]
+        with mock.patch(
+            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            mock.Mock(return_value=vm)
+        ):
+            self.assertFalse(
+                server.get_state(server={"name": "server_name"},
+                                 os_family="solaris",
+                                 wait_ip=True,
+                                 networking={
+                                    'connect_networks': [{
+                                        'name': 'other_net',
+                                        'management': True
+                                     }]
+                                }))
+
+    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
     def test_delete(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock

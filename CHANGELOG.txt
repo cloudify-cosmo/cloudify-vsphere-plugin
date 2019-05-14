@@ -2,6 +2,8 @@
   - Support Solaris guests (OmniOS CE)
   - Wait IP flag for wait any ip's on connected NIC
   - Set extra properties set to VM
+  - Deprecate support for cloudify-plugins-common < 4.1.
+    https://cloudify.co/product/cloudify-lifecycle/
 2.14.0:
   - Export host and datastore for external VM
 2.13.1:
