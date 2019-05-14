@@ -646,7 +646,7 @@ def get_state(ctx, server_client, server, networking, os_family, wait_ip):
                     return False
             for net in nets:
                 if net['name'] == network_name:
-                    net['ip'] = get_ip_from_vsphere_nic_ips(network)
+                    net[IP] = get_ip_from_vsphere_nic_ips(network)
 
         # if we have some managment network but no ip in such by some reason
         # go and run one more time

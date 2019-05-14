@@ -40,12 +40,13 @@ from cloudify.exceptions import NonRecoverableError
 # This package imports
 from vsphere_plugin_common.constants import (
     DEFAULT_CONFIG_PATH,
+    IP,
     NETWORKS,
     NETWORK_ID,
     NETWORK_MTU,
     TASK_CHECK_SLEEP,
 )
-from cloudify_vsphere.vendored.collections import namedtuple
+from collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
 
 
@@ -1403,7 +1404,7 @@ class ServerClient(VsphereClient):
             guest_map = vim.vm.customization.AdapterMapping()
             guest_map.adapter = vim.vm.customization.IPSettings()
             guest_map.adapter.ip = vim.vm.customization.FixedIp()
-            guest_map.adapter.ip.ipAddress = network['ip']
+            guest_map.adapter.ip.ipAddress = network[IP]
             guest_map.adapter.gateway = network["gateway"]
             guest_map.adapter.subnetMask = str(nw.netmask)
         return nicspec, guest_map
