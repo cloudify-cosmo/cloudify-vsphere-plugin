@@ -1,3 +1,5 @@
+2.15.1:
+  - Fix mistake with network adapters type. #138
 2.15.0:
   - Support Solaris guests (OmniOS CE)
   - Wait IP flag for wait any ip's on connected NIC

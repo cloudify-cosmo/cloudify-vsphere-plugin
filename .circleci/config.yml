@@ -17,6 +17,9 @@ jobs:
     steps:
       - checkout
       - run:
+          name: update packages list
+          command: sudo apt-get update
+      - run:
           name: install python/pip/libvirt packages
           command: sudo apt-get install -yq python-dev python-pip
       - run:
