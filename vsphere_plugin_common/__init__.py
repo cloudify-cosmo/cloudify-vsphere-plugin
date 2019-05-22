@@ -3430,11 +3430,11 @@ class ContollerClient(VsphereClient):
 
         if adapter_type == "E1000e":
             controller_type = vim.vm.device.VirtualE1000e
-        if adapter_type == "E1000":
+        elif adapter_type == "E1000":
             controller_type = vim.vm.device.VirtualE1000
-        if adapter_type == "Sriov":
+        elif adapter_type == "Sriov":
             controller_type = vim.vm.device.VirtualSriovEthernetCard
-        if adapter_type == "Vmxnet2":
+        elif adapter_type == "Vmxnet2":
             controller_type = vim.vm.device.VirtualVmxnet2
         else:
             controller_type = vim.vm.device.VirtualVmxnet3

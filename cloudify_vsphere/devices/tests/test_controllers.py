@@ -222,6 +222,20 @@ class VsphereControllerTest(unittest.TestCase):
                         self.assertEqual(
                             e.exception.message,
                             "Have not found key for new added device")
+                args, kwargs = vm.obj.ReconfigVM_Task.call_args
+                self.assertEqual(args, ())
+                self.assertEqual(kwargs.keys(), ['spec'])
+                new_adapter = str(
+                    type(kwargs['spec'].deviceChange[0].device))
+                if settings.get('adapter_type'):
+                    self.assertTrue(
+                        settings['adapter_type'].lower() in new_adapter.lower()
+                    )
+                else:
+                    self.assertEqual(
+                        new_adapter,
+                        "<class 'pyVmomi.VmomiSupport.vim.vm.device."
+                        "VirtualVmxnet3'>")
 
     def test_attach_ethernet_card(self):
         for settings in [{
@@ -269,6 +283,28 @@ class VsphereControllerTest(unittest.TestCase):
                         devices.attach_scsi_contoller(ctx=_ctx)
                     self.assertEqual(e.exception.message,
                                      "Have not found key for new added device")
+                args, kwargs = vm.obj.ReconfigVM_Task.call_args
+                self.assertEqual(args, ())
+                self.assertEqual(kwargs.keys(), ['spec'])
+                new_adapter = str(type(kwargs['spec'].deviceChange[0].device))
+                if settings.get('adapterType') == "lsilogic":
+                    self.assertEqual(
+                        new_adapter,
+                        "<class 'pyVmomi.VmomiSupport.vim.vm.device."
+                        "VirtualLsiLogicController'>"
+                    )
+                elif settings.get('adapterType') == "lsilogic_sas":
+                    self.assertEqual(
+                        new_adapter,
+                        "<class 'pyVmomi.VmomiSupport.vim.vm.device."
+                        "VirtualLsiLogicSASController'>"
+                    )
+                else:
+                    self.assertEqual(
+                        new_adapter,
+                        "<class 'pyVmomi.VmomiSupport.vim.vm.device."
+                        "ParaVirtualSCSIController'>"
+                    )
 
     def test_attach_scsi_contoller(self):
         for settings in [{
