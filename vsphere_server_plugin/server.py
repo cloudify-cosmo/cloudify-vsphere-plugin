@@ -272,8 +272,7 @@ def create_new_server(
         raise NonRecoverableError(
             'Computer name must contain only A-Z, a-z, 0-9, '
             'and hyphens ("-"), and must not consist entirely of '
-            'numbers. Underscores will be converted to hyphens. '
-            '"{name}" was not valid.'.format(name=vm_name)
+            'numbers. "{name}" was not valid.'.format(name=vm_name)
         )
 
     ctx.logger.info('Creating server called {name}'.format(name=vm_name))
