@@ -241,15 +241,15 @@ def create_new_server(
                 if network.get('management', False)]) > 1:
             raise NonRecoverableError(err_msg % 'management')
 
-        for network_index in range(0, len(connect_networks)):
-            network = connect_networks.pop(network_index)
+        reordered_networks = []
+        for network in connect_networks:
             ctx.logger.info('connected_network: {0}'.format(network))
             validate_connect_network(network)
             if network['external']:
-                connect_networks.insert(0, network)
+                reordered_networks.insert(0, network)
             else:
-                connect_networks.append(network)
-        del network_index
+                reordered_networks.append(network)
+        connect_networks = reordered_networks
 
     connection_config = server_client.cfg
     datacenter_name = connection_config['datacenter_name']
@@ -258,8 +258,8 @@ def create_new_server(
     # actually used.
     auto_placement = connection_config.get('auto_placement', True)
     template_name = server['template']
-    cpus = server['cpus']
-    memory = server['memory']
+    cpus = server.get('cpus')
+    memory = server.get('memory')
 
     # Computer name may only contain A-Z, 0-9, and hyphens
     # May not be entirely digits
@@ -272,8 +272,7 @@ def create_new_server(
         raise NonRecoverableError(
             'Computer name must contain only A-Z, a-z, 0-9, '
             'and hyphens ("-"), and must not consist entirely of '
-            'numbers. Underscores will be converted to hyphens. '
-            '"{name}" was not valid.'.format(name=vm_name)
+            'numbers. "{name}" was not valid.'.format(name=vm_name)
         )
 
     ctx.logger.info('Creating server called {name}'.format(name=vm_name))
@@ -345,10 +344,8 @@ def start(
         ctx.instance.runtime_properties[NETWORKS] = \
             server_client.get_vm_networks(server_obj)
         ctx.instance.runtime_properties['use_external_resource'] = True
-    else:
-        for key in ["cpus", "memory", "template"]:
-            if not server.get(key):
-                raise NonRecoverableError('{0} is not provided.'.format(key))
+    elif "template" not in server:
+        raise NonRecoverableError('template is not provided.')
     if server_obj is None:
         server_obj = get_server_by_context(ctx, server_client,
                                            server, os_family)

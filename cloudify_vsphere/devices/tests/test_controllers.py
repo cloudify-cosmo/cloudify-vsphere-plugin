@@ -82,15 +82,15 @@ class VsphereControllerTest(unittest.TestCase):
         current_ctx.set(_ctx)
         return _ctx
 
-    def test_create_contoller(self):
+    def test_create_controller(self):
         _ctx = self._gen_ctx()
-        devices.create_contoller(ctx=_ctx, a="b")
+        devices.create_controller(ctx=_ctx, a="b")
         self.assertEqual(_ctx.instance.runtime_properties, {"a": "b"})
 
-    def test_delete_contoller(self):
+    def test_delete_controller(self):
         _ctx = self._gen_ctx()
         _ctx.instance.runtime_properties["c"] = "d"
-        devices.delete_contoller(ctx=_ctx)
+        devices.delete_controller(ctx=_ctx)
         self.assertEqual(_ctx.instance.runtime_properties, {})
 
     def _get_vm(self):
@@ -108,7 +108,7 @@ class VsphereControllerTest(unittest.TestCase):
         vm.config.hardware.device = [contr_device, net_device, scsi_device]
         return vm
 
-    def test_detach_contoller(self):
+    def test_detach_controller(self):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
@@ -116,7 +116,7 @@ class VsphereControllerTest(unittest.TestCase):
             with patch("vsphere_plugin_common.Disconnect", Mock()):
                 # without vm-id
                 with self.assertRaises(NonRecoverableError) as e:
-                    devices.detach_contoller(ctx=_ctx)
+                    devices.detach_controller(ctx=_ctx)
                 self.assertEqual(e.exception.message, "VM is not defined")
 
                 # without device key
@@ -124,7 +124,7 @@ class VsphereControllerTest(unittest.TestCase):
                     'vsphere_server_id'
                 ] = "vm-101"
                 with self.assertRaises(NonRecoverableError) as e:
-                    devices.detach_contoller(ctx=_ctx)
+                    devices.detach_controller(ctx=_ctx)
                 self.assertEqual(e.exception.message,
                                  "Device Key is not defined")
 
@@ -135,7 +135,7 @@ class VsphereControllerTest(unittest.TestCase):
                     "vsphere_plugin_common.VsphereClient._get_obj_by_id",
                     MagicMock(return_value=vm)
                 ):
-                    devices.detach_contoller(ctx=_ctx)
+                    devices.detach_controller(ctx=_ctx)
                 self.assertEqual(
                     _ctx.source.instance.runtime_properties, {}
                 )
@@ -147,7 +147,7 @@ class VsphereControllerTest(unittest.TestCase):
                     "vsphere_plugin_common.VsphereClient._get_obj_by_id",
                     MagicMock(return_value=vm)
                 ):
-                    devices.detach_contoller(ctx=_ctx)
+                    devices.detach_controller(ctx=_ctx)
                 self.assertEqual(
                     _ctx.source.instance.runtime_properties, {}
                 )
@@ -258,7 +258,7 @@ class VsphereControllerTest(unittest.TestCase):
         }]:
             self.check_attach_ethernet_card(settings)
 
-    def check_attach_scsi_contoller(self, settings):
+    def check_attach_scsi_controller(self, settings):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
@@ -266,7 +266,7 @@ class VsphereControllerTest(unittest.TestCase):
             with patch("vsphere_plugin_common.Disconnect", Mock()):
                 # without vm-id
                 with self.assertRaises(NonRecoverableError) as e:
-                    devices.attach_scsi_contoller(ctx=_ctx)
+                    devices.attach_scsi_controller(ctx=_ctx)
                 self.assertEqual(e.exception.message, "VM is not defined")
 
                 # with vm-id, not relly attached device
@@ -280,7 +280,7 @@ class VsphereControllerTest(unittest.TestCase):
                     MagicMock(return_value=vm)
                 ):
                     with self.assertRaises(NonRecoverableError) as e:
-                        devices.attach_scsi_contoller(ctx=_ctx)
+                        devices.attach_scsi_controller(ctx=_ctx)
                     self.assertEqual(e.exception.message,
                                      "Have not found key for new added device")
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
@@ -306,7 +306,7 @@ class VsphereControllerTest(unittest.TestCase):
                         "ParaVirtualSCSIController'>"
                     )
 
-    def test_attach_scsi_contoller(self):
+    def test_attach_scsi_controller(self):
         for settings in [{
            'adapterType': None,
            'label': "Cloudify",
@@ -322,7 +322,7 @@ class VsphereControllerTest(unittest.TestCase):
            'label': "Cloudify",
            'hotAddRemove': True
         }]:
-            self.check_attach_scsi_contoller(settings)
+            self.check_attach_scsi_controller(settings)
 
     def check_attach_server_ethernet_card(self, settings):
         _ctx = self._gen_relation_ctx()
