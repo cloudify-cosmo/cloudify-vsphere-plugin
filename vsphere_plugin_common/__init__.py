@@ -1394,19 +1394,24 @@ class ServerClient(VsphereClient):
 
     def _add_network(self, network, datacenter):
         network_name = network['name']
+        normalised_network_name = self._get_normalised_name(network_name).lower()
         switch_distributed = network['switch_distributed']
         mac_address = network.get('mac_address')
 
         use_dhcp = network['use_dhcp']
         if switch_distributed:
             for port_group in datacenter.obj.network:
-                if port_group.name.lower() == network_name.lower():
+                # Make sure that we are comparing normalised network names.
+                normalised_port_group_name = self._get_normalised_name(
+                    port_group.name
+                ).lower()
+                if normalised_port_group_name == normalised_network_name:
                     network_obj = self._convert_vmware_port_group_to_cloudify(port_group)
                     break
             else:
                 logger().warning("Network %s couldn't be found.  Only found %s.",
                                  network_name,
-                                 [network.name for network in datacenter.network])
+                                 [network.name for network in datacenter.obj.network])
                 network_obj = None
         else:
             network_obj = self._get_obj_by_name(
