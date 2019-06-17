@@ -812,18 +812,22 @@ def _get_existing_server_details(ctx, server_client, server_obj):
 
 
 def get_vm_name(ctx, server, os_family):
-    # If the name is provided on the server, use that.
-    vm_name = server.get('name')
-    if vm_name is not None:
-        return vm_name
-
     # If we've already set the name on this instance, use that.
     vm_name = ctx.instance.runtime_properties.get('name')
     if vm_name is not None:
         return vm_name
 
-    # Expecting an ID in the format <name>_<id>
-    name_prefix, id_suffix = ctx.instance.id.rsplit('_', 1)
+    # Gather up the details that we will use to select a name.
+    configured_name = server.get('name')
+    add_scale_suffix = server.get('add_scale_suffix', True)
+    instance_name, id_suffix = ctx.instance.id.rsplit('_', 1)
+
+    # If we have a configured name and don't want a suffix, we're done.
+    if configured_name is not None and not add_scale_suffix:
+        return configured_name
+
+    # Prefer to use the configured name as the prefix.
+    name_prefix = configured_name or instance_name
 
     # VM name may be at most 15 characters for Windows.
     if os_family.lower() == 'windows':

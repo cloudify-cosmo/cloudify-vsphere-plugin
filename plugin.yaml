@@ -95,6 +95,14 @@ data_types:
           Will automatically convert underscores to hyphens.
         type: string
         required: false
+      add_scale_suffix:
+        description: >
+          Whether or not to add a suffix to the server name.
+          This setting is meaningful only when the name property is specified.
+          It must be true - which is the default - if such a server is to be
+          scaled to more than one instance.
+        type: boolean
+        required: false
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
