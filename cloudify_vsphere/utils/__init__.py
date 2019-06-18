@@ -45,7 +45,7 @@ def op(func):
     convention started by the `decorator` library).
     """
 
-    @operation
+    @operation(resumable=True)
     @wraps(func)
     def wrapper(**kwargs):
         kwargs.setdefault('ctx', ctx)

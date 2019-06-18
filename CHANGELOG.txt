@@ -1,3 +1,11 @@
+2.16.0:
+  - Preserve ordering of networks when not external
+  - Cleanup create vm error messages
+  - Allow users not to specify num CPUs and RAM
+  - Fix typo: `contoller` -> `controller`
+  - Resubable workflows support
+  - Add `add_scale_suffix` for add suffix for instance name by default.
+  - Filter network by datacenters before attach.
 2.15.1:
   - Fix mistake with network adapters type. #138
 2.15.0:

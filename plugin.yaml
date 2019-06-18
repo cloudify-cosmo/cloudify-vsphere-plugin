@@ -7,8 +7,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.15.1'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.15.1.zip
+    package_version: '2.16.0'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.16.0.zip
 
 data_types:
 
@@ -102,7 +102,7 @@ data_types:
           It must be true - which is the default - if such a server is to be
           scaled to more than one instance.
         type: boolean
-        required: false
+        required: true
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:

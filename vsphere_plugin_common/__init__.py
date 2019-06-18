@@ -916,12 +916,12 @@ class VsphereClient(object):
 
             return hosts
 
-        # Get all of the hosts in this hosts folder, that includes looking in subfolders
-        # and clusters.
+        # Get all of the hosts in this hosts folder, that includes looking
+        # in subfolders and clusters.
         vmware_hosts = get_vmware_hosts(host_folder)
 
-        # Cloudify uses a slightly different style of object to the raw VMWare API.  To
-        # convert one to the other look up object IDs and compare.
+        # Cloudify uses a slightly different style of object to the raw VMWare
+        # API. To convert one to the other look up object IDs and compare.
         vmware_host_ids = [host._GetMoId() for host in vmware_hosts]
 
         cloudify_host_dict = {cloudify_host.obj._GetMoId(): cloudify_host
@@ -938,8 +938,9 @@ class VsphereClient(object):
             if cloudify_port_group.obj._moId == port_group_id:
                 break
         else:
-            raise RuntimeError("Couldn't find cloudify representation of port group %s",
-                               port_group.name)
+            raise RuntimeError(
+                "Couldn't find cloudify representation of port group {name}"
+                .format(name=port_group.name))
 
         return cloudify_port_group
 
@@ -1388,7 +1389,8 @@ class ServerClient(VsphereClient):
 
     def _add_network(self, network, datacenter):
         network_name = network['name']
-        normalised_network_name = self._get_normalised_name(network_name).lower()
+        normalised_network_name = self._get_normalised_name(
+            network_name).lower()
         switch_distributed = network['switch_distributed']
         mac_address = network.get('mac_address')
 
@@ -1400,12 +1402,14 @@ class ServerClient(VsphereClient):
                     port_group.name
                 ).lower()
                 if normalised_port_group_name == normalised_network_name:
-                    network_obj = self._convert_vmware_port_group_to_cloudify(port_group)
+                    network_obj = \
+                        self._convert_vmware_port_group_to_cloudify(port_group)
                     break
             else:
-                logger().warning("Network %s couldn't be found.  Only found %s.",
-                                 network_name,
-                                 [network.name for network in datacenter.obj.network])
+                logger().warning(
+                    "Network {name} couldn't be found.  Only found {networks}."
+                    .format(name=network_name, networks=repr([
+                        net.name for net in datacenter.obj.network])))
                 network_obj = None
         else:
             network_obj = self._get_obj_by_name(
