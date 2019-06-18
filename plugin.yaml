@@ -102,7 +102,7 @@ data_types:
           It must be true - which is the default - if such a server is to be
           scaled to more than one instance.
         type: boolean
-        required: true
+        default: true
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:

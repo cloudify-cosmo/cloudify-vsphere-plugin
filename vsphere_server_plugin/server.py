@@ -191,6 +191,7 @@ def create_new_server(
         cdrom_image=None,
         vm_folder=None,
         extra_config=None,
+        enable_start_vm=True,
         ):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info(
@@ -299,7 +300,8 @@ def create_new_server(
         allowed_datastores,
         cdrom_image=cdrom_image,
         vm_folder=vm_folder,
-        extra_config=extra_config)
+        extra_config=extra_config,
+        enable_start_vm=enable_start_vm)
     ctx.logger.info('Successfully created server called {name}'.format(
                     name=vm_name))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj._moId
@@ -368,7 +370,8 @@ def start(
             os_family=os_family,
             cdrom_image=cdrom_image,
             vm_folder=vm_folder,
-            extra_config=extra_config
+            extra_config=extra_config,
+            enable_start_vm=enable_start_vm,
             )
     else:
         server_client.update_server(server=server_obj,

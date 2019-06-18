@@ -1570,6 +1570,7 @@ class ServerClient(VsphereClient):
             cdrom_image=None,
             vm_folder=None,
             extra_config=None,
+            enable_start_vm=True,
             ):
         logger().debug(
             "Entering create_server with parameters %s"
@@ -1678,7 +1679,7 @@ class ServerClient(VsphereClient):
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
         clonespec.config = vmconf
-        clonespec.powerOn = True
+        clonespec.powerOn = enable_start_vm
         clonespec.template = False
 
         # add extra config
@@ -1791,7 +1792,12 @@ class ServerClient(VsphereClient):
         try:
             logger().debug(
                 "Task info: {task}".format(task=repr(task)))
-            self._wait_vm_running(task, adaptermaps, os_type == "other")
+            if enable_start_vm:
+                logger().info('VM created in running state')
+                self._wait_vm_running(task, adaptermaps, os_type == "other")
+            else:
+                logger().info('VM created in stopped state')
+                self._wait_for_task(task)
         except task.info.error:
             raise NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."

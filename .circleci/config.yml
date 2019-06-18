@@ -20,7 +20,7 @@ jobs:
           name: update packages list
           command: sudo apt-get update
       - run:
-          name: install python/pip/libvirt packages
+          name: install python/pip packages
           command: sudo apt-get install -yq python-dev python-pip
       - run:
           name: Download pip
@@ -47,7 +47,7 @@ jobs:
       - checkout
       - run:
           name: Install dependencies
-          command: yum -y install python-devel gcc openssl git libxslt-devel libxml2-devel openldap-devel libffi-devel openssl-devel libvirt-devel libvirt-python
+          command: yum -y install python-devel gcc openssl git libxslt-devel libxml2-devel openldap-devel libffi-devel openssl-devel
       - run:
           name: Download pip
           command: curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
