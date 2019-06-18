@@ -900,6 +900,49 @@ class VsphereClient(object):
             skip_broken_objects=True,
         )
 
+    def _get_hosts_in_tree(self, host_folder):
+        def get_vmware_hosts(tree_node):
+            # Traverse the tree to find any hosts.
+            hosts = []
+
+            if hasattr(tree_node, "host"):
+                # If we find hosts under this node we are done.
+                hosts.extend(list(tree_node.host))
+
+            elif hasattr(tree_node, "childEntity"):
+                # If there are no hosts look under its children
+                for entity in tree_node.childEntity:
+                    hosts.extend(get_vmware_hosts(entity))
+
+            return hosts
+
+        # Get all of the hosts in this hosts folder, that includes looking in subfolders
+        # and clusters.
+        vmware_hosts = get_vmware_hosts(host_folder)
+
+        # Cloudify uses a slightly different style of object to the raw VMWare API.  To
+        # convert one to the other look up object IDs and compare.
+        vmware_host_ids = [host._GetMoId() for host in vmware_hosts]
+
+        cloudify_host_dict = {cloudify_host.obj._GetMoId(): cloudify_host
+                              for cloudify_host in self._get_hosts()}
+
+        cloudify_hosts = [cloudify_host_dict[id] for id in vmware_host_ids]
+
+        return cloudify_hosts
+
+    def _convert_vmware_port_group_to_cloudify(self, port_group):
+        port_group_id = port_group._moId
+
+        for cloudify_port_group in self._get_networks():
+            if cloudify_port_group.obj._moId == port_group_id:
+                break
+        else:
+            raise RuntimeError("Couldn't find cloudify representation of port group %s",
+                               port_group.name)
+
+        return cloudify_port_group
+
     def _get_getter_method(self, vimtype):
         getter_method = {
             vim.VirtualMachine: self._get_vms,
@@ -1343,17 +1386,27 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise NonRecoverableError(message)
 
-    def _add_network(self, network):
+    def _add_network(self, network, datacenter):
         network_name = network['name']
+        normalised_network_name = self._get_normalised_name(network_name).lower()
         switch_distributed = network['switch_distributed']
         mac_address = network.get('mac_address')
 
         use_dhcp = network['use_dhcp']
         if switch_distributed:
-            network_obj = self._get_obj_by_name(
-                vim.dvs.DistributedVirtualPortgroup,
-                network_name,
-            )
+            for port_group in datacenter.obj.network:
+                # Make sure that we are comparing normalised network names.
+                normalised_port_group_name = self._get_normalised_name(
+                    port_group.name
+                ).lower()
+                if normalised_port_group_name == normalised_network_name:
+                    network_obj = self._convert_vmware_port_group_to_cloudify(port_group)
+                    break
+            else:
+                logger().warning("Network %s couldn't be found.  Only found %s.",
+                                 network_name,
+                                 [network.name for network in datacenter.obj.network])
+                network_obj = None
         else:
             network_obj = self._get_obj_by_name(
                 vim.Network,
@@ -1540,7 +1593,11 @@ class ServerClient(VsphereClient):
         for network in networks:
             network['name'] = self._get_connected_network_name(network)
 
+        datacenter = self._get_obj_by_name(vim.Datacenter,
+                                           datacenter_name)
+
         candidate_hosts = self.find_candidate_hosts(
+            datacenter=datacenter,
             resource_pool=resource_pool_name,
             vm_cpus=cpus,
             vm_memory=memory,
@@ -1571,9 +1628,6 @@ class ServerClient(VsphereClient):
             resource_pool_name=resource_pool_name,
         )
 
-        datacenter = self._get_obj_by_name(vim.Datacenter,
-                                           datacenter_name)
-
         if not vm_folder:
             destfolder = datacenter.vmFolder
         else:
@@ -1586,6 +1640,7 @@ class ServerClient(VsphereClient):
                     )
                 )
             destfolder = folder.obj
+
         relospec = vim.vm.RelocateSpec()
         relospec.datastore = datastore.obj
         relospec.pool = resource_pool.obj
@@ -1604,7 +1659,7 @@ class ServerClient(VsphereClient):
         port_groups, distributed_port_groups = self._get_port_group_names()
 
         for network in networks:
-            nicspec, guest_map = self._add_network(network)
+            nicspec, guest_map = self._add_network(network, datacenter)
             devices.append(nicspec)
             adaptermaps.append(guest_map)
 
@@ -1921,6 +1976,7 @@ class ServerClient(VsphereClient):
         return self._get_obj_by_id(vim.VirtualMachine, id)
 
     def find_candidate_hosts(self,
+                             datacenter,
                              resource_pool,
                              vm_cpus,
                              vm_memory,
@@ -1929,7 +1985,9 @@ class ServerClient(VsphereClient):
                              allowed_clusters=None):
         logger().debug('Finding suitable hosts for deployment.')
 
-        hosts = self._get_hosts()
+        # Find the hosts in the correct datacenter
+        hosts = self._get_hosts_in_tree(datacenter.obj.hostFolder)
+
         host_names = [host.name for host in hosts]
         logger().debug(
             'Found hosts: {hosts}'.format(
