@@ -219,7 +219,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
-    @patch('vsphere_plugin_common.VsphereClient._get_hosts_in_tree')
+    @patch('vsphere_plugin_common.VsphereClient._get_hosts')
     def test_find_candidate_hosts_one_host_unusable(self,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
@@ -236,7 +236,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for name in host_names
         ]
         mock_get_hosts.return_value = hosts
-        mock_datacenter = Mock()
         intended_memory = 1024
         mock_get_free_memory.return_value = intended_memory
         intended_resource_pool = 'rp'
@@ -260,7 +259,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
         ]
 
         result = client.find_candidate_hosts(
-            datacenter=mock_datacenter,
             resource_pool=intended_resource_pool,
             vm_cpus=intended_cpus,
             vm_memory=intended_memory,
@@ -309,7 +307,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
-    @patch('vsphere_plugin_common.VsphereClient._get_hosts_in_tree')
+    @patch('vsphere_plugin_common.VsphereClient._get_hosts')
     def test_find_candidate_hosts_allowed_clusters(self,
                                                    mock_get_hosts,
                                                    mock_get_clusters,
@@ -326,7 +324,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for name in host_names
         ]
         mock_get_hosts.return_value = hosts
-        mock_datacenter = Mock()
         intended_memory = 1024
         mock_get_free_memory.return_value = intended_memory
         intended_resource_pool = 'rp'
@@ -353,7 +350,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
         expected_result = [(hosts[2], 1, 0)]
 
         result = client.find_candidate_hosts(
-            datacenter=mock_datacenter,
             resource_pool=intended_resource_pool,
             vm_cpus=intended_cpus,
             vm_memory=intended_memory,
@@ -404,7 +400,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
-    @patch('vsphere_plugin_common.VsphereClient._get_hosts_in_tree')
+    @patch('vsphere_plugin_common.VsphereClient._get_hosts')
     def test_find_candidate_hosts_insufficient_memory(self,
                                                       mock_get_hosts,
                                                       mock_get_clusters,
@@ -421,7 +417,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for name in host_names
         ]
         mock_get_hosts.return_value = hosts
-        mock_datacenter = Mock()
         intended_memory = 1024
         mock_host_memory_usage.side_effect = (
             -1,
@@ -450,7 +445,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
         ]
 
         result = client.find_candidate_hosts(
-            datacenter=mock_datacenter,
             resource_pool=intended_resource_pool,
             vm_cpus=intended_cpus,
             vm_memory=intended_memory,
@@ -499,7 +493,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
-    @patch('vsphere_plugin_common.VsphereClient._get_hosts_in_tree')
+    @patch('vsphere_plugin_common.VsphereClient._get_hosts')
     def test_find_candidate_hosts_bad_networks(self,
                                                mock_get_hosts,
                                                mock_get_clusters,
@@ -516,7 +510,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for name in host_names
         ]
         mock_get_hosts.return_value = hosts
-        mock_datacenter = Mock()
         intended_memory = 1024
         mock_get_free_memory.return_value = intended_memory
         intended_resource_pool = 'rp'
@@ -542,7 +535,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
         expected_result = [(hosts[3], 1, 0)]
 
         result = client.find_candidate_hosts(
-            datacenter=mock_datacenter,
             resource_pool=intended_resource_pool,
             vm_cpus=intended_cpus,
             vm_memory=intended_memory,
@@ -611,7 +603,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
-    @patch('vsphere_plugin_common.VsphereClient._get_hosts_in_tree')
+    @patch('vsphere_plugin_common.VsphereClient._get_hosts')
     def test_find_candidate_hosts_all_unusable(self,
                                                mock_get_hosts,
                                                mock_get_clusters,
@@ -628,7 +620,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for name in host_names
         ]
         mock_get_hosts.return_value = hosts
-        mock_datacenter = Mock()
 
         client = vsphere_plugin_common.ServerClient()
 
@@ -637,7 +628,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
         # consistency in this fashion until standardisation.
         try:
             client.find_candidate_hosts(
-                datacenter=mock_datacenter,
                 resource_pool='rp',
                 vm_cpus=1,
                 vm_memory=1024,
@@ -691,7 +681,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
-    @patch('vsphere_plugin_common.VsphereClient._get_hosts_in_tree')
+    @patch('vsphere_plugin_common.VsphereClient._get_hosts')
     def test_find_candidate_hosts_no_allowed_usable(self,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
@@ -709,7 +699,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for name in host_names
         ]
         mock_get_hosts.return_value = hosts
-        mock_datacenter = Mock()
 
         client = vsphere_plugin_common.ServerClient()
 
@@ -718,7 +707,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
         # consistency in this fashion until standardisation.
         try:
             client.find_candidate_hosts(
-                datacenter=mock_datacenter,
                 resource_pool='rp',
                 vm_cpus=1,
                 vm_memory=1024,
@@ -765,7 +753,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
-    @patch('vsphere_plugin_common.VsphereClient._get_hosts_in_tree')
+    @patch('vsphere_plugin_common.VsphereClient._get_hosts')
     def test_find_candidate_hosts_no_usable_clusters(self,
                                                      mock_get_hosts,
                                                      mock_get_clusters,
@@ -782,7 +770,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for name in host_names
         ]
         mock_get_hosts.return_value = hosts
-        mock_datacenter = Mock()
 
         client = vsphere_plugin_common.ServerClient()
 
@@ -794,7 +781,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
         # consistency in this fashion until standardisation.
         try:
             client.find_candidate_hosts(
-                datacenter=mock_datacenter,
                 resource_pool='rp',
                 vm_cpus=1,
                 vm_memory=1024,
@@ -850,7 +836,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('vsphere_plugin_common.ServerClient.get_host_cluster_membership')
     @patch('vsphere_plugin_common.ServerClient.host_is_usable')
     @patch('vsphere_plugin_common.ServerClient._get_clusters')
-    @patch('vsphere_plugin_common.VsphereClient._get_hosts_in_tree')
+    @patch('vsphere_plugin_common.VsphereClient._get_hosts')
     def test_find_candidate_hosts_bad_cluster_hosts(self,
                                                     mock_get_hosts,
                                                     mock_get_clusters,
@@ -868,7 +854,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
             for name in host_names
         ]
         mock_get_hosts.return_value = hosts
-        mock_datacenter = Mock()
 
         client = vsphere_plugin_common.ServerClient()
 
@@ -880,7 +865,6 @@ class VspherePluginsCommonTests(unittest.TestCase):
         # consistency in this fashion until standardisation.
         try:
             client.find_candidate_hosts(
-                datacenter=mock_datacenter,
                 resource_pool='rp',
                 vm_cpus=1,
                 vm_memory=1024,

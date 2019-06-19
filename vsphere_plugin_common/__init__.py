@@ -1986,17 +1986,20 @@ class ServerClient(VsphereClient):
         return self._get_obj_by_id(vim.VirtualMachine, id)
 
     def find_candidate_hosts(self,
-                             datacenter,
                              resource_pool,
                              vm_cpus,
                              vm_memory,
                              vm_networks,
                              allowed_hosts=None,
-                             allowed_clusters=None):
+                             allowed_clusters=None,
+                             datacenter=None):
         logger().debug('Finding suitable hosts for deployment.')
 
         # Find the hosts in the correct datacenter
-        hosts = self._get_hosts_in_tree(datacenter.obj.hostFolder)
+        if datacenter:
+            hosts = self._get_hosts_in_tree(datacenter.obj.hostFolder)
+        else:
+            hosts = self._get_hosts()
 
         host_names = [host.name for host in hosts]
         logger().debug(
