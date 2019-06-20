@@ -92,14 +92,14 @@ class VsphereCIDataTest(unittest.TestCase):
         self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
-            {'storage_image': None}
+            {}
         )
         # already deleted volume
         cidata.delete(datacenter_name='datacenter')
         self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
-            {'storage_image': None}
+            {}
         )
 
 

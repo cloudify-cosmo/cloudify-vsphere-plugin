@@ -24,6 +24,7 @@ from cloudify import ctx
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_rawvolume_client,
+    remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import STORAGE_IMAGE
 
@@ -102,6 +103,10 @@ def create(rawvolume_client, files, files_raw, datacenter_name,
            allowed_datastores, allowed_datastore_ids,
            vol_ident, sys_ident, volume_prefix,
            raw_files=None, **kwargs):
+    if ctx.instance.runtime_properties.get(STORAGE_IMAGE):
+        ctx.logger.info('Instance is already created.')
+        return
+
     ctx.logger.info("Creating new iso image.")
 
     if raw_files:
@@ -112,7 +117,7 @@ def create(rawvolume_client, files, files_raw, datacenter_name,
                          get_resource=ctx.get_resource, files=files,
                          files_raw=files_raw)
 
-    iso_disk = "/{prefix}/{name}.iso".format(
+    iso_disk = "{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)
     ctx.instance.runtime_properties[
         STORAGE_IMAGE] = rawvolume_client.upload_file(
@@ -133,4 +138,4 @@ def delete(rawvolume_client, datacenter_name, **kwargs):
         return
     rawvolume_client.delete_file(datacenter_name=datacenter_name,
                                  datastorepath=datastorepath)
-    ctx.instance.runtime_properties[STORAGE_IMAGE] = None
+    remove_runtime_properties([STORAGE_IMAGE], ctx)

@@ -37,6 +37,9 @@ from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_HOST,
     VSPHERE_SERVER_DATASTORE_IDS,
     VSPHERE_SERVER_DATASTORE,
+    VSPHERE_SERVER_CONNECTED_NICS,
+    VSPHERE_RESOURCE_EXTERNAL,
+    VSPHERE_RESOURCE_EXISTING,
 )
 
 RELATIONSHIP_VM_TO_NIC = \
@@ -53,9 +56,9 @@ def get_connected_networks(node_instance, nics_from_props):
         defined under connect_networks in _networking.
     """
 
-    if 'connected_nics' not in \
+    if VSPHERE_SERVER_CONNECTED_NICS not in \
             node_instance.runtime_properties:
-        node_instance.runtime_properties['connected_nics'] = \
+        node_instance.runtime_properties[VSPHERE_SERVER_CONNECTED_NICS] = \
             []
 
     # get all relationship contexts of related nics
@@ -97,8 +100,7 @@ def get_connected_networks(node_instance, nics_from_props):
 
         # Otherwise go head and add it to the list.
         nics_from_props.append(_connect_network)
-        node_instance.runtime_properties[
-            'connected_nics'].append(
+        node_instance.runtime_properties[VSPHERE_SERVER_CONNECTED_NICS].append(
             rel_nic.target.instance.id)
 
     return nics_from_props
@@ -345,7 +347,7 @@ def start(
         ctx.instance.runtime_properties['name'] = server_obj.name
         ctx.instance.runtime_properties[NETWORKS] = \
             server_client.get_vm_networks(server_obj)
-        ctx.instance.runtime_properties['use_external_resource'] = True
+        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
     elif "template" not in server:
         raise NonRecoverableError('template is not provided.')
     if server_obj is None:
@@ -408,7 +410,7 @@ def shutdown_guest(ctx, server_client, server, os_family):
 @with_server_client
 def stop(ctx, server_client, server, os_family, force_stop=False):
     if (
-        ctx.instance.runtime_properties.get('use_external_resource') and
+        ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL) and
         not force_stop
     ):
         ctx.logger.info('Used existing resource.')
@@ -432,7 +434,7 @@ def stop(ctx, server_client, server, os_family, force_stop=False):
 @op
 @with_server_client
 def freeze_suspend(ctx, server_client, server, os_family):
-    if ctx.instance.runtime_properties.get('use_external_resource'):
+    if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
@@ -450,7 +452,7 @@ def freeze_suspend(ctx, server_client, server, os_family):
 @op
 @with_server_client
 def freeze_resume(ctx, server_client, server, os_family):
-    if ctx.instance.runtime_properties.get('use_external_resource'):
+    if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
     server_obj = get_server_by_context(ctx, server_client, server, os_family)
@@ -468,7 +470,7 @@ def freeze_resume(ctx, server_client, server, os_family):
 @with_server_client
 def snapshot_create(ctx, server_client, server, os_family, snapshot_name,
                     snapshot_incremental, snapshot_type):
-    if ctx.instance.runtime_properties.get('use_external_resource'):
+    if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
     if not snapshot_name:
@@ -498,7 +500,7 @@ def snapshot_create(ctx, server_client, server, os_family, snapshot_name,
 @with_server_client
 def snapshot_apply(ctx, server_client, server, os_family, snapshot_name,
                    snapshot_incremental):
-    if ctx.instance.runtime_properties.get('use_external_resource'):
+    if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
     if not snapshot_name:
@@ -528,7 +530,7 @@ def snapshot_apply(ctx, server_client, server, os_family, snapshot_name,
 @with_server_client
 def snapshot_delete(ctx, server_client, server, os_family, snapshot_name,
                     snapshot_incremental):
-    if ctx.instance.runtime_properties.get('use_external_resource'):
+    if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
     if not snapshot_name:
@@ -558,10 +560,11 @@ def snapshot_delete(ctx, server_client, server, os_family, snapshot_name,
 @with_server_client
 def delete(ctx, server_client, server, os_family, force_delete):
     if (
-        ctx.instance.runtime_properties.get('use_external_resource') and
+        ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL) and
         not force_delete
     ):
         ctx.logger.info('Used existing resource.')
+        remove_runtime_properties(SERVER_RUNTIME_PROPERTIES, ctx)
         return
     elif force_delete:
         ctx.logger.info('Delete is forced.')
@@ -807,8 +810,8 @@ def _get_existing_server_details(ctx, server_client, server_obj):
         datastore.id for datastore in server_obj.datastore]
     ctx.instance.runtime_properties[NETWORKS] = \
         server_client.get_vm_networks(server_obj)
-    ctx.instance.runtime_properties['use_existing_resource'] = True
-    ctx.instance.runtime_properties['use_external_resource'] = True
+    ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
+    ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
 
 
 def get_vm_name(ctx, server, os_family):

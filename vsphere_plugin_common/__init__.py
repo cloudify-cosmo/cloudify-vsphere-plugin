@@ -45,6 +45,11 @@ from vsphere_plugin_common.constants import (
     NETWORK_ID,
     NETWORK_MTU,
     TASK_CHECK_SLEEP,
+    VSPHERE_SERVER_CLUSTER_NAME,
+    VSPHERE_SERVER_HYPERVISOR_HOSTNAME,
+    VSPHERE_RESOURCE_NAME,
+    NETWORK_CREATE_ON,
+    NETWORK_STATUS,
 )
 from collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
@@ -1485,6 +1490,13 @@ class ServerClient(VsphereClient):
                     'Edit cdrom from template. '
                     'Template should have no inserted cdroms.')
                 cdrom_attached = True
+                # skip if cdrom is already attached
+                if isinstance(
+                    device.backing, vim.vm.device.VirtualCdrom.IsoBackingInfo
+                ):
+                    if str(device.backing.fileName) == str(cdrom_image):
+                        logger().warn("Cdrom is already attached")
+                        continue
                 cdrom = vim.vm.device.VirtualDeviceSpec()
                 cdrom.device = device
                 device.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
@@ -1617,8 +1629,10 @@ class ServerClient(VsphereClient):
             template=template_vm,
             allowed_datastores=allowed_datastores,
         )
-        ctx.instance.runtime_properties['hypervisor_hostname'] = host.name
-        ctx.instance.runtime_properties['cluster_name'] = host.parent.name
+        ctx.instance.runtime_properties[
+            VSPHERE_SERVER_HYPERVISOR_HOSTNAME] = host.name
+        ctx.instance.runtime_properties[
+            VSPHERE_SERVER_CLUSTER_NAME] = host.parent.name
         logger().debug(
             'Using host {host} and datastore {ds} for deployment.'.format(
                 host=host.name,
@@ -2708,12 +2722,12 @@ class NetworkClient(VsphereClient):
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
         logger().debug("Entering create port procedure.")
         runtime_properties = ctx.instance.runtime_properties
-        if 'status' not in runtime_properties.keys():
-            runtime_properties['status'] = 'preparing'
+        if NETWORK_STATUS not in runtime_properties.keys():
+            runtime_properties[NETWORK_STATUS] = 'preparing'
 
         vswitches = self.get_vswitches()
 
-        if runtime_properties['status'] == 'preparing':
+        if runtime_properties[NETWORK_STATUS] == 'preparing':
             if vswitch_name not in vswitches:
                 if len(vswitches) == 0:
                     raise NonRecoverableError(
@@ -2735,14 +2749,14 @@ class NetworkClient(VsphereClient):
         ctx.instance.runtime_properties[NETWORK_MTU] = self.get_vswitch_mtu(
             vswitch_name)
 
-        if runtime_properties['status'] in ('preparing', 'creating'):
-            runtime_properties['status'] = 'creating'
-            if 'created_on' not in runtime_properties.keys():
-                runtime_properties['created_on'] = []
+        if runtime_properties[NETWORK_STATUS] in ('preparing', 'creating'):
+            runtime_properties[NETWORK_STATUS] = 'creating'
+            if NETWORK_CREATE_ON not in runtime_properties.keys():
+                runtime_properties[NETWORK_CREATE_ON] = []
 
             hosts = [
                 host for host in self.get_host_list()
-                if host.name not in runtime_properties['created_on']
+                if host.name not in runtime_properties[NETWORK_CREATE_ON]
             ]
 
             for host in hosts:
@@ -2771,10 +2785,10 @@ class NetworkClient(VsphereClient):
                     # existed before we tried to create it anywhere, so it
                     # should be safe to proceed.
                     pass
-                runtime_properties['created_on'].append(host.name)
+                runtime_properties[NETWORK_CREATE_ON].append(host.name)
 
             if self.port_group_is_on_all_hosts(port_group_name):
-                runtime_properties['status'] = 'created'
+                runtime_properties[NETWORK_STATUS] = 'created'
             else:
                 return ctx.operation.retry(
                     'Waiting for port group {name} to be created on all '
@@ -3004,7 +3018,7 @@ class NetworkClient(VsphereClient):
                     ) if not net['obj']._moId.startswith('dvportgroup')]
                 # attach all networks with provided name
                 for net in networks:
-                    if net['name'] == network_name:
+                    if net[VSPHERE_RESOURCE_NAME] == network_name:
                         pool.networkAssociation.insert(
                             0, vim.vApp.IpPool.Association(network=net['obj']))
         return self.si.content.ipPoolManager.CreateIpPool(dc=dc.obj, pool=pool)
@@ -3069,7 +3083,7 @@ class RawVolumeClient(VsphereClient):
         params = {"dsName": ds.name,
                   "dcPath": dc.name}
         http_url = (
-            "https://" + host + ":" + str(port) + "/folder" + remote_file
+            "https://" + host + ":" + str(port) + "/folder/" + remote_file
         )
 
         # Get the cookie built from the current session
@@ -3458,7 +3472,7 @@ class ControllerClient(VsphereClient):
         return scsi_spec, controller_type
 
     def generate_ethernet_card(self, ethernet_card_properties):
-        network_name = ethernet_card_properties['name']
+        network_name = ethernet_card_properties[VSPHERE_RESOURCE_NAME]
         switch_distributed = ethernet_card_properties.get('switch_distributed')
         adapter_type = ethernet_card_properties.get('adapter_type', "Vmxnet3")
         start_connected = ethernet_card_properties.get('start_connected', True)

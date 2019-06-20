@@ -86,6 +86,7 @@ class IPPoolTest(unittest.TestCase):
         ippool.delete()
         mock_client_get().delete_ippool.assert_called_once_with(
             'datacenter', 12345)
+        self.assertEqual(self.mock_ctx.instance.runtime_properties)
 
 
 if __name__ == '__main__':

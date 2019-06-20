@@ -73,7 +73,7 @@ class RawVolumeTest(unittest.TestCase):
             )
         # checks
         put_mock.assert_called_once_with(
-            'https://host:80/folderfile',
+            'https://host:80/folder/file',
             cookies={
                 'vmware_soap_session': ' "abcd"; $Path=/'
             },
@@ -120,7 +120,7 @@ class RawVolumeTest(unittest.TestCase):
                 '[datastore] file'
             )
         put_mock.assert_called_once_with(
-            'https://host:80/folderfile',
+            'https://host:80/folder/file',
             cookies={
                 'vmware_soap_session': ' "abcd"; $Path=/'
             },

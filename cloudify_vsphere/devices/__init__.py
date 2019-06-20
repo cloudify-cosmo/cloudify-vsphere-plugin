@@ -21,7 +21,8 @@ from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
     NETWORK_NAME,
     IP,
-    SWITCH_DISTRIBUTED)
+    SWITCH_DISTRIBUTED,
+    VSPHERE_SERVER_CONNECTED_NICS)
 from vsphere_plugin_common import ControllerClient, ServerClient
 
 RELATIONSHIP_NIC_TO_NETWORK = \
@@ -118,8 +119,8 @@ def attach_ethernet_card(ctx, **kwargs):
 @operation
 def attach_server_to_ethernet_card(ctx, **kwargs):
     if ctx.target.instance.id not in \
-            ctx.source.instance.runtime_properties.get('connected_nics',
-                                                       []):
+            ctx.source.instance.runtime_properties.get(
+                VSPHERE_SERVER_CONNECTED_NICS, []):
         attachment = _attach_ethernet_card(
             ctx.target.node.properties.get("connection_config"),
             ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
@@ -147,8 +148,8 @@ def detach_controller(ctx, **kwargs):
 @operation
 def detach_server_from_controller(ctx, **kwargs):
     if ctx.target.instance.id not in \
-            ctx.source.instance.runtime_properties.get('connected_nics',
-                                                       []):
+            ctx.source.instance.runtime_properties.get(
+                VSPHERE_SERVER_CONNECTED_NICS, []):
         _detach_controller(
             ctx.target.node.properties.get("connection_config"),
             ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
