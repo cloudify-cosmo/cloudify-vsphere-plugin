@@ -380,7 +380,7 @@ class VsphereClient(object):
         """
             Get the normalised form of a platform entity's name.
         """
-        return urllib.unquote(name)
+        return urllib.unquote(name).lower()
 
     def _make_cached_object(self, obj_name, props_dict, platform_results,
                             root_object=True, other_entity_mappings=None,
@@ -1043,7 +1043,7 @@ class VsphereClient(object):
         name = self._get_normalised_name(name)
 
         for entity in entities:
-            if name.lower() == entity.name.lower():
+            if name == entity.name.lower():
                 obj = entity
                 break
 
@@ -1290,7 +1290,6 @@ class ServerClient(VsphereClient):
                 issues.append(str(err))
                 continue
             network_name = self._get_normalised_name(network_name)
-            network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
 
             list_distributed_networks = False
@@ -1304,8 +1303,8 @@ class ServerClient(VsphereClient):
                 error_message = (
                     'Distributed network "{name}" not present on vSphere.'
                 )
-                if network_name_lower not in distributed_port_groups:
-                    if network_name_lower in port_groups:
+                if network_name not in distributed_port_groups:
+                    if network_name in port_groups:
                         issues.append(
                             (error_message + ' However, this is present as a '
                              'standard network. You may need to set the '
@@ -1317,8 +1316,8 @@ class ServerClient(VsphereClient):
                         list_distributed_networks = True
             else:
                 error_message = 'Network "{name}" not present on vSphere.'
-                if network_name_lower not in port_groups:
-                    if network_name_lower in distributed_port_groups:
+                if network_name not in port_groups:
+                    if network_name in distributed_port_groups:
                         issues.append(
                             (error_message + ' However, this is present as a '
                              'distributed network. You may need to set the '
@@ -1394,8 +1393,7 @@ class ServerClient(VsphereClient):
 
     def _add_network(self, network, datacenter):
         network_name = network['name']
-        normalised_network_name = self._get_normalised_name(
-            network_name).lower()
+        normalised_network_name = self._get_normalised_name(network_name)
         switch_distributed = network['switch_distributed']
         mac_address = network.get('mac_address')
 
@@ -1405,7 +1403,7 @@ class ServerClient(VsphereClient):
                 # Make sure that we are comparing normalised network names.
                 normalised_port_group_name = self._get_normalised_name(
                     port_group.name
-                ).lower()
+                )
                 if normalised_port_group_name == normalised_network_name:
                     network_obj = \
                         self._convert_vmware_port_group_to_cloudify(port_group)
@@ -2094,14 +2092,14 @@ class ServerClient(VsphereClient):
 
             host_nets = set([
                 (
-                    self._get_normalised_name(network['name']).lower(),
+                    self._get_normalised_name(network['name']),
                     network['switch_distributed'],
                 )
                 for network in self.get_host_networks(host)
             ])
             vm_nets = set([
                 (
-                    self._get_normalised_name(network['name']).lower(),
+                    self._get_normalised_name(network['name']),
                     network['switch_distributed'],
                 )
                 for network in vm_networks
@@ -2603,7 +2601,7 @@ class ServerClient(VsphereClient):
             if (
                 network.network and
                 network_name.lower() == self._get_normalised_name(
-                    network.network.lower()) and
+                    network.network) and
                 len(network.ipAddress) > 0
             ):
                 ip_address = get_ip_from_vsphere_nic_ips(network, ignore_local)
