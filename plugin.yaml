@@ -37,8 +37,7 @@ data_types:
       auto_placement:
         description: >
           Must be true if you are using clusters.
-          This is deprecated.
-          In future releases the plugin will always determine where to place the VM.
+          Disabled autoplacement is not recomended for a cluster.
         type: string
         required: false
       resource_pool_name:

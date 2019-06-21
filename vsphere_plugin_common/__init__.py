@@ -1493,7 +1493,7 @@ class ServerClient(VsphereClient):
                     device.backing, vim.vm.device.VirtualCdrom.IsoBackingInfo
                 ):
                     if str(device.backing.fileName) == str(cdrom_image):
-                        logger().warn("Cdrom is already attached")
+                        logger().info("Same cdrom is already attached.")
                         continue
                 cdrom = vim.vm.device.VirtualDeviceSpec()
                 cdrom.device = device
@@ -1663,9 +1663,7 @@ class ServerClient(VsphereClient):
         relospec.pool = resource_pool.obj
         if not auto_placement:
             logger().warn(
-                'DEPRECATED: Setting auto_placement will not be '
-                'possible in the next major release of the plugin. '
-                'The setting will default to true.'
+                'Disabled autoplacement is not recomended for a cluster.'
             )
             relospec.host = host.obj
 
