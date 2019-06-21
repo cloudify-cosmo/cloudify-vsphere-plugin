@@ -376,11 +376,12 @@ class VsphereClient(object):
                 sub_results[key_components[1]] = value
         return sub_results
 
-    def _get_normalised_name(self, name):
+    def _get_normalised_name(self, name, tolower=True):
         """
             Get the normalised form of a platform entity's name.
         """
-        return urllib.unquote(name).lower()
+        name = urllib.unquote(name)
+        return name.lower() if tolower else name
 
     def _make_cached_object(self, obj_name, props_dict, platform_results,
                             root_object=True, other_entity_mappings=None,
@@ -460,7 +461,7 @@ class VsphereClient(object):
             )
 
         if 'name' in args.keys():
-            args['name'] = self._get_normalised_name(args['name'])
+            args['name'] = self._get_normalised_name(args['name'], False)
 
         result = obj(
             **args
@@ -534,7 +535,8 @@ class VsphereClient(object):
             )
 
         if 'name' in this_pool.keys():
-            this_pool['name'] = self._get_normalised_name(this_pool['name'])
+            this_pool['name'] = self._get_normalised_name(this_pool['name'],
+                                                          False)
 
         base_object = rp_object(
             name=this_pool['name'],
@@ -722,7 +724,7 @@ class VsphereClient(object):
         networks = []
         for item in results:
             if 'name' in item.keys():
-                item['name'] = self._get_normalised_name(item['name'])
+                item['name'] = self._get_normalised_name(item['name'], False)
 
             network = net_object(
                 name=item['name'],
