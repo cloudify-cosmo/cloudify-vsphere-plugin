@@ -804,14 +804,16 @@ def _update_vm_properties(ctx, server_obj):
 
 
 def _get_existing_server_details(ctx, server_client, server_obj):
-    ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
     ctx.instance.runtime_properties['name'] = server_obj.name
     ctx.instance.runtime_properties[VSPHERE_SERVER_DATASTORE_IDS] = [
         datastore.id for datastore in server_obj.datastore]
     ctx.instance.runtime_properties[NETWORKS] = \
         server_client.get_vm_networks(server_obj)
-    ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
-    ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
+    # change VSPHERE_SERVER_ID only if runtume does not have id
+    if not ctx.instance.runtime_properties.get(VSPHERE_SERVER_ID):
+        ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
+        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
+        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
 
 
 def get_vm_name(ctx, server, os_family):
