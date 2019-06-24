@@ -37,7 +37,10 @@ data_types:
       auto_placement:
         description: >
           Must be true if you are using clusters.
-          Disabled autoplacement is not recomended for a cluster.
+          Disabled `auto placement` is not recommended for a cluster.
+          If `auto placement` set to false, plugin will provide recommendation
+          to vsphere to place vm to selected host, vsphere can move vm to other
+          host by internal logic.
         type: string
         required: false
       resource_pool_name:

@@ -1495,7 +1495,7 @@ class ServerClient(VsphereClient):
                     device.backing, vim.vm.device.VirtualCdrom.IsoBackingInfo
                 ):
                     if str(device.backing.fileName) == str(cdrom_image):
-                        logger().info("Same cdrom is already attached.")
+                        logger().info("Specified CD image is already mounted.")
                         continue
                 cdrom = vim.vm.device.VirtualDeviceSpec()
                 cdrom.device = device
