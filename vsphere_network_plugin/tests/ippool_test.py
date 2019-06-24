@@ -81,11 +81,13 @@ class IPPoolTest(unittest.TestCase):
         }
         # nothing to remove
         ippool.delete()
+        self.assertFalse(self.mock_ctx.instance.runtime_properties)
         # something exists
         self.mock_ctx.instance.runtime_properties = {'ippool': 12345}
         ippool.delete()
         mock_client_get().delete_ippool.assert_called_once_with(
             'datacenter', 12345)
+        self.assertFalse(self.mock_ctx.instance.runtime_properties)
 
 
 if __name__ == '__main__':

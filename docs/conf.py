@@ -52,8 +52,8 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'vSphere Plugin'
-copyright = u'2016, GigaSpaces Technologies Ltd.'
-author = u'GigaSpaces Technologies Ltd.'
+copyright = u'2016, Cloudify Platform Ltd.'
+author = u'Cloudify Platform Ltd.'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -263,7 +263,7 @@ latex_elements = {
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
     (master_doc, 'vSpherePlugin.tex', u'vSphere Plugin Documentation',
-     u'GigaSpaces Technologies Ltd.', 'manual'),
+     u'Cloudify Platform Ltd.', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -288,7 +288,7 @@ latex_documents = [
 #
 # latex_appendices = []
 
-# It false, will not define \strong, \code, 	itleref, \crossref ... but only
+# It false, will not define \strong, \code,     itleref, \crossref ... but only
 # \sphinxstrong, ..., \sphinxtitleref, ... To help avoid clash with user added
 # packages.
 #

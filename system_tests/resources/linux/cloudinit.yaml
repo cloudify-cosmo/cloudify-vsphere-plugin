@@ -200,13 +200,28 @@ node_templates:
 
   vm_base:
     type: host
+    properties:
+      use_external_resource: true
     interfaces:
       cloudify.interfaces.lifecycle:
         start:
           inputs:
             cdrom_image: { get_attribute: [cloud_init_image, storage_image ] }
+            server:
+              name: { get_attribute: [vm_stopped, name] }
     relationships:
     - target: cloud_init_image
       type: cloudify.relationships.depends_on
+    - target: vm_stopped
+      type: cloudify.relationships.depends_on
+
+  vm_stopped:
+    type: host
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          inputs:
+            enable_start_vm: false
+    relationships:
     - target: network_reuse
       type: cloudify.relationships.depends_on

@@ -45,6 +45,11 @@ from vsphere_plugin_common.constants import (
     NETWORK_ID,
     NETWORK_MTU,
     TASK_CHECK_SLEEP,
+    VSPHERE_SERVER_CLUSTER_NAME,
+    VSPHERE_SERVER_HYPERVISOR_HOSTNAME,
+    VSPHERE_RESOURCE_NAME,
+    NETWORK_CREATE_ON,
+    NETWORK_STATUS,
 )
 from collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
@@ -371,11 +376,12 @@ class VsphereClient(object):
                 sub_results[key_components[1]] = value
         return sub_results
 
-    def _get_normalised_name(self, name):
+    def _get_normalised_name(self, name, tolower=True):
         """
             Get the normalised form of a platform entity's name.
         """
-        return urllib.unquote(name)
+        name = urllib.unquote(name)
+        return name.lower() if tolower else name
 
     def _make_cached_object(self, obj_name, props_dict, platform_results,
                             root_object=True, other_entity_mappings=None,
@@ -455,7 +461,7 @@ class VsphereClient(object):
             )
 
         if 'name' in args.keys():
-            args['name'] = self._get_normalised_name(args['name'])
+            args['name'] = self._get_normalised_name(args['name'], False)
 
         result = obj(
             **args
@@ -529,7 +535,8 @@ class VsphereClient(object):
             )
 
         if 'name' in this_pool.keys():
-            this_pool['name'] = self._get_normalised_name(this_pool['name'])
+            this_pool['name'] = self._get_normalised_name(this_pool['name'],
+                                                          False)
 
         base_object = rp_object(
             name=this_pool['name'],
@@ -717,7 +724,7 @@ class VsphereClient(object):
         networks = []
         for item in results:
             if 'name' in item.keys():
-                item['name'] = self._get_normalised_name(item['name'])
+                item['name'] = self._get_normalised_name(item['name'], False)
 
             network = net_object(
                 name=item['name'],
@@ -900,6 +907,50 @@ class VsphereClient(object):
             skip_broken_objects=True,
         )
 
+    def _get_hosts_in_tree(self, host_folder):
+        def get_vmware_hosts(tree_node):
+            # Traverse the tree to find any hosts.
+            hosts = []
+
+            if hasattr(tree_node, "host"):
+                # If we find hosts under this node we are done.
+                hosts.extend(list(tree_node.host))
+
+            elif hasattr(tree_node, "childEntity"):
+                # If there are no hosts look under its children
+                for entity in tree_node.childEntity:
+                    hosts.extend(get_vmware_hosts(entity))
+
+            return hosts
+
+        # Get all of the hosts in this hosts folder, that includes looking
+        # in subfolders and clusters.
+        vmware_hosts = get_vmware_hosts(host_folder)
+
+        # Cloudify uses a slightly different style of object to the raw VMWare
+        # API. To convert one to the other look up object IDs and compare.
+        vmware_host_ids = [host._GetMoId() for host in vmware_hosts]
+
+        cloudify_host_dict = {cloudify_host.obj._GetMoId(): cloudify_host
+                              for cloudify_host in self._get_hosts()}
+
+        cloudify_hosts = [cloudify_host_dict[id] for id in vmware_host_ids]
+
+        return cloudify_hosts
+
+    def _convert_vmware_port_group_to_cloudify(self, port_group):
+        port_group_id = port_group._moId
+
+        for cloudify_port_group in self._get_networks():
+            if cloudify_port_group.obj._moId == port_group_id:
+                break
+        else:
+            raise RuntimeError(
+                "Couldn't find cloudify representation of port group {name}"
+                .format(name=port_group.name))
+
+        return cloudify_port_group
+
     def _get_getter_method(self, vimtype):
         getter_method = {
             vim.VirtualMachine: self._get_vms,
@@ -994,7 +1045,7 @@ class VsphereClient(object):
         name = self._get_normalised_name(name)
 
         for entity in entities:
-            if name.lower() == entity.name.lower():
+            if name == entity.name.lower():
                 obj = entity
                 break
 
@@ -1241,7 +1292,6 @@ class ServerClient(VsphereClient):
                 issues.append(str(err))
                 continue
             network_name = self._get_normalised_name(network_name)
-            network_name_lower = network_name.lower()
             switch_distributed = network['switch_distributed']
 
             list_distributed_networks = False
@@ -1255,8 +1305,8 @@ class ServerClient(VsphereClient):
                 error_message = (
                     'Distributed network "{name}" not present on vSphere.'
                 )
-                if network_name_lower not in distributed_port_groups:
-                    if network_name_lower in port_groups:
+                if network_name not in distributed_port_groups:
+                    if network_name in port_groups:
                         issues.append(
                             (error_message + ' However, this is present as a '
                              'standard network. You may need to set the '
@@ -1268,8 +1318,8 @@ class ServerClient(VsphereClient):
                         list_distributed_networks = True
             else:
                 error_message = 'Network "{name}" not present on vSphere.'
-                if network_name_lower not in port_groups:
-                    if network_name_lower in distributed_port_groups:
+                if network_name not in port_groups:
+                    if network_name in distributed_port_groups:
                         issues.append(
                             (error_message + ' However, this is present as a '
                              'distributed network. You may need to set the '
@@ -1343,17 +1393,29 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise NonRecoverableError(message)
 
-    def _add_network(self, network):
+    def _add_network(self, network, datacenter):
         network_name = network['name']
+        normalised_network_name = self._get_normalised_name(network_name)
         switch_distributed = network['switch_distributed']
         mac_address = network.get('mac_address')
 
         use_dhcp = network['use_dhcp']
         if switch_distributed:
-            network_obj = self._get_obj_by_name(
-                vim.dvs.DistributedVirtualPortgroup,
-                network_name,
-            )
+            for port_group in datacenter.obj.network:
+                # Make sure that we are comparing normalised network names.
+                normalised_port_group_name = self._get_normalised_name(
+                    port_group.name
+                )
+                if normalised_port_group_name == normalised_network_name:
+                    network_obj = \
+                        self._convert_vmware_port_group_to_cloudify(port_group)
+                    break
+            else:
+                logger().warning(
+                    "Network {name} couldn't be found.  Only found {networks}."
+                    .format(name=network_name, networks=repr([
+                        net.name for net in datacenter.obj.network])))
+                network_obj = None
         else:
             network_obj = self._get_obj_by_name(
                 vim.Network,
@@ -1428,6 +1490,13 @@ class ServerClient(VsphereClient):
                     'Edit cdrom from template. '
                     'Template should have no inserted cdroms.')
                 cdrom_attached = True
+                # skip if cdrom is already attached
+                if isinstance(
+                    device.backing, vim.vm.device.VirtualCdrom.IsoBackingInfo
+                ):
+                    if str(device.backing.fileName) == str(cdrom_image):
+                        logger().info("Specified CD image is already mounted.")
+                        continue
                 cdrom = vim.vm.device.VirtualDeviceSpec()
                 cdrom.device = device
                 device.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
@@ -1513,6 +1582,7 @@ class ServerClient(VsphereClient):
             cdrom_image=None,
             vm_folder=None,
             extra_config=None,
+            enable_start_vm=True,
             ):
         logger().debug(
             "Entering create_server with parameters %s"
@@ -1540,7 +1610,11 @@ class ServerClient(VsphereClient):
         for network in networks:
             network['name'] = self._get_connected_network_name(network)
 
+        datacenter = self._get_obj_by_name(vim.Datacenter,
+                                           datacenter_name)
+
         candidate_hosts = self.find_candidate_hosts(
+            datacenter=datacenter,
             resource_pool=resource_pool_name,
             vm_cpus=cpus,
             vm_memory=memory,
@@ -1555,8 +1629,10 @@ class ServerClient(VsphereClient):
             template=template_vm,
             allowed_datastores=allowed_datastores,
         )
-        ctx.instance.runtime_properties['hypervisor_hostname'] = host.name
-        ctx.instance.runtime_properties['cluster_name'] = host.parent.name
+        ctx.instance.runtime_properties[
+            VSPHERE_SERVER_HYPERVISOR_HOSTNAME] = host.name
+        ctx.instance.runtime_properties[
+            VSPHERE_SERVER_CLUSTER_NAME] = host.parent.name
         logger().debug(
             'Using host {host} and datastore {ds} for deployment.'.format(
                 host=host.name,
@@ -1571,9 +1647,6 @@ class ServerClient(VsphereClient):
             resource_pool_name=resource_pool_name,
         )
 
-        datacenter = self._get_obj_by_name(vim.Datacenter,
-                                           datacenter_name)
-
         if not vm_folder:
             destfolder = datacenter.vmFolder
         else:
@@ -1586,14 +1659,13 @@ class ServerClient(VsphereClient):
                     )
                 )
             destfolder = folder.obj
+
         relospec = vim.vm.RelocateSpec()
         relospec.datastore = datastore.obj
         relospec.pool = resource_pool.obj
         if not auto_placement:
             logger().warn(
-                'DEPRECATED: Setting auto_placement will not be '
-                'possible in the next major release of the plugin. '
-                'The setting will default to true.'
+                'Disabled autoplacement is not recomended for a cluster.'
             )
             relospec.host = host.obj
 
@@ -1604,7 +1676,7 @@ class ServerClient(VsphereClient):
         port_groups, distributed_port_groups = self._get_port_group_names()
 
         for network in networks:
-            nicspec, guest_map = self._add_network(network)
+            nicspec, guest_map = self._add_network(network, datacenter)
             devices.append(nicspec)
             adaptermaps.append(guest_map)
 
@@ -1619,7 +1691,7 @@ class ServerClient(VsphereClient):
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
         clonespec.config = vmconf
-        clonespec.powerOn = True
+        clonespec.powerOn = enable_start_vm
         clonespec.template = False
 
         # add extra config
@@ -1732,7 +1804,12 @@ class ServerClient(VsphereClient):
         try:
             logger().debug(
                 "Task info: {task}".format(task=repr(task)))
-            self._wait_vm_running(task, adaptermaps, os_type == "other")
+            if enable_start_vm:
+                logger().info('VM created in running state')
+                self._wait_vm_running(task, adaptermaps, os_type == "other")
+            else:
+                logger().info('VM created in stopped state')
+                self._wait_for_task(task)
         except task.info.error:
             raise NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."
@@ -1926,10 +2003,16 @@ class ServerClient(VsphereClient):
                              vm_memory,
                              vm_networks,
                              allowed_hosts=None,
-                             allowed_clusters=None):
+                             allowed_clusters=None,
+                             datacenter=None):
         logger().debug('Finding suitable hosts for deployment.')
 
-        hosts = self._get_hosts()
+        # Find the hosts in the correct datacenter
+        if datacenter:
+            hosts = self._get_hosts_in_tree(datacenter.obj.hostFolder)
+        else:
+            hosts = self._get_hosts()
+
         host_names = [host.name for host in hosts]
         logger().debug(
             'Found hosts: {hosts}'.format(
@@ -2009,14 +2092,14 @@ class ServerClient(VsphereClient):
 
             host_nets = set([
                 (
-                    self._get_normalised_name(network['name']).lower(),
+                    self._get_normalised_name(network['name']),
                     network['switch_distributed'],
                 )
                 for network in self.get_host_networks(host)
             ])
             vm_nets = set([
                 (
-                    self._get_normalised_name(network['name']).lower(),
+                    self._get_normalised_name(network['name']),
                     network['switch_distributed'],
                 )
                 for network in vm_networks
@@ -2518,7 +2601,7 @@ class ServerClient(VsphereClient):
             if (
                 network.network and
                 network_name.lower() == self._get_normalised_name(
-                    network.network.lower()) and
+                    network.network) and
                 len(network.ipAddress) > 0
             ):
                 ip_address = get_ip_from_vsphere_nic_ips(network, ignore_local)
@@ -2637,12 +2720,12 @@ class NetworkClient(VsphereClient):
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
         logger().debug("Entering create port procedure.")
         runtime_properties = ctx.instance.runtime_properties
-        if 'status' not in runtime_properties.keys():
-            runtime_properties['status'] = 'preparing'
+        if NETWORK_STATUS not in runtime_properties.keys():
+            runtime_properties[NETWORK_STATUS] = 'preparing'
 
         vswitches = self.get_vswitches()
 
-        if runtime_properties['status'] == 'preparing':
+        if runtime_properties[NETWORK_STATUS] == 'preparing':
             if vswitch_name not in vswitches:
                 if len(vswitches) == 0:
                     raise NonRecoverableError(
@@ -2664,14 +2747,14 @@ class NetworkClient(VsphereClient):
         ctx.instance.runtime_properties[NETWORK_MTU] = self.get_vswitch_mtu(
             vswitch_name)
 
-        if runtime_properties['status'] in ('preparing', 'creating'):
-            runtime_properties['status'] = 'creating'
-            if 'created_on' not in runtime_properties.keys():
-                runtime_properties['created_on'] = []
+        if runtime_properties[NETWORK_STATUS] in ('preparing', 'creating'):
+            runtime_properties[NETWORK_STATUS] = 'creating'
+            if NETWORK_CREATE_ON not in runtime_properties.keys():
+                runtime_properties[NETWORK_CREATE_ON] = []
 
             hosts = [
                 host for host in self.get_host_list()
-                if host.name not in runtime_properties['created_on']
+                if host.name not in runtime_properties[NETWORK_CREATE_ON]
             ]
 
             for host in hosts:
@@ -2700,10 +2783,10 @@ class NetworkClient(VsphereClient):
                     # existed before we tried to create it anywhere, so it
                     # should be safe to proceed.
                     pass
-                runtime_properties['created_on'].append(host.name)
+                runtime_properties[NETWORK_CREATE_ON].append(host.name)
 
             if self.port_group_is_on_all_hosts(port_group_name):
-                runtime_properties['status'] = 'created'
+                runtime_properties[NETWORK_STATUS] = 'created'
             else:
                 return ctx.operation.retry(
                     'Waiting for port group {name} to be created on all '
@@ -2933,7 +3016,7 @@ class NetworkClient(VsphereClient):
                     ) if not net['obj']._moId.startswith('dvportgroup')]
                 # attach all networks with provided name
                 for net in networks:
-                    if net['name'] == network_name:
+                    if net[VSPHERE_RESOURCE_NAME] == network_name:
                         pool.networkAssociation.insert(
                             0, vim.vApp.IpPool.Association(network=net['obj']))
         return self.si.content.ipPoolManager.CreateIpPool(dc=dc.obj, pool=pool)
@@ -2998,7 +3081,7 @@ class RawVolumeClient(VsphereClient):
         params = {"dsName": ds.name,
                   "dcPath": dc.name}
         http_url = (
-            "https://" + host + ":" + str(port) + "/folder" + remote_file
+            "https://" + host + ":" + str(port) + "/folder/" + remote_file
         )
 
         # Get the cookie built from the current session
@@ -3387,7 +3470,7 @@ class ControllerClient(VsphereClient):
         return scsi_spec, controller_type
 
     def generate_ethernet_card(self, ethernet_card_properties):
-        network_name = ethernet_card_properties['name']
+        network_name = ethernet_card_properties[VSPHERE_RESOURCE_NAME]
         switch_distributed = ethernet_card_properties.get('switch_distributed')
         adapter_type = ethernet_card_properties.get('adapter_type', "Vmxnet3")
         start_connected = ethernet_card_properties.get('start_connected', True)

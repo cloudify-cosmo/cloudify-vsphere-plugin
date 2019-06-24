@@ -22,18 +22,35 @@ IP = 'ip'
 VSPHERE_SERVER_HOST = 'host_server'
 VSPHERE_SERVER_DATASTORE_IDS = 'datastore_ids'
 VSPHERE_SERVER_DATASTORE = 'datastores'
+VSPHERE_SERVER_CONNECTED_NICS = 'connected_nics'
+VSPHERE_SERVER_CLUSTER_NAME = 'cluster_name'
+VSPHERE_SERVER_HYPERVISOR_HOSTNAME = 'hypervisor_hostname'
+VSPHERE_RESOURCE_NAME = 'name'
+VSPHERE_RESOURCE_EXISTING = 'use_existing_resource'
+VSPHERE_RESOURCE_EXTERNAL = 'use_external_resource'
 SERVER_RUNTIME_PROPERTIES = [VSPHERE_SERVER_ID, PUBLIC_IP, NETWORKS, IP,
                              VSPHERE_SERVER_HOST, VSPHERE_SERVER_DATASTORE_IDS,
-                             VSPHERE_SERVER_DATASTORE]
+                             VSPHERE_SERVER_DATASTORE,
+                             VSPHERE_SERVER_CONNECTED_NICS,
+                             VSPHERE_SERVER_CLUSTER_NAME,
+                             VSPHERE_SERVER_HYPERVISOR_HOSTNAME,
+                             VSPHERE_RESOURCE_NAME,
+                             VSPHERE_RESOURCE_EXISTING,
+                             VSPHERE_RESOURCE_EXTERNAL]
 
 NETWORK_NAME = 'network_name'
 SWITCH_DISTRIBUTED = 'switch_distributed'
 NETWORK_MTU = "mtu"
 NETWORK_CIDR = "cidr"
+NETWORK_CREATE_ON = "created_on"
+NETWORK_STATUS = "status"
 # If you change the next line you will probably break NSX integration
 NETWORK_ID = 'vsphere_network_id'
 NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME, SWITCH_DISTRIBUTED, NETWORK_ID,
-                              NETWORK_MTU, NETWORK_CIDR]
+                              NETWORK_MTU, NETWORK_CIDR, NETWORK_CREATE_ON,
+                              NETWORK_STATUS]
+
+IPPOOL_ID = 'ippool'
 
 VSPHERE_STORAGE_FILE_NAME = 'datastore_file_name'
 VSPHERE_STORAGE_VM_ID = 'attached_vm_id'

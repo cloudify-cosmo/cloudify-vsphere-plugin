@@ -1,5 +1,5 @@
 #########
-# Copyright (c) 2014 GigaSpaces Technologies Ltd. All rights reserved
+# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ def create(ctx, network_client, network, use_external_resource):
 
     runtime_properties = ctx.instance.runtime_properties
 
-    creating = runtime_properties.get('status', None) == 'creating'
+    creating = runtime_properties.get('status') == 'creating'
 
     if use_external_resource:
         if not existing_id:
@@ -74,6 +74,9 @@ def create(ctx, network_client, network, use_external_resource):
             name=port_group_name, switch_distributed=switch_distributed)
         ctx.instance.runtime_properties[NETWORK_CIDR] = cidr
     else:
+        if existing_id and runtime_properties.get('status') == 'created':
+            ctx.logger.info('Instance is already created.')
+            return
         if existing_id and not creating:
             raise NonRecoverableError(
                 'Could not create new {distributed}network "{name}" as a '

@@ -7,8 +7,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.15.1'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.15.1.zip
+    package_version: '2.16.0'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.16.0.zip
 
 data_types:
 
@@ -37,8 +37,10 @@ data_types:
       auto_placement:
         description: >
           Must be true if you are using clusters.
-          This is deprecated.
-          In future releases the plugin will always determine where to place the VM.
+          Disabled `auto placement` is not recommended for a cluster.
+          If `auto placement` set to false, plugin will provide recommendation
+          to vsphere to place vm to selected host, vsphere can move vm to other
+          host by internal logic.
         type: string
         required: false
       resource_pool_name:
@@ -95,6 +97,14 @@ data_types:
           Will automatically convert underscores to hyphens.
         type: string
         required: false
+      add_scale_suffix:
+        description: >
+          Whether or not to add a suffix to the server name.
+          This setting is meaningful only when the name property is specified.
+          It must be true - which is the default - if such a server is to be
+          scaled to more than one instance.
+        type: boolean
+        default: true
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
