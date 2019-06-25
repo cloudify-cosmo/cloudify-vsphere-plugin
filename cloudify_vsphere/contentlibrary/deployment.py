@@ -28,6 +28,7 @@ from vsphere_plugin_common.constants import (
     CONTENT_ITEM_ID,
     CONTENT_LIBRARY_ID,
     CONTENT_LIBRARY_PROPERTIES,
+    CONTENT_LIBRARY_VM_NAME,
     VSPHERE_SERVER_ID,
 )
 
@@ -36,6 +37,13 @@ from vsphere_plugin_common.constants import (
 def create(ctx, connection_config, library_name, template_name, target,
            deployment_spec):
     runtime_properties = ctx.instance.runtime_properties
+
+    if runtime_properties.get(VSPHERE_SERVER_ID):
+        ctx.logger.info("VM {vm_name} deployed with id: {vm_id}".format(
+            vm_id=runtime_properties.get(VSPHERE_SERVER_ID),
+            vm_name=runtime_properties.get(CONTENT_LIBRARY_VM_NAME)))
+        return
+
     content = ContentLibrary(connection_config)
     library = content.content_library_get(library_name)
     content_library_id = library["id"]
@@ -66,11 +74,11 @@ def create(ctx, connection_config, library_name, template_name, target,
                         deployment_spec=repr(deployment_spec)))
     deployment = content.content_item_deploy(content_item_id, target,
                                              deployment_spec)
-    ctx.logger.debug("Deployed VM id: {vm_id}"
-                     .format(vm_id=deployment['resource_id']['id']))
-    ctx.instance.runtime_properties[
-        VSPHERE_SERVER_ID] = deployment['resource_id']['id']
-    ctx.instance.runtime_properties['vm_name'] = deployment_spec['name']
+    ctx.logger.info("VM {vm_name} deployed with id: {vm_id}"
+                    .format(vm_id=deployment['resource_id']['id'],
+                            vm_name=deployment_spec['name']))
+    runtime_properties[VSPHERE_SERVER_ID] = deployment['resource_id']['id']
+    runtime_properties[CONTENT_LIBRARY_VM_NAME] = deployment_spec['name']
 
 
 @op
