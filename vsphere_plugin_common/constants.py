@@ -52,6 +52,9 @@ NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME, SWITCH_DISTRIBUTED, NETWORK_ID,
 
 IPPOOL_ID = 'ippool'
 
+DATACENTER_ID = 'vsphere_datacenter_id'
+DATACENTER_RUNTIME_PROPERTIES = [DATACENTER_ID]
+
 VSPHERE_STORAGE_FILE_NAME = 'datastore_file_name'
 # copy of VSPHERE_STORAGE_FILE_NAME for backward compability
 VSPHERE_STORAGE_IMAGE = 'storage_image'
@@ -65,10 +68,8 @@ VSPHERE_STORAGE_RUNTIME_PROPERTIES = [VSPHERE_STORAGE_FILE_NAME,
                                       VSPHERE_STORAGE_SIZE,
                                       VSPHERE_RESOURCE_EXTERNAL,
                                       VSPHERE_STORAGE_IMAGE,
+                                      DATACENTER_ID,
                                       VSPHERE_STORAGE_SCSI_ID]
-
-DATACENTER_ID = 'vsphere_datacenter_id'
-DATACENTER_RUNTIME_PROPERTIES = [DATACENTER_ID]
 
 DATASTORE_ID = 'vsphere_datastore_id'
 DATASTORE_RUNTIME_PROPERTIES = [DATASTORE_ID]
