@@ -26,7 +26,11 @@ from vsphere_plugin_common import (
     with_rawvolume_client,
     remove_runtime_properties,
 )
-from vsphere_plugin_common.constants import STORAGE_IMAGE
+from vsphere_plugin_common.constants import (
+    VSPHERE_STORAGE_RUNTIME_PROPERTIES,
+    VSPHERE_STORAGE_IMAGE,
+    VSPHERE_STORAGE_FILE_NAME
+)
 
 
 def _joliet_name(name):
@@ -103,7 +107,9 @@ def create(rawvolume_client, files, files_raw, datacenter_name,
            allowed_datastores, allowed_datastore_ids,
            vol_ident, sys_ident, volume_prefix,
            raw_files=None, **kwargs):
-    if ctx.instance.runtime_properties.get(STORAGE_IMAGE):
+    runtime_properties = ctx.instance.runtime_properties
+
+    if runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
         ctx.logger.info('Instance is already created.')
         return
 
@@ -119,8 +125,7 @@ def create(rawvolume_client, files, files_raw, datacenter_name,
 
     iso_disk = "{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)
-    ctx.instance.runtime_properties[
-        STORAGE_IMAGE] = rawvolume_client.upload_file(
+    storage_file_name = rawvolume_client.upload_file(
             datacenter_name=datacenter_name,
             allowed_datastores=allowed_datastores,
             allowed_datastore_ids=allowed_datastore_ids,
@@ -128,14 +133,17 @@ def create(rawvolume_client, files, files_raw, datacenter_name,
             data=outiso,
             host=ctx.node.properties['connection_config']['host'],
             port=ctx.node.properties['connection_config']['port'])
+    runtime_properties[VSPHERE_STORAGE_IMAGE] = storage_file_name
+    runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_file_name
 
 
 @op
 @with_rawvolume_client
 def delete(rawvolume_client, datacenter_name, **kwargs):
-    datastorepath = ctx.instance.runtime_properties.get(STORAGE_IMAGE)
-    if not datastorepath:
+    storage_file_name = ctx.instance.runtime_properties.get(
+        VSPHERE_STORAGE_FILE_NAME)
+    if not storage_file_name:
         return
     rawvolume_client.delete_file(datacenter_name=datacenter_name,
-                                 datastorepath=datastorepath)
-    remove_runtime_properties([STORAGE_IMAGE], ctx)
+                                 datastorepath=storage_file_name)
+    remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)

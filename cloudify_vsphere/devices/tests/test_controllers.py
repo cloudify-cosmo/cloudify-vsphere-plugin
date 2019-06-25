@@ -115,21 +115,16 @@ class VsphereControllerTest(unittest.TestCase):
         with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
             with patch("vsphere_plugin_common.Disconnect", Mock()):
                 # without vm-id
+                _ctx.source.instance.runtime_properties['busKey'] = 4010
                 with self.assertRaises(NonRecoverableError) as e:
                     devices.detach_controller(ctx=_ctx)
                 self.assertEqual(e.exception.message, "VM is not defined")
 
-                # without device key
+                # no such device
+                _ctx.source.instance.runtime_properties['busKey'] = 4010
                 _ctx.target.instance.runtime_properties[
                     'vsphere_server_id'
                 ] = "vm-101"
-                with self.assertRaises(NonRecoverableError) as e:
-                    devices.detach_controller(ctx=_ctx)
-                self.assertEqual(e.exception.message,
-                                 "Device Key is not defined")
-
-                # no such device
-                _ctx.source.instance.runtime_properties['busKey'] = 4010
                 vm = self._get_vm()
                 with patch(
                     "vsphere_plugin_common.VsphereClient._get_obj_by_id",

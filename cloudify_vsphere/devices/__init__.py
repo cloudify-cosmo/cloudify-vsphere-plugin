@@ -89,6 +89,10 @@ def delete_controller(ctx, **kwargs):
 
 @operation
 def attach_scsi_controller(ctx, **kwargs):
+    if 'busKey' in ctx.source.instance.runtime_properties:
+        ctx.logger.info("Controller attached with {buskey} key.".format(
+            buskey=ctx.source.instance.runtime_properties['busKey']))
+        return
     scsi_properties = controller_without_connected_networks(
         ctx.source.instance.runtime_properties)
     hostvm_properties = ctx.target.instance.runtime_properties
@@ -108,6 +112,10 @@ def attach_scsi_controller(ctx, **kwargs):
 
 @operation
 def attach_ethernet_card(ctx, **kwargs):
+    if 'busKey' in ctx.source.instance.runtime_properties:
+        ctx.logger.info("Controller attached with {buskey} key.".format(
+            buskey=ctx.source.instance.runtime_properties['busKey']))
+        return
     attachment = _attach_ethernet_card(
         ctx.source.node.properties.get("connection_config"),
         ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
@@ -118,6 +126,10 @@ def attach_ethernet_card(ctx, **kwargs):
 
 @operation
 def attach_server_to_ethernet_card(ctx, **kwargs):
+    if 'busKey' in ctx.target.instance.runtime_properties:
+        ctx.logger.info("Controller attached with {buskey} key.".format(
+            buskey=ctx.target.instance.runtime_properties['busKey']))
+        return
     if ctx.target.instance.id not in \
             ctx.source.instance.runtime_properties.get(
                 VSPHERE_SERVER_CONNECTED_NICS, []):
@@ -136,6 +148,9 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
 
 @operation
 def detach_controller(ctx, **kwargs):
+    if 'busKey' not in ctx.source.instance.runtime_properties:
+        ctx.logger.info("Contoller dettached.")
+        return
     _detach_controller(
         ctx.source.node.properties.get("connection_config"),
         ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
@@ -150,6 +165,9 @@ def detach_server_from_controller(ctx, **kwargs):
     if ctx.target.instance.id not in \
             ctx.source.instance.runtime_properties.get(
                 VSPHERE_SERVER_CONNECTED_NICS, []):
+        if 'busKey' not in ctx.target.instance.runtime_properties:
+            ctx.logger.info("Contoller dettached.")
+            return
         _detach_controller(
             ctx.target.node.properties.get("connection_config"),
             ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),

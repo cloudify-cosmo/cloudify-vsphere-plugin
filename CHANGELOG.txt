@@ -1,3 +1,6 @@
+2.16.1:
+  - Export datastore filename for cdrom to `datastore_file_name` field.
+  - Cleanup storage runtime properties after delete.
 2.16.0:
   - Preserve ordering of networks when not external
   - Cleanup create vm error messages

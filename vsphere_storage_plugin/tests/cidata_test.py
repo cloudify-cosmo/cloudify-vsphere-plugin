@@ -77,7 +77,8 @@ class VsphereCIDataTest(unittest.TestCase):
         self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
-            {'storage_image': '[storage] check'}
+            {'storage_image': '[storage] check',
+             'datastore_file_name': '[storage] check'}
         )
 
     @patch('vsphere_plugin_common.VsphereClient.get')
@@ -85,7 +86,8 @@ class VsphereCIDataTest(unittest.TestCase):
         # delete volume
         self.mock_ctx.get_resource = Mock(return_value="abc")
         self.mock_ctx.instance.runtime_properties = {
-            'storage_image': '[storage] check'}
+            'storage_image': '[storage] check',
+            'datastore_file_name': '[storage] check'}
         self.mock_ctx.node.properties = {}
 
         cidata.delete(datacenter_name='datacenter')
