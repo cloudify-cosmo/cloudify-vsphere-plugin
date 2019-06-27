@@ -149,7 +149,7 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
 @operation
 def detach_controller(ctx, **kwargs):
     if 'busKey' not in ctx.source.instance.runtime_properties:
-        ctx.logger.info("Contoller dettached.")
+        ctx.logger.info("Controller was not attached, skipping.")
         return
     _detach_controller(
         ctx.source.node.properties.get("connection_config"),
@@ -166,7 +166,7 @@ def detach_server_from_controller(ctx, **kwargs):
             ctx.source.instance.runtime_properties.get(
                 VSPHERE_SERVER_CONNECTED_NICS, []):
         if 'busKey' not in ctx.target.instance.runtime_properties:
-            ctx.logger.info("Contoller dettached.")
+            ctx.logger.info("Controller was not attached, skipping.")
             return
         _detach_controller(
             ctx.target.node.properties.get("connection_config"),

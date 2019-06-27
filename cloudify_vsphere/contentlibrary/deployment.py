@@ -39,9 +39,10 @@ def create(ctx, connection_config, library_name, template_name, target,
     runtime_properties = ctx.instance.runtime_properties
 
     if runtime_properties.get(VSPHERE_SERVER_ID):
-        ctx.logger.info("VM {vm_name} deployed with id: {vm_id}".format(
-            vm_id=runtime_properties.get(VSPHERE_SERVER_ID),
-            vm_name=runtime_properties.get(CONTENT_LIBRARY_VM_NAME)))
+        ctx.logger.info(
+            "VM template deployed with id: {vm_id} and name: {vm_name}".format(
+                vm_id=repr(runtime_properties.get(VSPHERE_SERVER_ID)),
+                vm_name=repr(runtime_properties.get(CONTENT_LIBRARY_VM_NAME))))
         return
 
     content = ContentLibrary(connection_config)
@@ -74,9 +75,9 @@ def create(ctx, connection_config, library_name, template_name, target,
                         deployment_spec=repr(deployment_spec)))
     deployment = content.content_item_deploy(content_item_id, target,
                                              deployment_spec)
-    ctx.logger.info("VM {vm_name} deployed with id: {vm_id}"
-                    .format(vm_id=deployment['resource_id']['id'],
-                            vm_name=deployment_spec['name']))
+    ctx.logger.info("VM template deployed with id: {vm_id} and name: {vm_name}"
+                    .format(vm_id=repr(deployment['resource_id']['id']),
+                            vm_name=repr(deployment_spec['name'])))
     runtime_properties[VSPHERE_SERVER_ID] = deployment['resource_id']['id']
     runtime_properties[CONTENT_LIBRARY_VM_NAME] = deployment_spec['name']
 
