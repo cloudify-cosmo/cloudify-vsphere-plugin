@@ -29,13 +29,33 @@ class RawVolumeTest(unittest.TestCase):
         self.mock_ctx = Mock()
         current_ctx.set(self.mock_ctx)
 
-    def test_delete_file(self):
+    def test_delete_file_id(self):
+        client = vsphere_plugin_common.RawVolumeClient()
+        datacenter = Mock()
+        client._get_obj_by_id = Mock(return_value=datacenter)
+        client.si = Mock()
+        # check delete code
+        client.delete_file(datacenter_id="datacenter",
+                           datastorepath="[datastore] filename")
+        # checks
+        client._get_obj_by_id.assert_called_once_with(
+            vsphere_plugin_common.vim.Datacenter, "datacenter")
+        client.si.content.fileManager.DeleteFile.assert_called_once_with(
+            '[datastore] filename', datacenter.obj)
+        # no such datacenter
+        client._get_obj_by_id = Mock(return_value=None)
+        with self.assertRaises(NonRecoverableError):
+            client.delete_file(datacenter_id="datacenter",
+                               datastorepath="[datastore] filename")
+
+    def test_delete_file_name(self):
         client = vsphere_plugin_common.RawVolumeClient()
         datacenter = Mock()
         client._get_obj_by_name = Mock(return_value=datacenter)
         client.si = Mock()
         # check delete code
-        client.delete_file("datacenter", "[datastore] filename")
+        client.delete_file(datacenter_name="datacenter",
+                           datastorepath="[datastore] filename")
         # checks
         client._get_obj_by_name.assert_called_once_with(
             vsphere_plugin_common.vim.Datacenter, "datacenter")
@@ -44,12 +64,14 @@ class RawVolumeTest(unittest.TestCase):
         # no such datacenter
         client._get_obj_by_name = Mock(return_value=None)
         with self.assertRaises(NonRecoverableError):
-            client.delete_file("datacenter", "[datastore] filename")
+            client.delete_file(datacenter_name="datacenter",
+                               datastorepath="[datastore] filename")
 
     def test_upload_file(self):
         client = vsphere_plugin_common.RawVolumeClient()
         datacenter = Mock()
         datacenter.name = "datacenter"
+        datacenter.id = "datacenter_id"
         client._get_obj_by_name = Mock(return_value=datacenter)
         datastore = Mock()
         datastore.name = "datastore"
@@ -69,7 +91,7 @@ class RawVolumeTest(unittest.TestCase):
                                    data="data",
                                    host="host",
                                    port=80),
-                '[datastore] file'
+                (datacenter.id, '[datastore] file')
             )
         # checks
         put_mock.assert_called_once_with(
@@ -102,7 +124,7 @@ class RawVolumeTest(unittest.TestCase):
                                    data="data",
                                    host="host",
                                    port=80),
-                '[datastore] file'
+                (datacenter.id, '[datastore] file')
             )
 
         # without specific datastore
@@ -117,7 +139,7 @@ class RawVolumeTest(unittest.TestCase):
                                    data="data",
                                    host="host",
                                    port=80),
-                '[datastore] file'
+                (datacenter.id, '[datastore] file')
             )
         put_mock.assert_called_once_with(
             'https://host:80/folder/file',

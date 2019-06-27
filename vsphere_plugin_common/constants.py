@@ -52,18 +52,24 @@ NETWORK_RUNTIME_PROPERTIES = [NETWORK_NAME, SWITCH_DISTRIBUTED, NETWORK_ID,
 
 IPPOOL_ID = 'ippool'
 
+DATACENTER_ID = 'vsphere_datacenter_id'
+DATACENTER_RUNTIME_PROPERTIES = [DATACENTER_ID]
+
 VSPHERE_STORAGE_FILE_NAME = 'datastore_file_name'
+# copy of VSPHERE_STORAGE_FILE_NAME for backward compability
+VSPHERE_STORAGE_IMAGE = 'storage_image'
 VSPHERE_STORAGE_VM_ID = 'attached_vm_id'
 VSPHERE_STORAGE_VM_NAME = 'attached_vm_name'
+VSPHERE_STORAGE_SIZE = 'storage_size'
 VSPHERE_STORAGE_SCSI_ID = 'scsi_id'
 VSPHERE_STORAGE_RUNTIME_PROPERTIES = [VSPHERE_STORAGE_FILE_NAME,
                                       VSPHERE_STORAGE_VM_ID,
+                                      VSPHERE_STORAGE_VM_NAME,
+                                      VSPHERE_STORAGE_SIZE,
+                                      VSPHERE_RESOURCE_EXTERNAL,
+                                      VSPHERE_STORAGE_IMAGE,
+                                      DATACENTER_ID,
                                       VSPHERE_STORAGE_SCSI_ID]
-
-STORAGE_IMAGE = 'storage_image'
-
-DATACENTER_ID = 'vsphere_datacenter_id'
-DATACENTER_RUNTIME_PROPERTIES = [DATACENTER_ID]
 
 DATASTORE_ID = 'vsphere_datastore_id'
 DATASTORE_RUNTIME_PROPERTIES = [DATASTORE_ID]
@@ -82,7 +88,10 @@ CLUSTER_RUNTIME_PROPERTIES = [CLUSTER_ID]
 
 CONTENT_ITEM_ID = "content_item_id"
 CONTENT_LIBRARY_ID = "content_library_id"
-CONTENT_LIBRARY_PROPERTIES = [CONTENT_ITEM_ID, CONTENT_LIBRARY_ID,
+CONTENT_LIBRARY_VM_NAME = "vm_name"
+CONTENT_LIBRARY_PROPERTIES = [CONTENT_ITEM_ID,
+                              CONTENT_LIBRARY_ID,
+                              CONTENT_LIBRARY_VM_NAME,
                               VSPHERE_SERVER_ID]
 
 TASK_CHECK_SLEEP = 15

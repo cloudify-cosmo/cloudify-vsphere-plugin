@@ -29,6 +29,7 @@ from vsphere_plugin_common import (
 )
 from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
+    VSPHERE_STORAGE_SIZE,
     VSPHERE_STORAGE_VM_ID,
     VSPHERE_STORAGE_VM_NAME,
     VSPHERE_STORAGE_SCSI_ID,
@@ -72,7 +73,8 @@ def create(storage_client, storage, use_external_resource=False):
     vm_name = connected_vms[0]['name']
     if use_external_resource:
         for fname in [
-            VSPHERE_STORAGE_SCSI_ID, VSPHERE_STORAGE_FILE_NAME, 'storage_size'
+            VSPHERE_STORAGE_SCSI_ID, VSPHERE_STORAGE_FILE_NAME,
+            VSPHERE_STORAGE_SIZE
         ]:
             if fname not in storage:
                 raise NonRecoverableError(
@@ -87,6 +89,20 @@ def create(storage_client, storage, use_external_resource=False):
         )
         ctx.instance.runtime_properties['use_external_resource'] = True
     else:
+        storage_file_name = ctx.instance.runtime_properties.get(
+            VSPHERE_STORAGE_FILE_NAME)
+        scsi_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_SCSI_ID)
+        if storage_file_name:
+            ctx.logger.info(
+                "Storage attached on VM '{vm}' with file name "
+                "'{file_name}' and SCSI ID: {scsi} ".format(
+                    vm=vm_name,
+                    file_name=storage_file_name,
+                    scsi=scsi_id,
+                )
+            )
+            return
+
         ctx.logger.info(
             "Creating new volume on VM '{vm}' with name '{name}' and size: "
             "{size}".format(
@@ -134,6 +150,7 @@ def create(storage_client, storage, use_external_resource=False):
 def delete(storage_client, **kwargs):
     if ctx.instance.runtime_properties.get('use_external_resource'):
         ctx.logger.info('Used existing resource.')
+        remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
         return
 
     vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]

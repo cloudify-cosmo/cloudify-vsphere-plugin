@@ -14,7 +14,7 @@
 
 import unittest
 
-from mock import call, MagicMock, patch
+from mock import MagicMock, patch
 
 from cloudify.exceptions import NonRecoverableError
 from cloudify.state import current_ctx
@@ -31,6 +31,7 @@ class VsphereStorageTest(unittest.TestCase):
 
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_storage_create(self, mock_client_get):
+        self.mock_ctx.instance.runtime_properties = {}
         mock_client_get().create_storage.side_effect = [(
             'file name',
             'something'
@@ -48,18 +49,44 @@ class VsphereStorageTest(unittest.TestCase):
             }, use_external_resource=False)
 
         self.mock_ctx.operation.retry.assert_not_called()
-        self.mock_ctx.instance.runtime_properties.__setitem__.assert_has_calls(
-            [
-                call('scsi_id', 'something'),
-                call('datastore_file_name', 'file name'),
-                call('attached_vm_id', 'i'),
-                call('attached_vm_name', 'Julie'),
+        self.assertEqual(self.mock_ctx.instance.runtime_properties,
+                         {'scsi_id': 'something',
+                          'datastore_file_name': 'file name',
+                          'attached_vm_id': 'i',
+                          'attached_vm_name': 'Julie'})
 
-            ]
-        )
+    @patch('vsphere_plugin_common.VsphereClient.get')
+    def test_storage_create_ignore(self, mock_client_get):
+        self.mock_ctx.instance.runtime_properties = {
+            'scsi_id': 'something',
+            'datastore_file_name': 'file name',
+            'storage_image': 'file name',
+            'attached_vm_id': 'i',
+            'attached_vm_name': 'Julie'}
+
+        self.mock_ctx.capabilities.get_all.return_value = {
+            'vm_inst_id': {
+                'name': 'Julie',
+                'vsphere_server_id': 'i',
+            },
+        }
+
+        storage.create(
+            storage={
+                'storage_size': 7,
+            }, use_external_resource=False)
+
+        mock_client_get().create_storage.assert_not_called()
+        self.assertEqual(self.mock_ctx.instance.runtime_properties,
+                         {'scsi_id': 'something',
+                          'datastore_file_name': 'file name',
+                          'storage_image': 'file name',
+                          'attached_vm_id': 'i',
+                          'attached_vm_name': 'Julie'})
 
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_storage_create_race_retry(self, mock_client_get):
+        self.mock_ctx.instance.runtime_properties = {}
         mock_client_get().create_storage.side_effect = NonRecoverableError(
             'vim.fault.FileAlreadyExists')
         self.mock_ctx.capabilities.get_all.return_value = {
@@ -75,3 +102,9 @@ class VsphereStorageTest(unittest.TestCase):
             }, use_external_resource=False)
 
         self.mock_ctx.operation.retry.assert_called_once()
+        self.assertEqual(self.mock_ctx.instance.runtime_properties,
+                         {})
+
+
+if __name__ == '__main__':
+    unittest.main()

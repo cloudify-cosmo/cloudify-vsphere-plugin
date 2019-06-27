@@ -58,7 +58,8 @@ class VsphereCIDataTest(unittest.TestCase):
 
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_storage_create(self, mock_client_get):
-        mock_client_get().upload_file.side_effect = ['[storage] check']
+        mock_client_get().upload_file.side_effect = [
+            ('datacenter_id', '[storage] check')]
         self.mock_ctx.get_resource = Mock(return_value="abc")
         self.mock_ctx.instance.runtime_properties = {}
         self.mock_ctx.node.properties = {
@@ -77,15 +78,41 @@ class VsphereCIDataTest(unittest.TestCase):
         self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
-            {'storage_image': '[storage] check'}
-        )
+            {'storage_image': '[storage] check',
+             'datastore_file_name': '[storage] check',
+             'vsphere_datacenter_id': 'datacenter_id'})
 
     @patch('vsphere_plugin_common.VsphereClient.get')
-    def test_storage_delete(self, mock_client_get):
+    def test_storage_delete_id(self, mock_client_get):
         # delete volume
         self.mock_ctx.get_resource = Mock(return_value="abc")
         self.mock_ctx.instance.runtime_properties = {
-            'storage_image': '[storage] check'}
+            'vsphere_datacenter_id': "datacenter_id",
+            'storage_image': '[storage] check',
+            'datastore_file_name': '[storage] check'}
+        self.mock_ctx.node.properties = {}
+
+        cidata.delete()
+        self.mock_ctx.operation.retry.assert_not_called()
+        self.assertEqual(
+            self.mock_ctx.instance.runtime_properties,
+            {}
+        )
+        # already deleted volume
+        cidata.delete()
+        self.mock_ctx.operation.retry.assert_not_called()
+        self.assertEqual(
+            self.mock_ctx.instance.runtime_properties,
+            {}
+        )
+
+    @patch('vsphere_plugin_common.VsphereClient.get')
+    def test_storage_delete_name(self, mock_client_get):
+        # delete volume
+        self.mock_ctx.get_resource = Mock(return_value="abc")
+        self.mock_ctx.instance.runtime_properties = {
+            'storage_image': '[storage] check',
+            'datastore_file_name': '[storage] check'}
         self.mock_ctx.node.properties = {}
 
         cidata.delete(datacenter_name='datacenter')
