@@ -3121,7 +3121,7 @@ class StorageClient(VsphereClient):
                        thin_provision=False):
         logger().debug("Entering create storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n{}".format(vm))
         if self.is_server_suspended(vm):
             raise NonRecoverableError(
                 'Error during trying to create storage:'
@@ -3269,7 +3269,7 @@ class StorageClient(VsphereClient):
     def delete_storage(self, vm_id, storage_file_name):
         logger().debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n{}".format(vm))
         if self.is_server_suspended(vm):
             raise NonRecoverableError(
                 "Error during trying to delete storage: invalid VM state - "
@@ -3309,7 +3309,7 @@ class StorageClient(VsphereClient):
     def get_storage(self, vm_id, storage_file_name):
         logger().debug("Entering get storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n{}".format(vm))
         if vm:
             for device in vm.config.hardware.device:
                 if isinstance(device, vim.vm.device.VirtualDisk)\
@@ -3323,7 +3323,7 @@ class StorageClient(VsphereClient):
     def resize_storage(self, vm_id, storage_filename, storage_size):
         logger().debug("Entering resize storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n{}".format(vm))
         if self.is_server_suspended(vm):
             raise NonRecoverableError(
                 'Error during trying to resize storage: invalid VM state'
@@ -3356,7 +3356,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = updated_devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        logger().debug("VM info: \n%s." % prepare_for_log(vars(vm)))
+        logger().debug("VM info: \n{}".format(vm))
         self._wait_for_task(task)
         logger().debug("Storage resized to a new size %s." % storage_size)
 
