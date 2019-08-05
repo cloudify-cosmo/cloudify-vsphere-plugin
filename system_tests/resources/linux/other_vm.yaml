@@ -41,12 +41,6 @@ inputs:
       "CentOS 7 template name"
     default: "CentOS-7.2-x86_64-1511-tmpl"
 
-  vcenter_network:
-    type: string
-    description: >
-      vcenter network
-    default: Internal
-
   management_name:
     type: string
     description: >
@@ -59,24 +53,12 @@ inputs:
       Management distributed
     default: true
 
-  vcenter_datastore:
-    type: string
-    description: >
-      vcenter datastore
-    default: datastore1
-
   agent_user:
     default: root
     type: string
 
   agent_group:
     default: root
-
-  manager_network:
-    default: default
-
-  install_method:
-    default: remote
 
   allowed_hosts:
     default: []
