@@ -1,0 +1,389 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.6/types.yaml
+  - http://www.getcloudify.org/spec/utilities-plugin/1.15.3/plugin.yaml
+  - ../../../plugin.yaml
+
+inputs:
+
+  vcenter_user:
+    type: string
+
+  vcenter_password:
+    type: string
+
+  vcenter_ip:
+    type: string
+
+  vcenter_port:
+    type: string
+    default: 443
+
+  vcenter_datacenter:
+    type: string
+    description: >
+       vcenter datacenter
+    default: Datacenter
+
+  vcenter_resource_pool:
+    description: >
+      Resource pool name
+    default: Resources
+
+  vcenter_datastore:
+    type: string
+    description: >
+      vcenter datastore
+    default: datastore1
+
+  vcenter_hypervisor_host:
+    type: string
+    description: >
+      vcenter host
+
+  vsphere_auto_placement:
+    type: string
+    default: true
+
+  template_library:
+    type: string
+    description: >
+      "CentOS template library"
+    default: "CentOS"
+
+  template_name:
+    type: string
+    description: >
+      "CentOS template name"
+    default: "CentOS-7-x86_64-GenericCloud-1907"
+
+
+###############################################################################
+#  DSL section
+###############################################################################
+dsl_definitions:
+
+  connection_config: &connection_config
+    username: { get_input: vcenter_user }
+    password: {get_input: vcenter_password }
+    host: { get_input: vcenter_ip }
+    port: { get_input: vcenter_port }
+    datacenter_name: {get_input: vcenter_datacenter }
+    resource_pool_name: { get_input: vcenter_resource_pool }
+    auto_placement: { get_input: vsphere_auto_placement }
+    allow_insecure: true
+
+node_templates:
+
+  agent_key:
+    type: cloudify.keys.nodes.RSAKey
+    properties:
+      use_secret_store: false
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: keys.cloudify_ssh_key.operations.create
+          inputs:
+            store_private_key_material: true
+
+  cloud_init_user:
+    type: cloudify.nodes.CloudInit.CloudConfig
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            resource_config:
+              users:
+              - name: centos
+                primary_group: centos
+                # mkpasswd --method=SHA-512 --rounds=4096
+                # hash of passw0rd
+                passwd: $6$rounds=4096$sEbWYCRnr$kV18TY9O9Bkq0DdSo5Zvp8saK0gnpZ3RD.55YvQp1ZuaU89eG/T3UrWRh7s9SzchEjebL9ETr2KyMVHqtiXbQ.
+                groups: users, admin, wheel
+                lock_passwd: false
+                shell: /bin/bash
+                sudo: ['ALL=(ALL) NOPASSWD:ALL']
+                ssh_authorized_keys:
+                - { get_attribute: [agent_key, public_key_export] }
+              growpart:
+                mode: auto
+                devices: ['/']
+                ignore_growroot_disabled: false
+              packages:
+              - [epel-release]
+              - [deltarpm]
+              write_files:
+              - path: /etc/yum.repos.d/custom.repo
+                content: |
+                  [local_base]
+                  name=Custom Repository
+                  baseurl=http://localhost:8080/base/
+                  enabled=0
+                  gpgcheck=0
+                  [local_extras]
+                  name=Custom Repository
+                  baseurl=http://localhost:8080/extras/
+                  enabled=0
+                  gpgcheck=0
+                  [local_updates]
+                  name=Custom Repository
+                  baseurl=http://localhost:8080/updates/
+                  enabled=0
+                  gpgcheck=0
+                  [local_saltrepo]
+                  name=Custom Repository
+                  baseurl=http://localhost:8080/salt-2019.2/
+                  enabled=0
+                  gpgcheck=0
+              - path: /etc/nginx/conf.d/repos.conf
+                content: |
+                  server {
+                    listen 8080 default_server;
+                    listen [::]:8080 default_server;
+                    server_name  _;
+                    root /usr/share/nginx/html/custom_repository/;
+                    location / {
+                      index index.html index.htm;
+                      autoindex on; #enable listing of directory index
+                    }
+                  }
+    relationships:
+    - target: agent_key
+      type: cloudify.relationships.depends_on
+
+  cloud_init_meta:
+    type: cloudify.nodes.CloudInit.CloudConfig
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            resource_config:
+              instance-id: vsphere_cloudinit
+
+  cloud_init_network:
+    type: cloudify.nodes.CloudInit.CloudConfig
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            resource_config:
+              version: 2
+              ethernets:
+                ens192:
+                  match:
+                    name: ens192
+                  addresses:
+                  - 172.16.168.156/255.255.255.0
+                  gateway4: 172.16.168.1
+                  nameservers:
+                    addresses:
+                    - 8.8.8.8
+                    - 208.67.222.222
+                    - 208.67.220.220
+                    - 1.1.1.1
+
+  vm_folder:
+    type: cloudify.vsphere.nodes.VMFolder
+    properties:
+      use_external_resource: true
+      name: vm
+      connection_config: *connection_config
+
+  resource_pool:
+    type: cloudify.vsphere.nodes.ResourcePool
+    properties:
+      use_external_resource: true
+      name: { get_input: vcenter_resource_pool }
+      connection_config: *connection_config
+
+  datastore:
+    type: cloudify.vsphere.nodes.Datastore
+    properties:
+      use_external_resource: true
+      name: { get_input: vcenter_datastore }
+      connection_config: *connection_config
+
+  hypervisor_host:
+    type: cloudify.vsphere.nodes.Host
+    properties:
+      use_external_resource: true
+      name: { get_input: vcenter_hypervisor_host }
+      connection_config: *connection_config
+
+  network:
+    type: cloudify.vsphere.nodes.Network
+    properties:
+      use_external_resource: true
+      network:
+        name: Internal
+        switch_distributed: false
+      connection_config: *connection_config
+
+  vm_content_library:
+    type: cloudify.vsphere.nodes.ContentLibraryDeployment
+    properties:
+      library_name:  { get_input: template_library }
+      template_name: { get_input: template_name }
+      connection_config: *connection_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            target:
+              folder_id: { get_attribute: [vm_folder, vsphere_vm_folder_id] }
+              host_id: { get_attribute: [hypervisor_host, vsphere_hypervisor_host_id] }
+              resource_pool_id: { get_attribute: [resource_pool, vsphere_resource_pool_id] }
+            deployment_spec:
+              default_datastore_id: { get_attribute: [datastore, vsphere_datastore_id] }
+              annotation: Template annotation
+              additional_parameters:
+              - type: DeploymentOptionParams
+                selected_key: singlecpu
+                "@class": com.vmware.vcenter.ovf.deployment_option_params
+              network_mappings:
+              - key: management
+                value: { get_attribute: [network, vsphere_network_id, 0] }
+    relationships:
+    - target: datastore
+      type: cloudify.relationships.depends_on
+    - target: vm_folder
+      type: cloudify.relationships.depends_on
+    - target: resource_pool
+      type: cloudify.relationships.depends_on
+    - target: hypervisor_host
+      type: cloudify.relationships.depends_on
+    - target: network
+      type: cloudify.relationships.depends_on
+
+  vm_instance:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      use_external_resource: true
+      connection_config: *connection_config
+      enable_start_vm: false
+      os_family: other
+      agent_config:
+        install_method: none
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          inputs:
+            server:
+              name: { get_attribute: [vm_content_library, vm_name] }
+    relationships:
+    - target: vm_content_library
+      type: cloudify.relationships.depends_on
+
+  cloud_init_image:
+    type: cloudify.vsphere.nodes.CloudInitISO
+    properties:
+      connection_config: *connection_config
+      datacenter_name: { get_input: vcenter_datacenter }
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            allowed_datastore_ids: { get_attribute: [vm_instance, datastore_ids] }
+            vol_ident: cidata
+            files:
+              meta-data: { get_attribute: [cloud_init_meta, cloud_config ] }
+              network-config: { get_attribute: [cloud_init_network, cloud_config ] }
+              user-data: { get_attribute: [cloud_init_user, cloud_config ] }
+    relationships:
+    - target: vm_instance
+      type: cloudify.relationships.depends_on
+    - target: cloud_init_network
+      type: cloudify.relationships.depends_on
+    - target: cloud_init_meta
+      type: cloudify.relationships.depends_on
+    - target: cloud_init_user
+      type: cloudify.relationships.depends_on
+
+  instance_with_cdrom:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      use_external_resource: true
+      connection_config: *connection_config
+      os_family: other
+      agent_config:
+        install_method: none
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          inputs:
+            cdrom_image: { get_attribute: [cloud_init_image, storage_image ] }
+            server:
+              name: { get_attribute: [vm_content_library, vm_name] }
+        stop:
+          inputs:
+            force_stop: true
+        delete:
+          inputs:
+            force_delete: true
+    relationships:
+    - target: vm_instance
+      type: cloudify.relationships.depends_on
+    - target: cloud_init_image
+      type: cloudify.relationships.depends_on
+
+  example_node:
+    type: cloudify.nodes.WebServer
+    interfaces:
+      cloudify.interfaces.lifecycle:
+          create:
+            implementation: terminal.cloudify_terminal.tasks.run
+            inputs:
+              terminal_auth:
+                smart_device: true
+                user: centos
+                key_content: { get_attribute: [agent_key, private_key_export] }
+                ip: 172.16.168.156
+                warnings:
+                - Another app is currently holding the yum lock; waiting for it to exit....
+              calls:
+              # set terminal properties
+              - action: echo $LANG
+              - action: stty rows 200 cols 160
+              # grow up
+              - action: sudo sudo xfs_growfs /
+              # install packages
+              - action: sudo yum clean metadata
+              # need to install epel before any other
+              - action: sudo yum install -y epel-release deltarpm
+              # install other rpm's
+              - action: sudo yum install -y createrepo nginx yum-utils firewalld
+              # add salt repository
+              - action: sudo yum install -y https://repo.saltstack.com/yum/redhat/salt-repo-2019.2.el7.noarch.rpm
+              # create repository
+              - action: sudo mkdir -p /usr/share/nginx/html/custom_repository/
+              - action: sudo mkdir -p /usr/share/nginx/html/custom_repository/
+              # download content
+              - action: sudo reposync -l -m --repoid=base --download-metadata --download_path=/usr/share/nginx/html/custom_repository/
+              - action: sudo reposync -l -m --repoid=extras --download-metadata --download_path=/usr/share/nginx/html/custom_repository/
+              - action: sudo reposync -l -m --repoid=updates --download-metadata --download_path=/usr/share/nginx/html/custom_repository/
+              - action: sudo reposync -l -m --repoid=salt-2019.2 --download-metadata --download_path=/usr/share/nginx/html/custom_repository/
+              # create indexes
+              - action: sudo createrepo /usr/share/nginx/html/custom_repository/base/
+              - action: sudo createrepo /usr/share/nginx/html/custom_repository/extras/
+              - action: sudo createrepo /usr/share/nginx/html/custom_repository/updates/
+              - action: sudo createrepo /usr/share/nginx/html/custom_repository/salt-2019.2/
+              # enable firewall
+              - action: sudo systemctl start firewalld > /dev/null || echo "Failed!"
+              - action: sudo systemctl enable firewalld > /dev/null || echo "Failed!"
+              # ebnable nginx
+              - action: sudo systemctl start nginx > /dev/null || echo "Failed!"
+              - action: sudo systemctl enable nginx > /dev/null || echo "Failed!"
+              # set rules
+              - action: sudo firewall-cmd --zone=public --permanent --add-service=http > /dev/null || echo "Failed!"
+              - action: sudo firewall-cmd --zone=public --permanent --add-port=8080/tcp > /dev/null || echo "Failed!"
+              - action: sudo firewall-cmd --zone=public --permanent --add-service=ssh > /dev/null || echo "Failed!"
+              - action: sudo firewall-cmd --reload > /dev/null > /dev/null || echo "Failed!"
+              # fix rights
+              - action: sudo find /usr/share/nginx/html/custom_repository/ -type f -print | sudo xargs chmod 644 -v > /dev/null || echo "Failed!"
+              - action: sudo find /usr/share/nginx/html/custom_repository/ -type d -print | sudo xargs chmod 755 -v > /dev/null || echo "Failed!"
+              # fstrim
+              - action: sudo fstrim / > /dev/null || echo "Failed!"
+    relationships:
+      - target: instance_with_cdrom
+        type: cloudify.relationships.contained_in
