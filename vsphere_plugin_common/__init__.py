@@ -50,6 +50,7 @@ from vsphere_plugin_common.constants import (
     VSPHERE_RESOURCE_NAME,
     NETWORK_CREATE_ON,
     NETWORK_STATUS,
+    VSPHERE_SERVER_ID,
 )
 from collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
@@ -1557,6 +1558,11 @@ class ServerClient(VsphereClient):
             task = server.obj.ReconfigVM_Task(spec=spec)
             self._wait_for_task(task)
 
+    def _get_virtual_hardware_version(self, vm):
+        # See https://kb.vmware.com/s/article/1003746 for documentation on VM
+        # hardware versions and ESXi version compatibility.
+        return int(vm.obj.config.version.lstrip("vmx-"))
+
     def create_server(
             self,
             auto_placement,
@@ -1815,11 +1821,25 @@ class ServerClient(VsphereClient):
                 "Error during executing VM creation task. VM name: \'{0}\'."
                 .format(vm_name))
 
+        # VM object created. Now perform final post-creation tasks
+
         vm = self._get_obj_by_name(
             vim.VirtualMachine,
             vm_name,
             use_cache=False,
         )
+        ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = vm.obj._moId
+        ctx.instance.runtime_properties['name'] = vm_name
+
+        if self._get_virtual_hardware_version(vm) < 13:
+            try:
+                self._wait_for_task(vm.obj.UpgradeVM_Task("vmx-13"))
+            except Exception as e:
+                raise NonRecoverableError(
+                    "Could not upgrade the VM to a hardware version: {0}"
+                    .format(str(e))
+                )
+
         ctx.instance.runtime_properties[NETWORKS] = \
             self.get_vm_networks(vm)
         logger().debug('Updated runtime properties with network information')
@@ -2371,7 +2391,7 @@ class ServerClient(VsphereClient):
                 message = message.format(ds=', '.join(allowed_datastores))
             message += ' Only the suitable candidate hosts were checked: '
             message += '{hosts}'.format(hosts=', '.join(
-                [hostt[0].name for hostt in candidate_hosts]
+                [candidate[0].name for candidate in candidate_hosts]
             ))
             raise NonRecoverableError(message)
 

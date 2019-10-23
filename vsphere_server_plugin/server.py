@@ -426,9 +426,9 @@ def stop(ctx, server_client, server, os_family, force_stop=False):
                 .format(ctx.instance.id))
         return
     vm_name = get_vm_name(ctx, server, os_family)
-    ctx.logger.info('Preparing to stop server {name}'.format(name=vm_name))
+    ctx.logger.info('Stopping server {name}'.format(name=vm_name))
     server_client.stop_server(server_obj)
-    ctx.logger.info('Succeessfully stop server {name}'.format(name=vm_name))
+    ctx.logger.info('Successfully stopped server {name}'.format(name=vm_name))
 
 
 @op
