@@ -204,6 +204,7 @@ class VsphereClient(object):
 
     def __init__(self):
         self._cache = {}
+        self._logger = logger()
 
     def get(self, config=None, *args, **kw):
         static_config = Config().get()
@@ -280,7 +281,7 @@ class VsphereClient(object):
                 else:
                     raise
         elif not allow_insecure:
-            logger().warn(
+            self._logger.warn(
                 'DEPRECATED: certificate_path was not supplied. '
                 'A certificate will be required in the next major '
                 'release of the plugin if allow_insecure is not set '
@@ -289,7 +290,7 @@ class VsphereClient(object):
 
         try:
             if allow_insecure:
-                logger().warn(
+                self._logger.warn(
                     'SSL verification disabled for all legacy code. '
                     'Please note that this may result in other code '
                     'from the same blueprint running with reduced '
@@ -511,7 +512,7 @@ class VsphereClient(object):
                         ' Object ID was {id}.'.format(id=result._moId)
                     )
                 if skip_broken_objects:
-                    ctx.logger.warn(message)
+                    self._logger.warn(message)
                 else:
                     raise NonRecoverableError(message)
 
@@ -1068,8 +1069,8 @@ class VsphereClient(object):
             vim.TaskInfo.State.running,
         ):
             time.sleep(TASK_CHECK_SLEEP)
-            logger().debug('Task state {state}'
-                           .format(state=task.info.state))
+            self._logger.debug('Task state {state}'
+                               .format(state=task.info.state))
         if task.info.state != vim.TaskInfo.State.success:
             raise NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
@@ -1091,15 +1092,16 @@ class VsphereClient(object):
             }
         """
         nics = []
-        logger().debug('Getting NIC list')
+        self._logger.debug('Getting NIC list')
         for dev in vm.config.hardware.device:
             if hasattr(dev, 'macAddress'):
                 nics.append(dev)
 
-        logger().debug('Got NICs: {nics}'.format(nics=nics))
+        self._logger.debug('Got NICs: {nics}'.format(nics=nics))
         networks = []
         for nic in nics:
-            logger().debug('Checking details for NIC {nic}'.format(nic=nic))
+            self._logger.debug('Checking details for NIC {nic}'
+                               .format(nic=nic))
             distributed = hasattr(nic.backing, 'port') and isinstance(
                 nic.backing.port,
                 vim.dvs.PortConnection,
@@ -1108,19 +1110,19 @@ class VsphereClient(object):
             network_name = None
             if distributed:
                 mapping_id = nic.backing.port.portgroupKey
-                logger().debug(
+                self._logger.debug(
                     'Found NIC was on distributed port group with port group '
                     'key {key}'.format(key=mapping_id)
                 )
                 for network in vm.network:
                     if hasattr(network, 'key'):
-                        logger().debug(
+                        self._logger.debug(
                             'Checking for match on network with key: '
                             '{key}'.format(key=network.key)
                         )
                         if mapping_id == network.key:
                             network_name = network.name
-                            logger().debug(
+                            self._logger.debug(
                                 'Found NIC was distributed and was on '
                                 'network {network}'.format(
                                     network=network_name,
@@ -1130,7 +1132,7 @@ class VsphereClient(object):
                 # If not distributed, the port group name can be retrieved
                 # directly
                 network_name = nic.backing.deviceName
-                logger().debug(
+                self._logger.debug(
                     'Found NIC was on port group {network}'.format(
                         network=network_name,
                     )
@@ -1165,7 +1167,7 @@ class VsphereClient(object):
         if attributes:
             values = self.custom_values(thing)
             values.update(attributes)
-            logger().debug('Added custom attributes')
+            self._logger.debug('Added custom attributes')
 
 
 class ServerClient(VsphereClient):
@@ -1189,7 +1191,7 @@ class ServerClient(VsphereClient):
             Validate that an allowed hosts, clusters, or datastores list is
             valid.
         """
-        logger().debug(
+        self._logger.debug(
             'Checking allowed {thing}s list.'.format(thing=thing_type)
         )
         not_things = set(allowed_things).difference(set(existing_things))
@@ -1203,7 +1205,7 @@ class ServerClient(VsphereClient):
                 )
             )
         elif len(not_things) > 0:
-            logger().warn(
+            self._logger.warn(
                 'One or more specified allowed {thing}s do not exist: '
                 '{not_things}'.format(
                     thing=thing_type,
@@ -1223,7 +1225,7 @@ class ServerClient(VsphereClient):
             Make sure we can actually continue with the inputs given.
             If we can't, we want to report all of the issues at once.
         """
-        logger().debug('Validating inputs for this platform.')
+        self._logger.debug('Validating inputs for this platform.')
         issues = []
 
         hosts = self._get_hosts()
@@ -1256,7 +1258,7 @@ class ServerClient(VsphereClient):
             if error:
                 issues.append(error)
 
-        logger().debug('Checking template exists.')
+        self._logger.debug('Checking template exists.')
         template_vm = self._get_obj_by_name(vim.VirtualMachine,
                                             template_name)
         if template_vm is None:
@@ -1264,7 +1266,7 @@ class ServerClient(VsphereClient):
                 template_name
             ))
 
-        logger().debug('Checking resource pool exists.')
+        self._logger.debug('Checking resource pool exists.')
         resource_pool = self._get_obj_by_name(
             vim.ResourcePool,
             resource_pool_name,
@@ -1274,7 +1276,7 @@ class ServerClient(VsphereClient):
                 resource_pool_name,
             ))
 
-        logger().debug('Checking datacenter exists.')
+        self._logger.debug('Checking datacenter exists.')
         datacenter = self._get_obj_by_name(vim.Datacenter,
                                            datacenter_name)
         if datacenter is None:
@@ -1282,7 +1284,7 @@ class ServerClient(VsphereClient):
                 datacenter_name
             ))
 
-        logger().debug(
+        self._logger.debug(
             'Checking networks exist.'
         )
         port_groups, distributed_port_groups = self._get_port_group_names()
@@ -1412,7 +1414,7 @@ class ServerClient(VsphereClient):
                         self._convert_vmware_port_group_to_cloudify(port_group)
                     break
             else:
-                logger().warning(
+                self._logger.warning(
                     "Network {name} couldn't be found.  Only found {networks}."
                     .format(name=network_name, networks=repr([
                         net.name for net in datacenter.obj.network])))
@@ -1428,7 +1430,7 @@ class ServerClient(VsphereClient):
         nicspec = vim.vm.device.VirtualDeviceSpec()
         # Info level as this is something that was requested in the
         # blueprint
-        logger().info(
+        self._logger.info(
             'Adding network interface on {name}'.format(
                 name=network_name))
         nicspec.operation = \
@@ -1478,7 +1480,7 @@ class ServerClient(VsphereClient):
         return keys
 
     def _remove_nic_keys(self, server, keys):
-        logger().debug(
+        self._logger.debug(
             'Removing network adapters {keys} from vm. '
             .format(keys=repr(keys)))
         # remove nic's by key
@@ -1489,7 +1491,7 @@ class ServerClient(VsphereClient):
                 if hasattr(device, 'macAddress') and key == device.key:
                     nicspec = vim.vm.device.VirtualDeviceSpec()
                     nicspec.device = device
-                    logger().debug(
+                    self._logger.debug(
                         'Removing network adapter {key} from vm. '
                         .format(key=device.key))
                     nicspec.operation = \
@@ -1518,7 +1520,7 @@ class ServerClient(VsphereClient):
             if remove_networks and hasattr(device, 'macAddress'):
                 nicspec = vim.vm.device.VirtualDeviceSpec()
                 nicspec.device = device
-                logger().warn(
+                self._logger.warn(
                     'Removing network adapter {mac} from template. '
                     'Template should have no attached adapters.'
                     .format(mac=device.macAddress))
@@ -1530,7 +1532,7 @@ class ServerClient(VsphereClient):
                 isinstance(device, vim.vm.device.VirtualCdrom) and
                 cdrom_image
             ):
-                logger().warn(
+                self._logger.warn(
                     'Edit cdrom from template. '
                     'Template should have no inserted cdroms.')
                 cdrom_attached = True
@@ -1539,7 +1541,8 @@ class ServerClient(VsphereClient):
                     device.backing, vim.vm.device.VirtualCdrom.IsoBackingInfo
                 ):
                     if str(device.backing.fileName) == str(cdrom_image):
-                        logger().info("Specified CD image is already mounted.")
+                        self._logger.info(
+                            "Specified CD image is already mounted.")
                         continue
                 cdrom = vim.vm.device.VirtualDeviceSpec()
                 cdrom.device = device
@@ -1593,8 +1596,8 @@ class ServerClient(VsphereClient):
                 spec.deviceChange = devices_changes
             # add extra config
             if extra_config and isinstance(extra_config, dict):
-                logger().debug('Extra config: {config}'
-                               .format(config=repr(extra_config)))
+                self._logger.debug('Extra config: {config}'
+                                   .format(config=repr(extra_config)))
                 for k in extra_config:
                     spec.extraConfig.append(
                         vim.option.OptionValue(key=k, value=extra_config[k]))
@@ -1635,7 +1638,7 @@ class ServerClient(VsphereClient):
             postpone_delete_networks=False,
             minimal_vm_version=13,
             ):
-        logger().debug(
+        self._logger.debug(
             "Entering create_server with parameters %s"
             % prepare_for_log(locals()))
 
@@ -1684,7 +1687,7 @@ class ServerClient(VsphereClient):
             VSPHERE_SERVER_HYPERVISOR_HOSTNAME] = host.name
         ctx.instance.runtime_properties[
             VSPHERE_SERVER_CLUSTER_NAME] = host.parent.name
-        logger().debug(
+        self._logger.debug(
             'Using host {host} and datastore {ds} for deployment.'.format(
                 host=host.name,
                 ds=datastore.name,
@@ -1715,7 +1718,7 @@ class ServerClient(VsphereClient):
         relospec.datastore = datastore.obj
         relospec.pool = resource_pool.obj
         if not auto_placement:
-            logger().warn(
+            self._logger.warn(
                 'Disabled autoplacement is not recomended for a cluster.'
             )
             relospec.host = host.obj
@@ -1726,8 +1729,8 @@ class ServerClient(VsphereClient):
             macs_for_remove = self._get_nic_keys_for_remove(template_vm)
 
         if postpone_delete_networks and enable_start_vm:
-            logger().info("Use postpone delete networks with "
-                          "`enable_start_vm` is unsupported.")
+            self._logger.info("Use postpone delete networks with "
+                              "`enable_start_vm` is unsupported.")
 
         # attach cdrom image and remove all networks
         devices = self._update_vm(template_vm, cdrom_image=cdrom_image,
@@ -1756,14 +1759,14 @@ class ServerClient(VsphereClient):
 
         # add extra config
         if extra_config and isinstance(extra_config, dict):
-            logger().debug('Extra config: {config}'
-                           .format(config=repr(extra_config)))
+            self._logger.debug('Extra config: {config}'
+                               .format(config=repr(extra_config)))
             for k in extra_config:
                 clonespec.extraConfig.append(
                     vim.option.OptionValue(key=k, value=extra_config[k]))
 
         if adaptermaps:
-            logger().debug(
+            self._logger.debug(
                 'Preparing OS customization spec for {server}'.format(
                     server=vm_name,
                 )
@@ -1832,12 +1835,12 @@ class ServerClient(VsphereClient):
                 customspec.options = options
             elif os_type == 'solaris':
                 ident = None
-                logger().info(
+                self._logger.info(
                     'Customization of the Solaris OS is unsupported by '
                     ' vSphere. Guest additions are required/supported.')
             else:
                 ident = None
-                logger().info(
+                self._logger.info(
                     'os_type {os_type} was specified, but only "windows", '
                     '"solaris" and "linux" are supported. Customization is '
                     'unsupported.'
@@ -1853,22 +1856,22 @@ class ServerClient(VsphereClient):
                 customspec.globalIPSettings = globalip
 
                 clonespec.customization = customspec
-        logger().info(
+        self._logger.info(
             'Cloning {server} from {template}.'.format(
                 server=vm_name, template=template_name))
-        logger().debug('Cloning with clonespec: {spec}'
-                       .format(spec=repr(clonespec)))
+        self._logger.debug('Cloning with clonespec: {spec}'
+                           .format(spec=repr(clonespec)))
         task = template_vm.obj.Clone(folder=destfolder,
                                      name=vm_name,
                                      spec=clonespec)
         try:
-            logger().debug(
+            self._logger.debug(
                 "Task info: {task}".format(task=repr(task)))
             if enable_start_vm:
-                logger().info('VM created in running state')
+                self._logger.info('VM created in running state')
                 self._wait_vm_running(task, adaptermaps, os_type == "other")
             else:
-                logger().info('VM created in stopped state')
+                self._logger.info('VM created in stopped state')
                 self._wait_for_task(task)
         except task.info.error:
             raise NonRecoverableError(
@@ -1877,15 +1880,16 @@ class ServerClient(VsphereClient):
 
         # VM object created. Now perform final post-creation tasks
         vm = task.info.result
-        logger().info('VM version: vmx-{old}/vmx-{new}'.format(
+        self._logger.info('VM version: vmx-{old}/vmx-{new}'.format(
             old=self._get_virtual_hardware_version(vm),
             new=minimal_vm_version))
         if self._get_virtual_hardware_version(vm) < minimal_vm_version:
             if enable_start_vm:
-                logger().info("Use VM hardware update with `enable_start_vm` "
-                              "is unsupported.")
+                self._logger.info(
+                    "Use VM hardware update with `enable_start_vm` is "
+                    "unsupported.")
             else:
-                logger().info("Going to update VM hardware version.")
+                self._logger.info("Going to update VM hardware version.")
                 try:
                     self._wait_for_task(vm.UpgradeVM_Task(
                         "vmx-{version}".format(version=minimal_vm_version)))
@@ -1916,7 +1920,8 @@ class ServerClient(VsphereClient):
 
         ctx.instance.runtime_properties[NETWORKS] = \
             self.get_vm_networks(vm)
-        logger().debug('Updated runtime properties with network information')
+        self._logger.debug(
+            'Updated runtime properties with network information')
 
         self.add_custom_values(vm, custom_attributes or {})
 
@@ -1924,25 +1929,27 @@ class ServerClient(VsphereClient):
 
     def suspend_server(self, server):
         if self.is_server_suspended(server.obj):
-            logger().info("Server '{}' already suspended.".format(server.name))
+            self._logger.info("Server '{}' already suspended."
+                              .format(server.name))
             return
         if self.is_server_poweredoff(server):
-            logger().info("Server '{}' is powered off so will not be "
-                          "suspended.".format(server.name))
+            self._logger.info("Server '{}' is powered off so will not be "
+                              "suspended.".format(server.name))
             return
-        logger().debug("Entering server suspend procedure.")
+        self._logger.debug("Entering server suspend procedure.")
         task = server.obj.Suspend()
         self._wait_for_task(task)
-        logger().debug("Server is suspended.")
+        self._logger.debug("Server is suspended.")
 
     def start_server(self, server):
         if self.is_server_poweredon(server):
-            logger().info("Server '{}' already running".format(server.name))
+            self._logger.info("Server '{}' already running"
+                              .format(server.name))
             return
-        logger().debug("Entering server start procedure.")
+        self._logger.debug("Entering server start procedure.")
         task = server.obj.PowerOn()
         self._wait_for_task(task)
-        logger().debug("Server is now running.")
+        self._logger.debug("Server is now running.")
 
     def shutdown_server_guest(
         self, server,
@@ -1950,9 +1957,10 @@ class ServerClient(VsphereClient):
         max_wait_time=300,
     ):
         if self.is_server_poweredoff(server):
-            logger().info("Server '{}' already stopped".format(server.name))
+            self._logger.info("Server '{}' already stopped"
+                              .format(server.name))
             return
-        logger().debug("Entering server shutdown procedure.")
+        self._logger.debug("Entering server shutdown procedure.")
         server.obj.ShutdownGuest()
         for _ in range(max_wait_time // timeout):
             time.sleep(timeout)
@@ -1963,16 +1971,17 @@ class ServerClient(VsphereClient):
                 "Server still running after {time}s timeout.".format(
                     time=max_wait_time,
                 ))
-        logger().debug("Server is now shut down.")
+        self._logger.debug("Server is now shut down.")
 
     def stop_server(self, server):
         if self.is_server_poweredoff(server):
-            logger().info("Server '{}' already stopped".format(server.name))
+            self._logger.info("Server '{}' already stopped"
+                              .format(server.name))
             return
-        logger().debug("Entering stop server procedure.")
+        self._logger.debug("Entering stop server procedure.")
         task = server.obj.PowerOff()
         self._wait_for_task(task)
-        logger().debug("Server is now stopped.")
+        self._logger.debug("Server is now stopped.")
 
     def backup_server(self, server, snapshot_name, description):
         if server.obj.snapshot:
@@ -2037,13 +2046,13 @@ class ServerClient(VsphereClient):
 
     def reset_server(self, server):
         if self.is_server_poweredoff(server):
-            logger().info(
+            self._logger.info(
                 "Server '{}' currently stopped, starting.".format(server.name))
             return self.start_server(server)
-        logger().debug("Entering stop server procedure.")
+        self._logger.debug("Entering stop server procedure.")
         task = server.obj.Reset()
         self._wait_for_task(task)
-        logger().debug("Server has been reset")
+        self._logger.debug("Server has been reset")
 
     def reboot_server(
         self, server,
@@ -2051,10 +2060,10 @@ class ServerClient(VsphereClient):
         max_wait_time=300,
     ):
         if self.is_server_poweredoff(server):
-            logger().info(
+            self._logger.info(
                 "Server '{}' currently stopped, starting.".format(server.name))
             return self.start_server(server)
-        logger().debug("Entering reboot server procedure.")
+        self._logger.debug("Entering reboot server procedure.")
         start_bootTime = server.obj.runtime.bootTime
         server.obj.RebootGuest()
         for _ in range(max_wait_time // timeout):
@@ -2066,7 +2075,7 @@ class ServerClient(VsphereClient):
                 "Server still running after {time}s timeout.".format(
                     time=max_wait_time,
                 ))
-        logger().debug("Server has been rebooted")
+        self._logger.debug("Server has been rebooted")
 
     def is_server_poweredoff(self, server):
         return server.obj.summary.runtime.powerState.lower() == "poweredoff"
@@ -2078,12 +2087,12 @@ class ServerClient(VsphereClient):
         return server.obj.guest.guestState == "running"
 
     def delete_server(self, server):
-        logger().debug("Entering server delete procedure.")
+        self._logger.debug("Entering server delete procedure.")
         if self.is_server_poweredon(server):
             self.stop_server(server)
         task = server.obj.Destroy()
         self._wait_for_task(task)
-        logger().debug("Server is now deleted.")
+        self._logger.debug("Server is now deleted.")
 
     def get_server_by_name(self, name):
         return self._get_obj_by_name(vim.VirtualMachine, name)
@@ -2099,7 +2108,7 @@ class ServerClient(VsphereClient):
                              allowed_hosts=None,
                              allowed_clusters=None,
                              datacenter=None):
-        logger().debug('Finding suitable hosts for deployment.')
+        self._logger.debug('Finding suitable hosts for deployment.')
 
         # Find the hosts in the correct datacenter
         if datacenter:
@@ -2108,7 +2117,7 @@ class ServerClient(VsphereClient):
             hosts = self._get_hosts()
 
         host_names = [host.name for host in hosts]
-        logger().debug(
+        self._logger.debug(
             'Found hosts: {hosts}'.format(
                 hosts=', '.join(host_names),
             )
@@ -2116,7 +2125,7 @@ class ServerClient(VsphereClient):
 
         if allowed_hosts:
             hosts = [host for host in hosts if host.name in allowed_hosts]
-            logger().debug(
+            self._logger.debug(
                 'Filtered list of hosts to be considered: {hosts}'.format(
                     hosts=', '.join([host.name for host in hosts]),
                 )
@@ -2126,7 +2135,7 @@ class ServerClient(VsphereClient):
             cluster_list = self._get_clusters()
             cluster_names = [cluster.name for cluster in cluster_list]
             valid_clusters = set(allowed_clusters).union(set(cluster_names))
-            logger().debug(
+            self._logger.debug(
                 'Only hosts on the following clusters will be used: '
                 '{clusters}'.format(
                     clusters=', '.join(valid_clusters),
@@ -2136,7 +2145,7 @@ class ServerClient(VsphereClient):
         candidate_hosts = []
         for host in hosts:
             if not self.host_is_usable(host):
-                logger().warn(
+                self._logger.warn(
                     'Host {host} not usable due to health status.'.format(
                         host=host.name,
                     )
@@ -2147,7 +2156,7 @@ class ServerClient(VsphereClient):
                 cluster = self.get_host_cluster_membership(host)
                 if cluster not in allowed_clusters:
                     if cluster:
-                        logger().warn(
+                        self._logger.warn(
                             'Host {host} is in cluster {cluster}, '
                             'which is not an allowed cluster.'.format(
                                 host=host.name,
@@ -2155,7 +2164,7 @@ class ServerClient(VsphereClient):
                             )
                         )
                     else:
-                        logger().warn(
+                        self._logger.warn(
                             'Host {host} is not in a cluster, '
                             'and allowed clusters have been set.'.format(
                                 host=host.name,
@@ -2166,7 +2175,7 @@ class ServerClient(VsphereClient):
             memory_weight = self.host_memory_usage_ratio(host, vm_memory)
 
             if memory_weight < 0:
-                logger().warn(
+                self._logger.warn(
                     'Host {host} will not have enough free memory if all VMs '
                     'are powered on.'.format(
                         host=host.name,
@@ -2176,7 +2185,7 @@ class ServerClient(VsphereClient):
             resource_pools = self.get_host_resource_pools(host)
             resource_pools = [pool.name for pool in resource_pools]
             if resource_pool not in resource_pools:
-                logger().warn(
+                self._logger.warn(
                     'Host {host} does not have resource pool {rp}.'.format(
                         host=host.name,
                         rp=resource_pool,
@@ -2219,7 +2228,7 @@ class ServerClient(VsphereClient):
                 if missing_distributed_nets:
                     message += 'Missing distributed networks: {dnets}. '
 
-                logger().warn(
+                self._logger.warn(
                     message.format(
                         host=host.name,
                         nets=missing_standard_nets,
@@ -2228,7 +2237,7 @@ class ServerClient(VsphereClient):
                 )
                 continue
 
-            logger().debug(
+            self._logger.debug(
                 'Host {host} is a candidate for deployment.'.format(
                     host=host.name,
                 )
@@ -2241,7 +2250,7 @@ class ServerClient(VsphereClient):
 
         # Sort hosts based on the best processor ratio after deployment
         if candidate_hosts:
-            logger().debug(
+            self._logger.debug(
                 'Host CPU ratios: {ratios}'.format(
                     ratios=', '.join([
                         '{hostname}: {ratio} {mem_ratio}'.format(
@@ -2310,7 +2319,7 @@ class ServerClient(VsphereClient):
             This will assume that the hosts are sorted from most desirable to
             least desirable.
         """
-        logger().debug('Selecting best host and datastore.')
+        self._logger.debug('Selecting best host and datastore.')
 
         best_host = None
         best_datastore = None
@@ -2323,7 +2332,7 @@ class ServerClient(VsphereClient):
             valid_datastores = set(allowed_datastores).union(
                 set(datastore_names)
             )
-            logger().debug(
+            self._logger.debug(
                 'Only the following datastores will be used: '
                 '{datastores}'.format(
                     datastores=', '.join(valid_datastores),
@@ -2332,17 +2341,18 @@ class ServerClient(VsphereClient):
 
         for host in candidate_hosts:
             host = host[0]
-            logger().debug('Considering host {host}'.format(host=host.name))
+            self._logger.debug('Considering host {host}'
+                               .format(host=host.name))
 
             datastores = host.datastore
-            logger().debug(
+            self._logger.debug(
                 'Host {host} has datastores: {ds}'.format(
                     host=host.name,
                     ds=', '.join([ds.name for ds in datastores]),
                 )
             )
             if allowed_datastores:
-                logger().debug(
+                self._logger.debug(
                     'Checking only allowed datastores: {allow}'.format(
                         allow=', '.join(allowed_datastores),
                     )
@@ -2354,14 +2364,14 @@ class ServerClient(VsphereClient):
                 ]
 
                 if len(datastores) == 0:
-                    logger().warn(
+                    self._logger.warn(
                         'Host {host} had no allowed datastores.'.format(
                             host=host.name,
                         )
                     )
                     continue
 
-            logger().debug(
+            self._logger.debug(
                 'Filtering for healthy datastores on host {host}'.format(
                     host=host.name,
                 )
@@ -2370,7 +2380,7 @@ class ServerClient(VsphereClient):
             healthy_datastores = []
             for datastore in datastores:
                 if self.datastore_is_usable(datastore):
-                    logger().debug(
+                    self._logger.debug(
                         'Datastore {ds} on host {host} is healthy.'.format(
                             ds=datastore.name,
                             host=host.name,
@@ -2378,7 +2388,7 @@ class ServerClient(VsphereClient):
                     )
                     healthy_datastores.append(datastore)
                 else:
-                    logger().warn(
+                    self._logger.warn(
                         'Excluding datastore {ds} on host {host} as it is '
                         'not healthy.'.format(
                             ds=datastore.name,
@@ -2387,7 +2397,7 @@ class ServerClient(VsphereClient):
                     )
 
             if len(healthy_datastores) == 0:
-                logger().warn(
+                self._logger.warn(
                     'Host {host} has no usable datastores.'.format(
                         host=host.name,
                     )
@@ -2401,7 +2411,7 @@ class ServerClient(VsphereClient):
                     template=template,
                 )
                 if weighting is not None:
-                    logger().debug(
+                    self._logger.debug(
                         'Datastore {ds} on host {host} has suitability '
                         '{weight}'.format(
                             ds=datastore.name,
@@ -2411,7 +2421,7 @@ class ServerClient(VsphereClient):
                     )
                     candidate_datastores.append((datastore, weighting))
                 else:
-                    logger().warn(
+                    self._logger.warn(
                         'Datastore {ds} on host {host} does not have enough '
                         'free space.'.format(
                             ds=datastore.name,
@@ -2446,7 +2456,7 @@ class ServerClient(VsphereClient):
                 if candidate_host == best_host and (
                     candidate_datastore == best_datastore
                 ):
-                    logger().debug(
+                    self._logger.debug(
                         'Host {host} and datastore {datastore} are current '
                         'best candidate. Best datastore weighting '
                         '{weight}.'.format(
@@ -2480,9 +2490,10 @@ class ServerClient(VsphereClient):
                 try:
                     used_memory += int(vm.summary.config.memorySizeMB)
                 except StandardError:
-                    logger().warning("Incorrect value for memorySizeMB. It is "
-                                     "{0} but integer value is expected"
-                                     .format(vm.summary.config.memorySizeMB))
+                    self._logger.warning(
+                        "Incorrect value for memorySizeMB. It is {0} but "
+                        "integer value is expected"
+                        .format(vm.summary.config.memorySizeMB))
         return total_memory - used_memory
 
     def host_cpu_thread_usage_ratio(self, host, vm_cpus):
@@ -2505,9 +2516,9 @@ class ServerClient(VsphereClient):
             try:
                 total_assigned += int(vm.summary.config.numCpu)
             except StandardError:
-                logger().warning("Incorrect value for numCpu. It is "
-                                 "{0} but integer value is expected"
-                                 .format(vm.summary.config.numCpu))
+                self._logger.warning("Incorrect value for numCpu. It is "
+                                     "{0} but integer value is expected"
+                                     .format(vm.summary.config.numCpu))
         return total_threads / total_assigned
 
     def host_memory_usage_ratio(self, host, new_mem):
@@ -2631,7 +2642,7 @@ class ServerClient(VsphereClient):
             return False
 
     def resize_server(self, server, cpus=None, memory=None):
-        logger().debug("Entering resize reconfiguration.")
+        self._logger.debug("Entering resize reconfiguration.")
         config = vim.vm.ConfigSpec()
         if cpus is not None:
             try:
@@ -2672,12 +2683,12 @@ class ServerClient(VsphereClient):
                 )
             raise
 
-        logger().debug(
+        self._logger.debug(
             "Server '%s' resized with new number of "
             "CPUs: %s and RAM: %s." % (server.name, cpus, memory))
 
     def get_server_ip(self, vm, network_name, ignore_local=True):
-        logger().debug(
+        self._logger.debug(
             'Getting server IP from {network}.'.format(
                 network=network_name,
             )
@@ -2685,7 +2696,7 @@ class ServerClient(VsphereClient):
 
         for network in vm.guest.net:
             if not network.network:
-                logger().warn(
+                self._logger.warn(
                     'Ignoring device with MAC {mac} as it is not on a '
                     'vSphere network.'.format(
                         mac=network.macAddress,
@@ -2701,7 +2712,7 @@ class ServerClient(VsphereClient):
                 ip_address = get_ip_from_vsphere_nic_ips(network, ignore_local)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
-                logger().info(
+                self._logger.info(
                     'Found {ip} from device with MAC {mac}'.format(
                         ip=ip_address,
                         mac=network.macAddress,
@@ -2711,8 +2722,8 @@ class ServerClient(VsphereClient):
 
     def _task_guest_state_is_running(self, task):
         try:
-            logger().debug("VM state: {state}"
-                           .format(state=task.info.result.guest.guestState))
+            self._logger.debug("VM state: {state}".format(
+                state=task.info.result.guest.guestState))
             return task.info.result.guest.guestState == "running"
         except vmodl.fault.ManagedObjectNotFound:
             raise NonRecoverableError(
@@ -2742,7 +2753,7 @@ class ServerClient(VsphereClient):
 
         # skip guests check for other
         if other:
-            logger().info("Skip guest checks for other os")
+            self._logger.info("Skip guest checks for other os")
             return
 
         # check guest networks
@@ -2761,13 +2772,13 @@ class NetworkClient(VsphereClient):
         return self.host_list
 
     def delete_port_group(self, name):
-        logger().debug("Deleting port group {name}.".format(name=name))
+        self._logger.debug("Deleting port group {name}.".format(name=name))
         for host in self.get_host_list():
             host.configManager.networkSystem.RemovePortGroup(name)
-        logger().debug("Port group {name} was deleted.".format(name=name))
+        self._logger.debug("Port group {name} was deleted.".format(name=name))
 
     def get_vswitches(self):
-        logger().debug('Getting list of vswitches')
+        self._logger.debug('Getting list of vswitches')
 
         # We only want to list vswitches that are on all hosts, as we will try
         # to create port groups on the same vswitch on every host.
@@ -2782,8 +2793,8 @@ class NetworkClient(VsphereClient):
             else:
                 vswitches = vswitches.union(current_host_vswitches)
 
-        logger().debug('Found vswitches: {vswitches}'
-                       .format(vswitches=vswitches))
+        self._logger.debug('Found vswitches: {vswitches}'
+                           .format(vswitches=vswitches))
         return vswitches
 
     def get_vswitch_mtu(self, vswitch_name):
@@ -2800,19 +2811,19 @@ class NetworkClient(VsphereClient):
         return mtu
 
     def get_dvswitches(self):
-        logger().debug('Getting list of dvswitches')
+        self._logger.debug('Getting list of dvswitches')
 
         # This does not currently address multiple datacenters (indeed,
         # much of this code will probably have issues in such an environment).
         dvswitches = self._get_dvswitches()
         dvswitches = [dvswitch.name for dvswitch in dvswitches]
 
-        logger().debug('Found dvswitches: {dvswitches}'
-                       .format(dvswitches=dvswitches))
+        self._logger.debug('Found dvswitches: {dvswitches}'
+                           .format(dvswitches=dvswitches))
         return dvswitches
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
-        logger().debug("Entering create port procedure.")
+        self._logger.debug("Entering create port procedure.")
         runtime_properties = ctx.instance.runtime_properties
         if NETWORK_STATUS not in runtime_properties.keys():
             runtime_properties[NETWORK_STATUS] = 'preparing'
@@ -2859,7 +2870,7 @@ class NetworkClient(VsphereClient):
                 specification.vswitchName = vswitch_name
                 vswitch = network_system.networkConfig.vswitch[0]
                 specification.policy = vswitch.spec.policy
-                logger().debug(
+                self._logger.debug(
                     'Adding port group {group_name} to vSwitch '
                     '{vswitch_name} on host {host_name}'.format(
                         group_name=port_group_name,
@@ -2923,7 +2934,7 @@ class NetworkClient(VsphereClient):
 
         port_group_count = sum(port_group_counts)
 
-        logger().debug(
+        self._logger.debug(
             '{type} group {name} found on {port_group_count} out of '
             '{host_count} hosts.'.format(
                 type='Distributed port' if distributed else 'Port',
@@ -2936,14 +2947,14 @@ class NetworkClient(VsphereClient):
         return port_group_count, host_count
 
     def get_port_group_by_name(self, name):
-        logger().debug("Getting port group by name.")
+        self._logger.debug("Getting port group by name.")
         result = []
         for host in self.get_host_list():
             network_system = host.configManager.networkSystem
             port_groups = network_system.networkInfo.portgroup
             for port_group in port_groups:
                 if name.lower() == port_group.spec.name.lower():
-                    logger().debug(
+                    self._logger.debug(
                         "Port group(s) info: \n%s." % "".join(
                             "%s: %s" % item
                             for item in
@@ -2952,7 +2963,7 @@ class NetworkClient(VsphereClient):
         return result
 
     def create_dv_port_group(self, port_group_name, vlan_id, vswitch_name):
-        logger().debug("Creating dv port group.")
+        self._logger.debug("Creating dv port group.")
 
         dvswitches = self.get_dvswitches()
 
@@ -2977,8 +2988,8 @@ class NetworkClient(VsphereClient):
             vim.DistributedVirtualSwitch,
             vswitch_name,
         )
-        logger().debug("Distributed vSwitch info: {dvswitch}"
-                       .format(dvswitch=dvswitch))
+        self._logger.debug("Distributed vSwitch info: {dvswitch}"
+                           .format(dvswitch=dvswitch))
         # update mtu
         dvswitch = self._get_obj_by_name(
             vim.DistributedVirtualSwitch,
@@ -2995,7 +3006,7 @@ class NetworkClient(VsphereClient):
             name=port_group_name,
             defaultPortConfig=port_settings,
             type=dv_port_group_type)
-        logger().debug(
+        self._logger.debug(
             'Adding distributed port group {group_name} to dvSwitch '
             '{dvswitch_name}'.format(
                 group_name=port_group_name,
@@ -3004,17 +3015,17 @@ class NetworkClient(VsphereClient):
         )
         task = dvswitch.obj.AddPortgroup(specification)
         self._wait_for_task(task)
-        logger().debug("Port created.")
+        self._logger.debug("Port created.")
 
     def delete_dv_port_group(self, name):
-        logger().debug("Deleting dv port group {name}.".format(name=name))
+        self._logger.debug("Deleting dv port group {name}.".format(name=name))
         dv_port_group = self._get_obj_by_name(
             vim.dvs.DistributedVirtualPortgroup,
             name,
         )
         task = dv_port_group.obj.Destroy()
         self._wait_for_task(task)
-        logger().debug("Port deleted.")
+        self._logger.debug("Port deleted.")
 
     def get_network_cidr(self, name, switch_distributed):
         # search in all datacenters
@@ -3092,8 +3103,9 @@ class NetworkClient(VsphereClient):
         # add networks to pool
         for network in networks:
             network_name = network.runtime_properties["network_name"]
-            logger().debug("Attach network {network} to {pool}."
-                           .format(network=network_name, pool=ippool['name']))
+            self._logger.debug("Attach network {network} to {pool}."
+                               .format(network=network_name,
+                                       pool=ippool['name']))
             if network.runtime_properties.get("switch_distributed"):
                 # search vim.dvs.DistributedVirtualPortgroup
                 dv_port_group = self._get_obj_by_name(
@@ -3148,7 +3160,7 @@ class RawVolumeClient(VsphereClient):
             raise NonRecoverableError(
                 "Unable to get datacenter: {datacenter}"
                 .format(datacenter=repr(datacenter_name)))
-        ctx.logger.debug(
+        self._logger.debug(
             "Will check storage with IDs: {ids}; and names: {names}"
             .format(ids=repr(allowed_datastore_ids),
                     names=repr(allowed_datastores)))
@@ -3213,9 +3225,9 @@ class StorageClient(VsphereClient):
 
     def create_storage(self, vm_id, storage_size, parent_key, mode,
                        thin_provision=False):
-        logger().debug("Entering create storage procedure.")
+        self._logger.debug("Entering create storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        logger().debug("VM info: \n{}".format(vm))
+        self._logger.debug("VM info: \n{}".format(vm))
         if self.is_server_suspended(vm):
             raise NonRecoverableError(
                 'Error during trying to create storage:'
@@ -3325,7 +3337,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        logger().debug("Task info: \n%s." % prepare_for_log(vars(task)))
+        self._logger.debug("Task info: \n%s." % prepare_for_log(vars(task)))
         self._wait_for_task(task)
 
         # Get the SCSI bus and unit IDs
@@ -3361,9 +3373,9 @@ class StorageClient(VsphereClient):
         return vm_disk_filename, scsi_id
 
     def delete_storage(self, vm_id, storage_file_name):
-        logger().debug("Entering delete storage procedure.")
+        self._logger.debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        logger().debug("VM info: \n{}".format(vm))
+        self._logger.debug("VM info: \n{}".format(vm))
         if self.is_server_suspended(vm):
             raise NonRecoverableError(
                 "Error during trying to delete storage: invalid VM state - "
@@ -3397,27 +3409,27 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        logger().debug("Task info: \n%s." % prepare_for_log(vars(task)))
+        self._logger.debug("Task info: \n%s." % prepare_for_log(vars(task)))
         self._wait_for_task(task)
 
     def get_storage(self, vm_id, storage_file_name):
-        logger().debug("Entering get storage procedure.")
+        self._logger.debug("Entering get storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        logger().debug("VM info: \n{}".format(vm))
+        self._logger.debug("VM info: \n{}".format(vm))
         if vm:
             for device in vm.config.hardware.device:
                 if isinstance(device, vim.vm.device.VirtualDisk)\
                         and device.backing.fileName == storage_file_name:
-                    logger().debug(
+                    self._logger.debug(
                         "Device info: \n%s." % prepare_for_log(vars(device))
                     )
                     return device
         return None
 
     def resize_storage(self, vm_id, storage_filename, storage_size):
-        logger().debug("Entering resize storage procedure.")
+        self._logger.debug("Entering resize storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        logger().debug("VM info: \n{}".format(vm))
+        self._logger.debug("VM info: \n{}".format(vm))
         if self.is_server_suspended(vm):
             raise NonRecoverableError(
                 'Error during trying to resize storage: invalid VM state'
@@ -3450,9 +3462,9 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = updated_devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        logger().debug("VM info: \n{}".format(vm))
+        self._logger.debug("VM info: \n{}".format(vm))
         self._wait_for_task(task)
-        logger().debug("Storage resized to a new size %s." % storage_size)
+        self._logger.debug("Storage resized to a new size %s." % storage_size)
 
 
 class ControllerClient(VsphereClient):
@@ -3475,7 +3487,7 @@ class ControllerClient(VsphereClient):
                     config_spec.device = dev
                     break
         else:
-            logger().debug("Controller is not defined {}".format(bus_key))
+            self._logger.debug("Controller is not defined {}".format(bus_key))
             return
 
         spec = vim.vm.ConfigSpec()
@@ -3582,7 +3594,7 @@ class ControllerClient(VsphereClient):
         address_type = ethernet_card_properties.get('address_type', 'assigned')
         mac_address = ethernet_card_properties.get('mac_address')
         if not network_connected and start_connected:
-            logger().debug(
+            self._logger.debug(
                 "Network created unconnected so disable start_connected")
             start_connected = False
 
@@ -3602,8 +3614,8 @@ class ControllerClient(VsphereClient):
         nicspec = vim.vm.device.VirtualDeviceSpec()
         # Info level as this is something that was requested in the
         # blueprint
-        ctx.logger.info('Adding network interface on {name}'
-                        .format(name=network_name))
+        self._logger.info('Adding network interface on {name}'
+                          .format(name=network_name))
         nicspec.operation = \
             vim.vm.device.VirtualDeviceSpec.Operation.add
 
