@@ -204,6 +204,14 @@ node_types:
         description: |
           Enable start (power on) operation for VM.
         default: true
+      postpone_delete_networks:
+        description: |
+          Remover networks only after create VM.
+        default: false
+      minimal_vm_version:
+        description: |
+          Set minimal version of vm
+        default: 13
     interfaces:
       cloudify.interfaces.lifecycle:
         start:

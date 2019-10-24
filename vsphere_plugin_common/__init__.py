@@ -1466,6 +1466,48 @@ class ServerClient(VsphereClient):
             guest_map.adapter.subnetMask = str(nw.netmask)
         return nicspec, guest_map
 
+    def _get_nic_keys_for_remove(self, server):
+        # get nics keys in tempalte before our changes,
+        # should be used keys instead mac, as macs will be changed after
+        # create
+        keys = []
+        for device in server.config.hardware.device:
+            # delete network interface
+            if hasattr(device, 'macAddress'):
+                keys.append(device.key)
+        return keys
+
+    def _remove_nic_keys(self, server, keys):
+        logger().debug(
+            'Removing network adapters {keys} from vm. '
+            .format(keys=repr(keys)))
+        # remove nic's by key
+        for key in keys:
+            devices = []
+            for device in server.config.hardware.device:
+                # delete network interface
+                if hasattr(device, 'macAddress') and key == device.key:
+                    nicspec = vim.vm.device.VirtualDeviceSpec()
+                    nicspec.device = device
+                    logger().debug(
+                        'Removing network adapter {key} from vm. '
+                        .format(key=device.key))
+                    nicspec.operation = \
+                        vim.vm.device.VirtualDeviceSpec.Operation.remove
+                    devices.append(nicspec)
+            if devices:
+                # apply changes
+                spec = vim.vm.ConfigSpec()
+                spec.deviceChange = devices
+                task = server.obj.ReconfigVM_Task(spec=spec)
+                self._wait_for_task(task)
+                # update server object
+                server = self._get_obj_by_id(
+                    vim.VirtualMachine,
+                    server.obj._moId,
+                    use_cache=False,
+                )
+
     def _update_vm(self, server, cdrom_image=None, remove_networks=False):
         # update vm with attach cdrom image and remove network adapters
         devices = []
@@ -1477,8 +1519,9 @@ class ServerClient(VsphereClient):
                 nicspec = vim.vm.device.VirtualDeviceSpec()
                 nicspec.device = device
                 logger().warn(
-                    'Removing network adapter from template. '
-                    'Template should have no attached adapters.')
+                    'Removing network adapter {mac} from template. '
+                    'Template should have no attached adapters.'
+                    .format(mac=device.macAddress))
                 nicspec.operation = \
                     vim.vm.device.VirtualDeviceSpec.Operation.remove
                 devices.append(nicspec)
@@ -1561,7 +1604,7 @@ class ServerClient(VsphereClient):
     def _get_virtual_hardware_version(self, vm):
         # See https://kb.vmware.com/s/article/1003746 for documentation on VM
         # hardware versions and ESXi version compatibility.
-        return int(vm.obj.config.version.lstrip("vmx-"))
+        return int(vm.config.version.lstrip("vmx-"))
 
     def create_server(
             self,
@@ -1589,6 +1632,8 @@ class ServerClient(VsphereClient):
             vm_folder=None,
             extra_config=None,
             enable_start_vm=True,
+            postpone_delete_networks=False,
+            minimal_vm_version=13,
             ):
         logger().debug(
             "Entering create_server with parameters %s"
@@ -1675,9 +1720,18 @@ class ServerClient(VsphereClient):
             )
             relospec.host = host.obj
 
+        # get list nic mac's for remove
+        macs_for_remove = []
+        if postpone_delete_networks and not enable_start_vm:
+            macs_for_remove = self._get_nic_keys_for_remove(template_vm)
+
+        if postpone_delete_networks and enable_start_vm:
+            logger().info("Use postpone delete networks with "
+                          "`enable_start_vm` is unsupported.")
+
         # attach cdrom image and remove all networks
         devices = self._update_vm(template_vm, cdrom_image=cdrom_image,
-                                  remove_networks=True)
+                                  remove_networks=not postpone_delete_networks)
 
         port_groups, distributed_port_groups = self._get_port_group_names()
 
@@ -1822,23 +1876,43 @@ class ServerClient(VsphereClient):
                 .format(vm_name))
 
         # VM object created. Now perform final post-creation tasks
+        vm = task.info.result
+        logger().info('VM version: vmx-{old}/vmx-{new}'.format(
+            old=self._get_virtual_hardware_version(vm),
+            new=minimal_vm_version))
+        if self._get_virtual_hardware_version(vm) < minimal_vm_version:
+            if enable_start_vm:
+                logger().info("Use VM hardware update with `enable_start_vm` "
+                              "is unsupported.")
+            else:
+                logger().info("Going to update VM hardware version.")
+                try:
+                    self._wait_for_task(vm.UpgradeVM_Task(
+                        "vmx-{version}".format(version=minimal_vm_version)))
+                except Exception as e:
+                    raise NonRecoverableError(
+                        "Could not upgrade the VM to a {version} hardware "
+                        "version: {e}"
+                        .format(e=str(e), version=minimal_vm_version)
+                    )
 
-        vm = self._get_obj_by_name(
+        # remove nic's by mac
+        if macs_for_remove:
+            vm = self._get_obj_by_id(
+                vim.VirtualMachine,
+                task.info.result._moId,
+                use_cache=False,
+            )
+            self._remove_nic_keys(vm, macs_for_remove)
+
+        # get new state of vm
+        vm = self._get_obj_by_id(
             vim.VirtualMachine,
-            vm_name,
+            task.info.result._moId,
             use_cache=False,
         )
         ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = vm.obj._moId
         ctx.instance.runtime_properties['name'] = vm_name
-
-        if self._get_virtual_hardware_version(vm) < 13:
-            try:
-                self._wait_for_task(vm.obj.UpgradeVM_Task("vmx-13"))
-            except Exception as e:
-                raise NonRecoverableError(
-                    "Could not upgrade the VM to a hardware version: {0}"
-                    .format(str(e))
-                )
 
         ctx.instance.runtime_properties[NETWORKS] = \
             self.get_vm_networks(vm)
