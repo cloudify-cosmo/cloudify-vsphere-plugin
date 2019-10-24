@@ -1893,7 +1893,7 @@ class ServerClient(VsphereClient):
                 try:
                     self._wait_for_task(vm.UpgradeVM_Task(
                         "vmx-{version}".format(version=minimal_vm_version)))
-                except Exception as e:
+                except NonRecoverableError as e:
                     raise NonRecoverableError(
                         "Could not upgrade the VM to a {version} hardware "
                         "version: {e}"
