@@ -1723,7 +1723,7 @@ class ServerClient(VsphereClient):
             )
             relospec.host = host.obj
 
-        # get list nic mac's for remove
+        # Get list of NIC MAC addresses for removal
         keys_for_remove = []
         if postpone_delete_networks and not enable_start_vm:
             keys_for_remove = self._get_nic_keys_for_remove(template_vm)
