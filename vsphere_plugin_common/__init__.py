@@ -1469,9 +1469,9 @@ class ServerClient(VsphereClient):
         return nicspec, guest_map
 
     def _get_nic_keys_for_remove(self, server):
-        # get nics keys in tempalte before our changes,
-        # should be used keys instead mac, as macs will be changed after
-        # create
+        # get nics keys in template before our changes,
+        # we must use keys instead of mac addresses, as macs will be changed
+        # after VM create
         keys = []
         for device in server.config.hardware.device:
             # delete network interface
@@ -1483,12 +1483,12 @@ class ServerClient(VsphereClient):
         self._logger.debug(
             'Removing network adapters {keys} from vm. '
             .format(keys=repr(keys)))
-        # remove nic's by key
+        # remove nics by key
         for key in keys:
             devices = []
             for device in server.config.hardware.device:
                 # delete network interface
-                if hasattr(device, 'macAddress') and key == device.key:
+                if key == device.key:
                     nicspec = vim.vm.device.VirtualDeviceSpec()
                     nicspec.device = device
                     self._logger.debug(
@@ -1724,13 +1724,13 @@ class ServerClient(VsphereClient):
             relospec.host = host.obj
 
         # get list nic mac's for remove
-        macs_for_remove = []
+        keys_for_remove = []
         if postpone_delete_networks and not enable_start_vm:
-            macs_for_remove = self._get_nic_keys_for_remove(template_vm)
+            keys_for_remove = self._get_nic_keys_for_remove(template_vm)
 
         if postpone_delete_networks and enable_start_vm:
-            self._logger.info("Use postpone delete networks with "
-                              "`enable_start_vm` is unsupported.")
+            self._logger.info("Using postpone_delete_networks with "
+                              "enable_start_vm is unsupported.")
 
         # attach cdrom image and remove all networks
         devices = self._update_vm(template_vm, cdrom_image=cdrom_image,
@@ -1901,13 +1901,13 @@ class ServerClient(VsphereClient):
                     )
 
         # remove nic's by mac
-        if macs_for_remove:
+        if keys_for_remove:
             vm = self._get_obj_by_id(
                 vim.VirtualMachine,
                 task.info.result._moId,
                 use_cache=False,
             )
-            self._remove_nic_keys(vm, macs_for_remove)
+            self._remove_nic_keys(vm, keys_for_remove)
 
         # get new state of vm
         vm = self._get_obj_by_id(

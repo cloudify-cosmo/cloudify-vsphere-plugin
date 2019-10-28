@@ -156,7 +156,8 @@ def delete(storage_client, **kwargs):
     vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
     vm_name = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_NAME)
     if not vm_name or not vm_id:
-        ctx.logger.info('Not fully initialized storage.')
+        ctx.logger.info(
+            'Storage deletion not needed due to not being fully initialized.')
         return
 
     storage_file_name = \
