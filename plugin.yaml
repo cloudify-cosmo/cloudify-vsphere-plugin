@@ -7,8 +7,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.16.2'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.16.1.zip
+    package_version: '2.17.0'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.17.0.zip
 
 data_types:
 
@@ -204,6 +204,14 @@ node_types:
         description: |
           Enable start (power on) operation for VM.
         default: true
+      postpone_delete_networks:
+        description: |
+          Remover networks only after create VM.
+        default: false
+      minimal_vm_version:
+        description: |
+          Set minimal version of vm
+        default: 13
     interfaces:
       cloudify.interfaces.lifecycle:
         start:

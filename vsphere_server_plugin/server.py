@@ -194,6 +194,8 @@ def create_new_server(
         vm_folder=None,
         extra_config=None,
         enable_start_vm=True,
+        postpone_delete_networks=False,
+        minimal_vm_version=13,
         ):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info(
@@ -303,7 +305,9 @@ def create_new_server(
         cdrom_image=cdrom_image,
         vm_folder=vm_folder,
         extra_config=extra_config,
-        enable_start_vm=enable_start_vm)
+        enable_start_vm=enable_start_vm,
+        minimal_vm_version=minimal_vm_version,
+        postpone_delete_networks=postpone_delete_networks)
     ctx.logger.info('Successfully created server called {name}'.format(
                     name=vm_name))
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj._moId
@@ -330,6 +334,8 @@ def start(
         custom_attributes,
         use_external_resource,
         enable_start_vm=True,
+        minimal_vm_version=13,
+        postpone_delete_networks=False,
         cdrom_image=None,
         vm_folder=None,
         extra_config=None,
@@ -374,6 +380,8 @@ def start(
             vm_folder=vm_folder,
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
+            minimal_vm_version=minimal_vm_version,
+            postpone_delete_networks=postpone_delete_networks,
             )
     else:
         server_client.update_server(server=server_obj,
@@ -426,9 +434,9 @@ def stop(ctx, server_client, server, os_family, force_stop=False):
                 .format(ctx.instance.id))
         return
     vm_name = get_vm_name(ctx, server, os_family)
-    ctx.logger.info('Preparing to stop server {name}'.format(name=vm_name))
+    ctx.logger.info('Stopping server {name}'.format(name=vm_name))
     server_client.stop_server(server_obj)
-    ctx.logger.info('Succeessfully stop server {name}'.format(name=vm_name))
+    ctx.logger.info('Successfully stopped server {name}'.format(name=vm_name))
 
 
 @op

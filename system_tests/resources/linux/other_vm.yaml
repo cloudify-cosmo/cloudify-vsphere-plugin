@@ -99,6 +99,10 @@ node_types:
         default: { get_input: allowed_clusters }
       allowed_datastores:
         default: { get_input: allowed_datastores }
+      postpone_delete_networks:
+        default: true
+      enable_start_vm:
+        default: false
       server:
         default:
           name: other_vm
@@ -129,6 +133,7 @@ node_templates:
       connection_config: *connection_config
       agent_config:
         install_method: none
+      os_family: other
     interfaces:
       cloudify.interfaces.lifecycle:
         start:

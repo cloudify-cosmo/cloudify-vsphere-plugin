@@ -1,3 +1,6 @@
+2.17.0:
+  - Support postpone_delete_networks flag for removal of network interfaces after VM creation.
+  - Upgrade vm version on start, supported only on stopped vm.
 2.16.2:
   - Fix debug log output for vm object
 2.16.1:
