@@ -17,7 +17,7 @@ def configure():
     ctx.logger.info('Seeing if we need to initialise the disk..')
     mounted = run('mount').splitlines()
     mounted_paths = [mount.split()[0] for mount in mounted]
-    if '/mnt' in mounted_paths:
+    if '/dev/sdb' in mounted_paths:
         ctx.logger.info('Device already initialised and mounted')
     else:
         scsi_id = env['scsi_id']

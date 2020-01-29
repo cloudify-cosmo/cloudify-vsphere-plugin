@@ -10,7 +10,7 @@
     sudo yum install -y qemu-kvm libvirt wget
     wget -cv https://raw.githubusercontent.com/cloudify-cosmo/cloudify-vsphere-plugin/master/system_tests/resources/linux/templates/CentOS-7-x86_64-GenericCloud-1907.ovf
     wget -cv https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud-1907.qcow2
-    qemu-img resize CentOS-7-x86_64-GenericCloud-1907.qcow2 64G
+    qemu-img resize CentOS-7-x86_64-GenericCloud-1907.qcow2 16G
     qemu-img convert CentOS-7-x86_64-GenericCloud-1907.qcow2 -O vmdk -o subformat=streamOptimized CentOS-7-x86_64-GenericCloud-1907.vmdk
     #run http server:
     python -m SimpleHTTPServer 8080
@@ -29,6 +29,10 @@
     <Configuration ovf:id="singlecpu">
       <Label>1 CPU/2048 MB RAM</Label>
       <Description>1 CPU and 2048 MB RAM.</Description>
+    </Configuration>
+    <Configuration ovf:id="dualcpu2gb">
+      <Label>2 CPUs/2048 MB RAM</Label>
+      <Description>2 CPUs and 2048 MB RAM.</Description>
     </Configuration>
     <Configuration ovf:id="dualcpu" ovf:default="true">
       <Label>2 CPUs/4096 MB RAM</Label>
@@ -61,6 +65,23 @@
         <rasd:VirtualQuantity>1</rasd:VirtualQuantity>
       </Item>
       <Item ovf:configuration="singlecpu">
+        <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
+        <rasd:Description>Memory Size</rasd:Description>
+        <rasd:ElementName>2048MB of memory</rasd:ElementName>
+        <rasd:InstanceID>2</rasd:InstanceID>
+        <rasd:Reservation>2048</rasd:Reservation>
+        <rasd:ResourceType>4</rasd:ResourceType>
+        <rasd:VirtualQuantity>2048</rasd:VirtualQuantity>
+      </Item>
+      <Item ovf:configuration="dualcpu2gb">
+        <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
+        <rasd:Description>Number of Virtual CPUs</rasd:Description>
+        <rasd:ElementName>2 virtual CPU(s)</rasd:ElementName>
+        <rasd:InstanceID>1</rasd:InstanceID>
+        <rasd:ResourceType>3</rasd:ResourceType>
+        <rasd:VirtualQuantity>2</rasd:VirtualQuantity>
+      </Item>
+      <Item ovf:configuration="dualcpu2gb">
         <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
         <rasd:Description>Memory Size</rasd:Description>
         <rasd:ElementName>2048MB of memory</rasd:ElementName>
