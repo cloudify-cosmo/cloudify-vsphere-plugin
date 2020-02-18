@@ -28,34 +28,6 @@ class VsphereCIDataTest(unittest.TestCase):
         self.mock_ctx = Mock()
         current_ctx.set(self.mock_ctx)
 
-    def test_joliet_name(self):
-        self.assertEqual("/abc", cidata._joliet_name("abc"))
-        self.assertEqual("/" + "*" * 64, cidata._joliet_name("*" * 128))
-        self.assertEqual("/" + "*" * 64,
-                         cidata._joliet_name("/" + "*" * 128))
-
-    def test_iso_name(self):
-        self.assertEqual("/ABC.;3", cidata._iso_name("abc"))
-        self.assertEqual("/1234567890_ABCDEF.;3",
-                         cidata._iso_name("1234567890.abcdef"))
-        self.assertEqual("/" + "_" * 16 + ".;3",
-                         cidata._iso_name("*" * 16))
-        self.assertEqual("/" + "_" * 16 + ".;3",
-                         cidata._iso_name("/" + "*" * 16))
-        self.assertEqual("/12345678.123;3",
-                         cidata._iso_name("12345678.123"))
-
-    def test_create_iso(self):
-        _get_resource = Mock(return_value="abc")
-        cidata._create_iso(
-            vol_ident='vol', sys_ident='sys', files={
-                "a/b/c": "d",
-                'c': 'f'
-            }, files_raw={
-                'g': 'file_call'
-            }, get_resource=_get_resource)
-        _get_resource.assert_called_once_with('file_call')
-
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_storage_create(self, mock_client_get):
         mock_client_get().upload_file.side_effect = [

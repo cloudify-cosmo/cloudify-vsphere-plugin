@@ -12,11 +12,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-import pycdlib
 import os
-import re
-from io import BytesIO
+
+import cloudify_common_sdk.iso9660 as iso9660
 
 from cloudify import ctx
 
@@ -32,74 +30,6 @@ from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_FILE_NAME,
     DATACENTER_ID,
 )
-
-
-def _joliet_name(name):
-    if name[0] == "/":
-        name = name[1:]
-    return "/{name}".format(name=name[:64])
-
-
-def _name_cleanup(name):
-    return re.sub('[^A-Z0-9_/]{1}', r'_', name.upper())
-
-
-def _iso_name(name):
-    if name[0] == "/":
-        name = name[1:]
-
-    name_splited = name.split('.')
-    if len(name_splited[-1]) <= 3 and len(name_splited) > 1:
-        return "/{name}.{ext};3".format(
-            name=_name_cleanup("_".join(name_splited[:-1])),
-            ext=_name_cleanup(name_splited[-1]))
-    else:
-        return "/{name}.;3".format(name=_name_cleanup(name))
-
-
-def _create_iso(vol_ident, sys_ident, files, files_raw, get_resource):
-    iso = pycdlib.PyCdlib()
-    iso.new(interchange_level=3, joliet=3,
-            vol_ident=vol_ident, sys_ident=sys_ident)
-
-    if not files:
-        files = {}
-
-    # apply raw files over files content
-    if files_raw:
-        for name in files_raw:
-            files[name] = get_resource(files_raw[name])
-
-    # existed directories
-    dirs = []
-
-    # write file contents to cdrom image
-    for name in files:
-        file_bufer = BytesIO()
-        file_bufer.write(files[name].encode())
-        dir_path_spited = name.split("/")
-        if len(dir_path_spited) > 1:
-            initial_path = ""
-            for sub_name in dir_path_spited[:-1]:
-                initial_path = initial_path + "/" + sub_name
-                if initial_path not in dirs:
-                    iso.add_directory(_name_cleanup(initial_path),
-                                      joliet_path=_joliet_name(initial_path))
-                dirs.append(initial_path)
-        iso.add_fp(file_bufer, len(files[name]),
-                   _iso_name(name), joliet_path=_joliet_name(name))
-
-    # finalize iso
-    outiso = BytesIO()
-    iso.write_fp(outiso)
-    outiso.seek(0, os.SEEK_END)
-    iso_size = outiso.tell()
-    iso.close()
-    outiso.seek(0, os.SEEK_SET)
-
-    ctx.logger.info("ISO size: {size}".format(size=repr(iso_size)))
-
-    return outiso
 
 
 @op
@@ -120,9 +50,15 @@ def create(rawvolume_client, files, files_raw, datacenter_name,
         ctx.logger.warn("`raw_files` is deprecated, use `files_raw`.")
         files_raw = files_raw.update(raw_files) if files_raw else raw_files
 
-    outiso = _create_iso(vol_ident=vol_ident, sys_ident=sys_ident,
-                         get_resource=ctx.get_resource, files=files,
-                         files_raw=files_raw)
+    outiso = iso9660.create_iso(vol_ident=vol_ident, sys_ident=sys_ident,
+                                get_resource=ctx.get_resource, files=files,
+                                files_raw=files_raw)
+
+    outiso.seek(0, os.SEEK_END)
+    iso_size = outiso.tell()
+    outiso.seek(0, os.SEEK_SET)
+
+    ctx.logger.info("ISO size: {size}".format(size=repr(iso_size)))
 
     iso_disk = "{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)

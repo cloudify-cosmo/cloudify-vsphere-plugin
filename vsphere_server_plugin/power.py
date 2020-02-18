@@ -30,7 +30,7 @@ def _power_operation(
         kwargs = {}
     server_obj = get_server_by_context(ctx, server_client, server)
     split = ' '.join(operation_name.split('_'))
-    if server is None:
+    if not server_obj:
         raise cfy_exc.NonRecoverableError(
             "Cannot {action} - server doesn't exist for node: {name}"
             .format(name=ctx.node.id, action=split))
