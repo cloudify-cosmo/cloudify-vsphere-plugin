@@ -1,7 +1,7 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - http://www.getcloudify.org/spec/cloudify/4.5.5/types.yaml
+  - https://cloudify.co/spec/cloudify/4.6/types.yaml
   - http://cloudify.co/spec/vsphere-plugin/2.7.0/plugin.yaml
 
 inputs:

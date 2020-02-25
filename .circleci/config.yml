@@ -39,6 +39,7 @@ jobs:
           command: pip install --user tox
       - run: /home/circleci/.local/bin/tox -e code-quality
       - run: /home/circleci/.local/bin/tox -e py27
+      - run: /home/circleci/.local/bin/tox -e validate
 
   wagon:
     docker:
@@ -59,7 +60,7 @@ jobs:
           command: pip install --upgrade pip==9.0.1
       - run:
           name: Install virtualenv
-          command: pip install virtualenv
+          command: pip install virtualenv==16.7.9
       - run:
           name: Init virtualenv
           command: virtualenv env
