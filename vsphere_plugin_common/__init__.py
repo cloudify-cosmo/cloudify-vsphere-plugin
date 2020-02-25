@@ -3537,7 +3537,7 @@ class StorageClient(VsphereClient):
 
 class ControllerClient(VsphereClient):
 
-    def detach_controller(self, vm_id, bus_key):
+    def detach_controller(self, vm_id, bus_key, instance):
         if not vm_id:
             raise NonRecoverableError("VM is not defined")
         if not bus_key:
@@ -3561,22 +3561,31 @@ class ControllerClient(VsphereClient):
         spec = vim.vm.ConfigSpec()
         spec.deviceChange = [config_spec]
         task = vm.obj.ReconfigVM_Task(spec=spec)
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
 
-    def attach_controller(self, vm_id, dev_spec, controller_type):
+    def attach_controller(self, vm_id, dev_spec, controller_type, instance):
         if not vm_id:
             raise NonRecoverableError("VM is not defined")
 
-        vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        known_keys = []
-        for dev in vm.config.hardware.device:
-            if isinstance(dev, controller_type):
-                known_keys.append(dev.key)
+        known_keys = instance.runtime_properties.get('known_keys')
 
-        spec = vim.vm.ConfigSpec()
-        spec.deviceChange = [dev_spec]
-        task = vm.obj.ReconfigVM_Task(spec=spec)
-        self._wait_for_task(task)
+        if not known_keys:
+            vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
+            known_keys = []
+            for dev in vm.config.hardware.device:
+                if isinstance(dev, controller_type):
+                    known_keys.append(dev.key)
+
+            instance.runtime_properties['known_keys'] = known_keys
+            instance.runtime_properties.dirty = True
+            instance.update()
+
+            spec = vim.vm.ConfigSpec()
+            spec.deviceChange = [dev_spec]
+            task = vm.obj.ReconfigVM_Task(spec=spec)
+            # we need to wait, as we use results directly
+            self._wait_for_task(task, instance=instance)
+
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id, use_cache=False)
 
         controller_properties = {}
@@ -3590,6 +3599,11 @@ class ControllerClient(VsphereClient):
         else:
             raise NonRecoverableError(
                 'Have not found key for new added device')
+
+        del instance.runtime_properties['known_keys']
+        instance.runtime_properties.dirty = True
+        instance.update()
+
         return controller_properties
 
     def generate_scsi_card(self, scsi_properties, vm_id):

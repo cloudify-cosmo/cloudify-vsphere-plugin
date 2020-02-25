@@ -18,6 +18,7 @@ from pyVmomi import vim
 
 from cloudify.state import current_ctx
 from cloudify.mocks import MockCloudifyContext
+from cloudify.manager import DirtyTrackingDict
 from cloudify.exceptions import NonRecoverableError
 
 from cloudify_vsphere import devices
@@ -59,6 +60,7 @@ class VsphereControllerTest(unittest.TestCase):
             source=_source
         )
 
+        _ctx._source.instance._runtime_properties = DirtyTrackingDict({})
         _ctx._source.node.properties["connection_config"] = {
             "username": "vcenter_user",
             "password": "vcenter_password",
@@ -69,6 +71,7 @@ class VsphereControllerTest(unittest.TestCase):
             "auto_placement": "vsphere_auto_placement",
             "allow_insecure": True
         }
+        _ctx._target.instance._runtime_properties = DirtyTrackingDict({})
         _ctx._target.node.properties["connection_config"] = {
             "username": "vcenter_user",
             "password": "vcenter_password",
@@ -118,7 +121,7 @@ class VsphereControllerTest(unittest.TestCase):
                 _ctx.source.instance.runtime_properties['busKey'] = 4010
                 with self.assertRaises(NonRecoverableError) as e:
                     devices.detach_controller(ctx=_ctx)
-                self.assertEqual(e.exception.message, "VM is not defined")
+                self.assertEqual(str(e.exception), "VM is not defined")
 
                 # no such device
                 _ctx.source.instance.runtime_properties['busKey'] = 4010
@@ -162,7 +165,7 @@ class VsphereControllerTest(unittest.TestCase):
                 ):
                     with self.assertRaises(NonRecoverableError) as e:
                         devices.attach_ethernet_card(ctx=_ctx)
-                    self.assertEqual(e.exception.message,
+                    self.assertEqual(str(e.exception),
                                      "Network Cloudify could not be found")
 
                 # without vm-id / distributed
@@ -179,7 +182,7 @@ class VsphereControllerTest(unittest.TestCase):
                 ):
                     with self.assertRaises(NonRecoverableError) as e:
                         devices.attach_ethernet_card(ctx=_ctx)
-                    self.assertEqual(e.exception.message,
+                    self.assertEqual(str(e.exception),
                                      "VM is not defined")
 
                 # without vm-id / simple network
@@ -194,7 +197,7 @@ class VsphereControllerTest(unittest.TestCase):
                 ):
                     with self.assertRaises(NonRecoverableError) as e:
                         devices.attach_ethernet_card(ctx=_ctx)
-                    self.assertEqual(e.exception.message,
+                    self.assertEqual(str(e.exception),
                                      "VM is not defined")
 
                 # issues with add device
@@ -215,7 +218,7 @@ class VsphereControllerTest(unittest.TestCase):
                         with self.assertRaises(NonRecoverableError) as e:
                             devices.attach_ethernet_card(ctx=_ctx)
                         self.assertEqual(
-                            e.exception.message,
+                            str(e.exception),
                             "Have not found key for new added device")
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
                 self.assertEqual(args, ())
@@ -262,7 +265,7 @@ class VsphereControllerTest(unittest.TestCase):
                 # without vm-id
                 with self.assertRaises(NonRecoverableError) as e:
                     devices.attach_scsi_controller(ctx=_ctx)
-                self.assertEqual(e.exception.message, "VM is not defined")
+                self.assertEqual(str(e.exception), "VM is not defined")
 
                 # with vm-id, not relly attached device
                 _ctx.target.instance.runtime_properties[
@@ -276,7 +279,7 @@ class VsphereControllerTest(unittest.TestCase):
                 ):
                     with self.assertRaises(NonRecoverableError) as e:
                         devices.attach_scsi_controller(ctx=_ctx)
-                    self.assertEqual(e.exception.message,
+                    self.assertEqual(str(e.exception),
                                      "Have not found key for new added device")
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
                 self.assertEqual(args, ())
@@ -334,7 +337,7 @@ class VsphereControllerTest(unittest.TestCase):
                 ):
                     with self.assertRaises(NonRecoverableError) as e:
                         devices.attach_server_to_ethernet_card(ctx=_ctx)
-                    self.assertEqual(e.exception.message,
+                    self.assertEqual(str(e.exception),
                                      "Network Cloudify could not be found")
 
                 # without vm-id / distributed
@@ -351,7 +354,7 @@ class VsphereControllerTest(unittest.TestCase):
                 ):
                     with self.assertRaises(NonRecoverableError) as e:
                         devices.attach_server_to_ethernet_card(ctx=_ctx)
-                    self.assertEqual(e.exception.message,
+                    self.assertEqual(str(e.exception),
                                      "VM is not defined")
 
                 # without vm-id / simple network
@@ -366,7 +369,7 @@ class VsphereControllerTest(unittest.TestCase):
                 ):
                     with self.assertRaises(NonRecoverableError) as e:
                         devices.attach_server_to_ethernet_card(ctx=_ctx)
-                    self.assertEqual(e.exception.message,
+                    self.assertEqual(str(e.exception),
                                      "VM is not defined")
 
                 # issues with add device
@@ -387,7 +390,7 @@ class VsphereControllerTest(unittest.TestCase):
                         with self.assertRaises(NonRecoverableError) as e:
                             devices.attach_server_to_ethernet_card(ctx=_ctx)
                         self.assertEqual(
-                            e.exception.message,
+                            str(e.exception),
                             "Have not found key for new added device")
 
     def test_attach_server_ethernet_card(self):
@@ -410,3 +413,7 @@ class VsphereControllerTest(unittest.TestCase):
             'network_connected': False
         }]:
             self.check_attach_server_ethernet_card(settings)
+
+
+if __name__ == '__main__':
+    unittest.main()
