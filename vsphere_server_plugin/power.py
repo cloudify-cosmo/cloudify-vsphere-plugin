@@ -30,39 +30,46 @@ def _power_operation(
         kwargs = {}
     server_obj = get_server_by_context(ctx, server_client, server)
     split = ' '.join(operation_name.split('_'))
-    if not server_obj:
+    if server_obj is None:
         raise cfy_exc.NonRecoverableError(
             "Cannot {action} - server doesn't exist for node: {name}"
             .format(name=ctx.node.id, action=split))
 
-    return getattr(server_client, operation_name)(server_obj, **kwargs)
+    return getattr(server_client, operation_name)(server_obj,
+                                                  instance=ctx.instance,
+                                                  **kwargs)
 
 
 @op
-def power_on(ctx, server, connection_config):
-    return _power_operation(connection_config, 'start_server', ctx, server)
+def power_on(max_wait_time, ctx, server, connection_config):
+    return _power_operation(connection_config, 'start_server',
+                            ctx, server,
+                            kwargs={'max_wait_time': max_wait_time},)
 
 
 @op
-def power_off(ctx, server, connection_config):
-    return _power_operation(connection_config, 'stop_server', ctx, server)
+def power_off(max_wait_time, ctx, server, connection_config):
+    return _power_operation(connection_config, 'stop_server',
+                            ctx, server,
+                            kwargs={'max_wait_time': max_wait_time},)
 
 
 @op
 def shut_down(max_wait_time, ctx, server, connection_config):
-    return _power_operation(
-        connection_config, 'shutdown_server_guest',
-        ctx,
-        server,
-        kwargs={'max_wait_time': max_wait_time},
-        )
+    return _power_operation(connection_config, 'shutdown_server_guest',
+                            ctx, server,
+                            kwargs={'max_wait_time': max_wait_time},)
 
 
 @op
-def reboot(ctx, server, connection_config):
-    return _power_operation(connection_config, 'reboot_server', ctx, server)
+def reboot(max_wait_time, ctx, server, connection_config):
+    return _power_operation(connection_config, 'reboot_server',
+                            ctx, server,
+                            kwargs={'max_wait_time': max_wait_time},)
 
 
 @op
-def reset(ctx, server, connection_config):
-    return _power_operation(connection_config, 'reset_server', ctx, server)
+def reset(max_wait_time, ctx, server, connection_config):
+    return _power_operation(connection_config, 'reset_server',
+                            ctx, server,
+                            kwargs={'max_wait_time': max_wait_time},)

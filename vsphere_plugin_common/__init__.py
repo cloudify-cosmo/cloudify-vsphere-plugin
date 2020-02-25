@@ -1989,7 +1989,7 @@ class ServerClient(VsphereClient):
 
         return task.info.result
 
-    def suspend_server(self, server):
+    def suspend_server(self, server, instance, max_wait_time=30):
         if self.is_server_suspended(server.obj):
             self._logger.info("Server '{}' already suspended."
                               .format(server.name))
@@ -2000,52 +2000,46 @@ class ServerClient(VsphereClient):
             return
         self._logger.debug("Entering server suspend procedure.")
         task = server.obj.Suspend()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server is suspended.")
 
-    def start_server(self, server):
+    def start_server(self, server, instance, max_wait_time=30):
         if self.is_server_poweredon(server):
             self._logger.info("Server '{}' already running"
                               .format(server.name))
             return
         self._logger.debug("Entering server start procedure.")
         task = server.obj.PowerOn()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server is now running.")
 
-    def shutdown_server_guest(
-        self, server,
-        timeout=TASK_CHECK_SLEEP,
-        max_wait_time=300,
-    ):
+    def shutdown_server_guest(self, server, instance, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info("Server '{}' already stopped"
                               .format(server.name))
             return
         self._logger.debug("Entering server shutdown procedure.")
-        server.obj.ShutdownGuest()
-        for _ in range(max_wait_time // timeout):
-            time.sleep(timeout)
-            if self.is_server_poweredoff(server):
-                break
-        else:
-            raise NonRecoverableError(
-                "Server still running after {time}s timeout.".format(
-                    time=max_wait_time,
-                ))
+        task = server.obj.ShutdownGuest()
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server is now shut down.")
 
-    def stop_server(self, server):
+    def stop_server(self, server, instance, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info("Server '{}' already stopped"
                               .format(server.name))
             return
         self._logger.debug("Entering stop server procedure.")
         task = server.obj.PowerOff()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server is now stopped.")
 
-    def backup_server(self, server, snapshot_name, description):
+    def backup_server(
+        self, server, snapshot_name, description, instance, max_wait_time=30
+    ):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -2057,7 +2051,8 @@ class ServerClient(VsphereClient):
         task = server.obj.CreateSnapshot(
             snapshot_name, description=description,
             memory=False, quiesce=False)
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
 
     def get_snapshot_by_name(self, snapshots, snapshot_name):
         for snapshot in snapshots:
@@ -2070,7 +2065,9 @@ class ServerClient(VsphereClient):
                     return subsnapshot
         return False
 
-    def restore_server(self, server, snapshot_name):
+    def restore_server(
+        self, server, snapshot_name, instance, max_wait_time=30
+    ):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -2082,9 +2079,10 @@ class ServerClient(VsphereClient):
                 .format(snapshot_name=snapshot_name,))
 
         task = snapshot.snapshot.RevertToSnapshot_Task()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
 
-    def remove_backup(self, server, snapshot_name):
+    def remove_backup(self, server, snapshot_name, instance, max_wait_time=30):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -2104,39 +2102,31 @@ class ServerClient(VsphereClient):
                         subsnapshots=repr(subsnapshots)))
 
         task = snapshot.snapshot.RemoveSnapshot_Task(True)
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
 
-    def reset_server(self, server):
+    def reset_server(self, server, instance, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info(
                 "Server '{}' currently stopped, starting.".format(server.name))
-            return self.start_server(server)
+            return self.start_server(server, instance=instance,
+                                     max_wait_time=max_wait_time)
         self._logger.debug("Entering stop server procedure.")
         task = server.obj.Reset()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server has been reset")
 
-    def reboot_server(
-        self, server,
-        timeout=TASK_CHECK_SLEEP,
-        max_wait_time=300,
-    ):
+    def reboot_server(self, server, instance, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info(
                 "Server '{}' currently stopped, starting.".format(server.name))
-            return self.start_server(server)
+            return self.start_server(server, instance=instance,
+                                     max_wait_time=max_wait_time)
         self._logger.debug("Entering reboot server procedure.")
-        start_bootTime = server.obj.runtime.bootTime
-        server.obj.RebootGuest()
-        for _ in range(max_wait_time // timeout):
-            time.sleep(timeout)
-            if server.obj.runtime.bootTime > start_bootTime:
-                break
-        else:
-            raise NonRecoverableError(
-                "Server still running after {time}s timeout.".format(
-                    time=max_wait_time,
-                ))
+        task = server.obj.RebootGuest()
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server has been rebooted")
 
     def is_server_poweredoff(self, server):
@@ -2148,12 +2138,12 @@ class ServerClient(VsphereClient):
     def is_server_guest_running(self, server):
         return server.obj.guest.guestState == "running"
 
-    def delete_server(self, server):
+    def delete_server(self, server, instance):
         self._logger.debug("Entering server delete procedure.")
         if self.is_server_poweredon(server):
-            self.stop_server(server)
+            self.stop_server(server, instance=instance)
         task = server.obj.Destroy()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
         self._logger.debug("Server is now deleted.")
 
     def get_server_by_name(self, name):
@@ -2703,9 +2693,10 @@ class ServerClient(VsphereClient):
         else:
             return False
 
-    def resize_server(self, server, cpus=None, memory=None):
+    def resize_server(self, server, instance, cpus=None, memory=None):
         self._logger.debug("Entering resize reconfiguration.")
         config = vim.vm.ConfigSpec()
+        update_required = False
         if cpus is not None:
             try:
                 cpus = int(cpus)
@@ -2715,7 +2706,10 @@ class ServerClient(VsphereClient):
             if cpus < 1:
                 raise NonRecoverableError(
                     "cpus must be at least 1. Is {}".format(cpus))
-            config.numCPUs = cpus
+            if server.config.hardware.numCPU != cpus:
+                config.numCPUs = cpus
+                update_required = True
+
         if memory is not None:
             try:
                 memory = int(memory)
@@ -2729,21 +2723,24 @@ class ServerClient(VsphereClient):
                 raise NonRecoverableError(
                     "Memory must be an integer multiple of 128. Is {}".format(
                         memory))
-            config.memoryMB = memory
+            if server.config.hardware.memoryMB != memory:
+                config.memoryMB = memory
+                update_required = True
 
-        task = server.obj.Reconfigure(spec=config)
+        if update_required:
+            task = server.obj.Reconfigure(spec=config)
 
-        try:
-            self._wait_for_task(task)
-        except NonRecoverableError as e:
-            if 'configSpec.memoryMB' in e.args[0]:
-                raise NonRecoverableError(
-                    "Memory error resizing Server. May be caused by "
-                    "https://kb.vmware.com/kb/2008405 . If so the Server may "
-                    "be resized while it is switched off.",
-                    e,
-                )
-            raise
+            try:
+                self._wait_for_task(task, instance=instance)
+            except NonRecoverableError as e:
+                if 'configSpec.memoryMB' in e.args[0]:
+                    raise NonRecoverableError(
+                        "Memory error resizing Server. May be caused by "
+                        "https://kb.vmware.com/kb/2008405 . If so the Server "
+                        "may be resized while it is switched off.",
+                        e,
+                    )
+                raise
 
         self._logger.debug(
             "Server '%s' resized with new number of "

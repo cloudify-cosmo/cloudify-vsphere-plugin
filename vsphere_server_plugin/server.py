@@ -387,7 +387,8 @@ def start(
                                     extra_config=extra_config)
         if enable_start_vm:
             ctx.logger.info("Server already exists, powering on.")
-            server_client.start_server(server=server_obj)
+            server_client.start_server(server=server_obj,
+                                       instance=ctx.instance)
             ctx.logger.info("Server powered on.")
         else:
             ctx.logger.info("Server already exists, but will not be powered"
@@ -407,7 +408,7 @@ def shutdown_guest(ctx, server_client, server, os_family):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to shut down server {name}'.format(
                     name=vm_name))
-    server_client.shutdown_server_guest(server_obj)
+    server_client.shutdown_server_guest(server_obj, instance=ctx.instance)
     ctx.logger.info('Succeessfully shut down server {name}'.format(
                     name=vm_name))
 
@@ -433,7 +434,7 @@ def stop(ctx, server_client, server, os_family, force_stop=False):
         return
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Stopping server {name}'.format(name=vm_name))
-    server_client.stop_server(server_obj)
+    server_client.stop_server(server_obj, instance=ctx.instance)
     ctx.logger.info('Successfully stopped server {name}'.format(name=vm_name))
 
 
@@ -450,7 +451,7 @@ def freeze_suspend(ctx, server_client, server, os_family):
             .format(ctx.instance.id))
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to suspend server {name}'.format(name=vm_name))
-    server_client.suspend_server(server_obj)
+    server_client.suspend_server(server_obj, instance=ctx.instance)
     ctx.logger.info('Succeessfully suspended server {name}'
                     .format(name=vm_name))
 
@@ -468,7 +469,7 @@ def freeze_resume(ctx, server_client, server, os_family):
             .format(ctx.instance.id))
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to resume server {name}'.format(name=vm_name))
-    server_client.start_server(server_obj)
+    server_client.start_server(server_obj, instance=ctx.instance)
     ctx.logger.info('Succeessfully resumed server {name}'.format(name=vm_name))
 
 
@@ -497,7 +498,8 @@ def snapshot_create(ctx, server_client, server, os_family, snapshot_name,
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to backup {snapshot_name} for server {name}'
                     .format(snapshot_name=snapshot_name, name=vm_name))
-    server_client.backup_server(server_obj, snapshot_name, snapshot_type)
+    server_client.backup_server(server_obj, snapshot_name, snapshot_type,
+                                instance=ctx.instance)
     ctx.logger.info('Succeessfully backuped server {name}'
                     .format(name=vm_name))
 
@@ -527,7 +529,8 @@ def snapshot_apply(ctx, server_client, server, os_family, snapshot_name,
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to restore {snapshot_name} for server {name}'
                     .format(snapshot_name=snapshot_name, name=vm_name))
-    server_client.restore_server(server_obj, snapshot_name)
+    server_client.restore_server(server_obj, snapshot_name,
+                                 instance=ctx.instance)
     ctx.logger.info('Succeessfully restored server {name}'
                     .format(name=vm_name))
 
@@ -557,7 +560,8 @@ def snapshot_delete(ctx, server_client, server, os_family, snapshot_name,
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to remove backup {snapshot_name} for server '
                     '{name}'.format(snapshot_name=snapshot_name, name=vm_name))
-    server_client.remove_backup(server_obj, snapshot_name)
+    server_client.remove_backup(server_obj, snapshot_name,
+                                instance=ctx.instance)
     ctx.logger.info('Succeessfully removed backup from server {name}'
                     .format(name=vm_name))
 
@@ -583,7 +587,7 @@ def delete(ctx, server_client, server, os_family, force_delete):
         return
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
-    server_client.delete_server(server_obj)
+    server_client.delete_server(server_obj, instance=ctx.instance)
     ctx.logger.info('Succeessfully deleted server {name}'.format(
                     name=vm_name))
 
@@ -752,6 +756,7 @@ def resize_server(
 
     server_client.resize_server(
         server_obj,
+        instance=ctx.instance,
         cpus=cpus,
         memory=memory,
     )
@@ -792,7 +797,9 @@ def resize(ctx, server_client, server, os_family):
                 memory=update['memory'] or 'no changes',
             )
         )
-        server_client.resize_server(server_obj, **update)
+        server_client.resize_server(server_obj,
+                                    instance=ctx.instance,
+                                    **update)
         ctx.logger.info('Succeeded resizing server {name}.'.format(
                         name=vm_name))
     else:
