@@ -116,7 +116,8 @@ def create(storage_client, storage, use_external_resource=False):
                 storage_size,
                 parent_key,
                 mode,
-                thin_provision,
+                thin_provision=thin_provision,
+                instance=ctx.instance
             )
         except NonRecoverableError as e:
             # If more than one storage is attached to the same VM, there is
@@ -139,8 +140,12 @@ def create(storage_client, storage, use_external_resource=False):
         ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
             storage_file_name
+
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID] = vm_id
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME] = vm_name
+    # force update
+    ctx.instance.runtime_properties.dirty = True
+    ctx.instance.update()
 
 
 @op
@@ -165,7 +170,8 @@ def delete(storage_client, **kwargs):
             vm=vm_name,
         )
     )
-    storage_client.delete_storage(vm_id, storage_file_name)
+    storage_client.delete_storage(vm_id, storage_file_name,
+                                  instance=ctx.instance)
     ctx.logger.info(
         "Successfully deleted storage {file} from {vm}".format(
             file=storage_file_name,
@@ -195,7 +201,8 @@ def resize(storage_client, **kwargs):
     )
     storage_client.resize_storage(vm_id,
                                   storage_file_name,
-                                  storage_size)
+                                  storage_size,
+                                  instance=ctx.instance)
     ctx.logger.info(
         "Successfully resized storage {file} on {vm} to {new_size}".format(
             file=storage_file_name,

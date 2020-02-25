@@ -3295,9 +3295,12 @@ class RawVolumeClient(VsphereClient):
 class StorageClient(VsphereClient):
 
     def create_storage(self, vm_id, storage_size, parent_key, mode,
-                       thin_provision=False):
+                       instance, thin_provision=False):
         self._logger.debug("Entering create storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
+        if not vm:
+            raise NonRecoverableError("Unable to get vm: {vm_id}"
+                                      .format(vm_id=vm_id))
         self._logger.debug("VM info: \n{}".format(vm))
         if self.is_server_suspended(vm):
             raise NonRecoverableError(
@@ -3305,111 +3308,123 @@ class StorageClient(VsphereClient):
                 ' invalid VM state - \'suspended\''
             )
 
-        devices = []
-        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
-        virtual_device_spec.operation =\
-            vim.vm.device.VirtualDeviceSpec.Operation.add
-        virtual_device_spec.fileOperation =\
-            vim.vm.device.VirtualDeviceSpec.FileOperation.create
+        vm_disk_filename = instance.runtime_properties.get('vm_disk_name')
+        # we don't have name for new disk
+        if not vm_disk_filename:
+            devices = []
+            virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+            virtual_device_spec.operation =\
+                vim.vm.device.VirtualDeviceSpec.Operation.add
+            virtual_device_spec.fileOperation =\
+                vim.vm.device.VirtualDeviceSpec.FileOperation.create
 
-        virtual_device_spec.device = vim.vm.device.VirtualDisk()
-        virtual_device_spec.device.capacityInKB = storage_size * 1024 * 1024
-        virtual_device_spec.device.capacityInBytes =\
-            storage_size * 1024 * 1024 * 1024
-        virtual_device_spec.device.backing =\
-            vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
+            virtual_device_spec.device = vim.vm.device.VirtualDisk()
+            virtual_device_spec.device.capacityInKB = \
+                storage_size * 1024 * 1024
+            virtual_device_spec.device.capacityInBytes =\
+                storage_size * 1024 * 1024 * 1024
+            virtual_device_spec.device.backing =\
+                vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
 
-        virtual_device_spec.device.backing.diskMode = mode
-        virtual_device_spec.device.backing.thinProvisioned = thin_provision
-        virtual_device_spec.device.backing.datastore = vm.datastore[0].obj
+            virtual_device_spec.device.backing.diskMode = mode
+            virtual_device_spec.device.backing.thinProvisioned = thin_provision
+            virtual_device_spec.device.backing.datastore = vm.datastore[0].obj
 
-        vm_devices = vm.config.hardware.device
-        vm_disk_filename = None
-        vm_disk_filename_increment = 0
-        vm_disk_filename_cur = None
+            vm_devices = vm.config.hardware.device
+            vm_disk_filename = None
+            vm_disk_filename_increment = 0
+            vm_disk_filename_cur = None
 
-        for vm_device in vm_devices:
-            # Search all virtual disks
-            if isinstance(vm_device, vim.vm.device.VirtualDisk):
-                # Generate filename (add increment to VMDK base name)
-                vm_disk_filename_cur = vm_device.backing.fileName
-                p = re.compile('^(\\[.*\\]\\s+.*\\/.*)\\.vmdk$')
-                m = p.match(vm_disk_filename_cur)
-                if vm_disk_filename is None:
-                    vm_disk_filename = m.group(1)
-                p = re.compile('^(.*)_([0-9]+)\\.vmdk$')
-                m = p.match(vm_disk_filename_cur)
-                if m:
-                    if m.group(2) is not None:
-                        increment = int(m.group(2))
+            for vm_device in vm_devices:
+                # Search all virtual disks
+                if isinstance(vm_device, vim.vm.device.VirtualDisk):
+                    # Generate filename (add increment to VMDK base name)
+                    vm_disk_filename_cur = vm_device.backing.fileName
+                    p = re.compile('^(\\[.*\\]\\s+.*\\/.*)\\.vmdk$')
+                    m = p.match(vm_disk_filename_cur)
+                    if vm_disk_filename is None:
                         vm_disk_filename = m.group(1)
-                        if increment > vm_disk_filename_increment:
-                            vm_disk_filename_increment = increment
+                    p = re.compile('^(.*)_([0-9]+)\\.vmdk$')
+                    m = p.match(vm_disk_filename_cur)
+                    if m:
+                        if m.group(2) is not None:
+                            increment = int(m.group(2))
+                            vm_disk_filename = m.group(1)
+                            if increment > vm_disk_filename_increment:
+                                vm_disk_filename_increment = increment
 
-        # Exit error if VMDK filename undefined
-        if vm_disk_filename is None:
-            raise NonRecoverableError(
-                'Error during trying to create storage:'
-                ' Invalid VMDK name - \'{0}\''.format(vm_disk_filename_cur)
-            )
+            # Exit error if VMDK filename undefined
+            if vm_disk_filename is None:
+                raise NonRecoverableError(
+                    'Error during trying to create storage:'
+                    ' Invalid VMDK name - \'{0}\''.format(vm_disk_filename_cur)
+                )
 
-        # Set target VMDK filename
-        vm_disk_filename =\
-            vm_disk_filename +\
-            "_" + str(vm_disk_filename_increment + 1) +\
-            ".vmdk"
+            # Set target VMDK filename
+            vm_disk_filename =\
+                vm_disk_filename +\
+                "_" + str(vm_disk_filename_increment + 1) +\
+                ".vmdk"
 
-        # Search virtual SCSI controller
-        controller = None
-        num_controller = 0
-        controller_types = (
-            vim.vm.device.VirtualBusLogicController,
-            vim.vm.device.VirtualLsiLogicController,
-            vim.vm.device.VirtualLsiLogicSASController,
-            vim.vm.device.ParaVirtualSCSIController)
-        for vm_device in vm_devices:
-            if isinstance(vm_device, controller_types):
-                if parent_key < 0:
-                    num_controller += 1
-                    controller = vm_device
-                else:
-                    if parent_key == vm_device.key:
-                        num_controller = 1
+            # Search virtual SCSI controller
+            controller = None
+            num_controller = 0
+            controller_types = (
+                vim.vm.device.VirtualBusLogicController,
+                vim.vm.device.VirtualLsiLogicController,
+                vim.vm.device.VirtualLsiLogicSASController,
+                vim.vm.device.ParaVirtualSCSIController)
+            for vm_device in vm_devices:
+                if isinstance(vm_device, controller_types):
+                    if parent_key < 0:
+                        num_controller += 1
                         controller = vm_device
-                        break
-        if num_controller != 1:
-            raise NonRecoverableError(
-                'Error during trying to create storage: '
-                'SCSI controller cannot be found or is present more than '
-                'once.'
-            )
+                    else:
+                        if parent_key == vm_device.key:
+                            num_controller = 1
+                            controller = vm_device
+                            break
+            if num_controller != 1:
+                raise NonRecoverableError(
+                    'Error during trying to create storage: '
+                    'SCSI controller cannot be found or is present more than '
+                    'once.'
+                )
 
-        controller_key = controller.key
+            controller_key = controller.key
 
-        # Set new unit number (7 cannot be used, and limit is 15)
-        unit_number = None
-        vm_vdisk_number = len(controller.device)
-        if vm_vdisk_number < 7:
-            unit_number = vm_vdisk_number
-        elif vm_vdisk_number == 15:
-            raise NonRecoverableError(
-                'Error during trying to create storage: one SCSI controller '
-                'cannot have more than 15 virtual disks.'
-            )
-        else:
-            unit_number = vm_vdisk_number + 1
+            # Set new unit number (7 cannot be used, and limit is 15)
+            unit_number = None
+            vm_vdisk_number = len(controller.device)
+            if vm_vdisk_number < 7:
+                unit_number = vm_vdisk_number
+            elif vm_vdisk_number == 15:
+                raise NonRecoverableError(
+                    'Error during trying to create storage: one SCSI '
+                    'controller cannot have more than 15 virtual disks.'
+                )
+            else:
+                unit_number = vm_vdisk_number + 1
 
-        virtual_device_spec.device.backing.fileName = vm_disk_filename
-        virtual_device_spec.device.controllerKey = controller_key
-        virtual_device_spec.device.unitNumber = unit_number
-        devices.append(virtual_device_spec)
+            virtual_device_spec.device.backing.fileName = vm_disk_filename
+            virtual_device_spec.device.controllerKey = controller_key
+            virtual_device_spec.device.unitNumber = unit_number
+            devices.append(virtual_device_spec)
 
-        config_spec = vim.vm.ConfigSpec()
-        config_spec.deviceChange = devices
+            config_spec = vim.vm.ConfigSpec()
+            config_spec.deviceChange = devices
 
-        task = vm.obj.Reconfigure(spec=config_spec)
-        self._logger.debug("Task info: \n%s." % prepare_for_log(vars(task)))
-        self._wait_for_task(task)
+            task = vm.obj.Reconfigure(spec=config_spec)
+
+            instance.runtime_properties['vm_disk_name'] = vm_disk_filename
+            instance.runtime_properties.dirty = True
+            instance.update()
+            self._wait_for_task(task, instance=instance)
+
+        # remove old vm disk name
+        del instance.runtime_properties['vm_disk_name']
+        instance.runtime_properties.dirty = True
+        instance.update()
 
         # Get the SCSI bus and unit IDs
         scsi_controllers = []
@@ -3435,7 +3450,7 @@ class StorageClient(VsphereClient):
         if bus_id is None:
             raise NonRecoverableError(
                 'Could not find SCSI bus ID for disk with filename: '
-                '{file}'.format(file=vm_disk_filename)
+                '{file_name}'.format(file_name=vm_disk_filename)
             )
         else:
             # Give the SCSI ID in the usual format, e.g. 0:1
@@ -3443,7 +3458,7 @@ class StorageClient(VsphereClient):
 
         return vm_disk_filename, scsi_id
 
-    def delete_storage(self, vm_id, storage_file_name):
+    def delete_storage(self, vm_id, storage_file_name, instance):
         self._logger.debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         self._logger.debug("VM info: \n{}".format(vm))
@@ -3468,9 +3483,9 @@ class StorageClient(VsphereClient):
                     and device.backing.fileName == storage_file_name:
                 device_to_delete = device
 
-        if device_to_delete is None:
-            raise NonRecoverableError(
-                'Error during trying to delete storage: storage not found')
+        if not device_to_delete:
+            self._logger.debug("Storage removed on previous step.")
+            return
 
         virtual_device_spec.device = device_to_delete
 
@@ -3480,8 +3495,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        self._logger.debug("Task info: \n%s." % prepare_for_log(vars(task)))
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
 
     def get_storage(self, vm_id, storage_file_name):
         self._logger.debug("Entering get storage procedure.")
@@ -3497,7 +3511,7 @@ class StorageClient(VsphereClient):
                     return device
         return None
 
-    def resize_storage(self, vm_id, storage_filename, storage_size):
+    def resize_storage(self, vm_id, storage_filename, storage_size, instance):
         self._logger.debug("Entering resize storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         self._logger.debug("VM info: \n{}".format(vm))
@@ -3517,6 +3531,12 @@ class StorageClient(VsphereClient):
             raise NonRecoverableError(
                 'Error during trying to resize storage: storage not found')
 
+        if (
+            disk_to_resize.capacityInKB == storage_size * 1024 * 1024 and
+            disk_to_resize.capacityInBytes == storage_size * 1024 * 1024 * 1024
+        ):
+            self._logger.debug("Storage size is {}".format(storage_size))
+            return
         updated_devices = []
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
         virtual_device_spec.operation =\
@@ -3533,8 +3553,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = updated_devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        self._logger.debug("VM info: \n{}".format(vm))
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
         self._logger.debug("Storage resized to a new size %s." % storage_size)
 
 
