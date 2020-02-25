@@ -44,7 +44,6 @@ from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,
     NETWORK_ID,
-    NETWORK_MTU,
     TASK_CHECK_SLEEP,
     VSPHERE_SERVER_CLUSTER_NAME,
     VSPHERE_SERVER_HYPERVISOR_HOSTNAME,
@@ -2892,13 +2891,13 @@ class NetworkClient(VsphereClient):
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
         self._logger.debug("Entering create port procedure.")
-        runtime_properties = ctx.instance.runtime_properties
-        if NETWORK_STATUS not in runtime_properties.keys():
-            runtime_properties[NETWORK_STATUS] = 'preparing'
+        if NETWORK_STATUS not in ctx.instance.runtime_properties.keys():
+            ctx.instance.runtime_properties[NETWORK_STATUS] = 'preparing'
+            ctx.instance.update()
 
         vswitches = self.get_vswitches()
 
-        if runtime_properties[NETWORK_STATUS] == 'preparing':
+        if ctx.instance.runtime_properties[NETWORK_STATUS] == 'preparing':
             if vswitch_name not in vswitches:
                 if len(vswitches) == 0:
                     raise NonRecoverableError(
@@ -2916,18 +2915,18 @@ class NetworkClient(VsphereClient):
                         )
                     )
 
-        # update mtu
-        ctx.instance.runtime_properties[NETWORK_MTU] = self.get_vswitch_mtu(
-            vswitch_name)
-
-        if runtime_properties[NETWORK_STATUS] in ('preparing', 'creating'):
-            runtime_properties[NETWORK_STATUS] = 'creating'
-            if NETWORK_CREATE_ON not in runtime_properties.keys():
-                runtime_properties[NETWORK_CREATE_ON] = []
+        if ctx.instance.runtime_properties[NETWORK_STATUS] in (
+            'preparing', 'creating'
+        ):
+            ctx.instance.runtime_properties[NETWORK_STATUS] = 'creating'
+            ctx.instance.update()
+            if NETWORK_CREATE_ON not in ctx.instance.runtime_properties:
+                ctx.instance.runtime_properties[NETWORK_CREATE_ON] = []
 
             hosts = [
                 host for host in self.get_host_list()
-                if host.name not in runtime_properties[NETWORK_CREATE_ON]
+                if host.name not in ctx.instance.runtime_properties[
+                    NETWORK_CREATE_ON]
             ]
 
             for host in hosts:
@@ -2956,10 +2955,14 @@ class NetworkClient(VsphereClient):
                     # existed before we tried to create it anywhere, so it
                     # should be safe to proceed.
                     pass
-                runtime_properties[NETWORK_CREATE_ON].append(host.name)
+                ctx.instance.runtime_properties[NETWORK_CREATE_ON].append(
+                    host.name)
+                ctx.instance.runtime_properties.dirty = True
+                ctx.instance.update()
 
             if self.port_group_is_on_all_hosts(port_group_name):
-                runtime_properties[NETWORK_STATUS] = 'created'
+                ctx.instance.runtime_properties[NETWORK_STATUS] = 'created'
+                ctx.instance.update()
             else:
                 return ctx.operation.retry(
                     'Waiting for port group {name} to be created on all '
@@ -3030,7 +3033,9 @@ class NetworkClient(VsphereClient):
                     result.append(port_group)
         return result
 
-    def create_dv_port_group(self, port_group_name, vlan_id, vswitch_name):
+    def create_dv_port_group(
+        self, port_group_name, vlan_id, vswitch_name, instance
+    ):
         self._logger.debug("Creating dv port group.")
 
         dvswitches = self.get_dvswitches()
@@ -3051,6 +3056,9 @@ class NetworkClient(VsphereClient):
                     )
                 )
 
+        ctx.instance.runtime_properties[NETWORK_STATUS] = 'creating'
+        ctx.instance.update()
+
         dv_port_group_type = 'earlyBinding'
         dvswitch = self._get_obj_by_name(
             vim.DistributedVirtualSwitch,
@@ -3058,13 +3066,7 @@ class NetworkClient(VsphereClient):
         )
         self._logger.debug("Distributed vSwitch info: {dvswitch}"
                            .format(dvswitch=dvswitch))
-        # update mtu
-        dvswitch = self._get_obj_by_name(
-            vim.DistributedVirtualSwitch,
-            vswitch_name,
-        )
-        ctx.instance.runtime_properties[
-            NETWORK_MTU] = dvswitch.obj.config.maxMtu
+
         vlan_spec = vim.dvs.VmwareDistributedVirtualSwitch.VlanIdSpec(
             vlanId=vlan_id)
         port_settings = \
@@ -3082,18 +3084,19 @@ class NetworkClient(VsphereClient):
             )
         )
         task = dvswitch.obj.AddPortgroup(specification)
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
         self._logger.debug("Port created.")
 
-    def delete_dv_port_group(self, name):
+    def delete_dv_port_group(self, name, instance):
         self._logger.debug("Deleting dv port group {name}.".format(name=name))
         dv_port_group = self._get_obj_by_name(
             vim.dvs.DistributedVirtualPortgroup,
             name,
         )
-        task = dv_port_group.obj.Destroy()
-        self._wait_for_task(task)
-        self._logger.debug("Port deleted.")
+        if dv_port_group:
+            task = dv_port_group.obj.Destroy()
+            self._wait_for_task(task, instance=instance)
+            self._logger.debug("Port deleted.")
 
     def get_network_cidr(self, name, switch_distributed):
         # search in all datacenters

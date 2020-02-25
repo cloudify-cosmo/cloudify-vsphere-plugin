@@ -29,6 +29,7 @@ class NetworkClientTest(unittest.TestCase):
     def setUp(self):
         super(NetworkClientTest, self).setUp()
         self.mock_ctx = Mock()
+        self.mock_ctx.instance.runtime_properties = {}
         current_ctx.set(self.mock_ctx)
 
     def test_delete_ippool(self):
@@ -184,7 +185,7 @@ class NetworkClientTest(unittest.TestCase):
         network = Mock()
         network.obj.Destroy = Mock(return_value=task)
         client._get_obj_by_name = Mock(return_value=network)
-        client.delete_dv_port_group("abc")
+        client.delete_dv_port_group("abc", instance=self.mock_ctx.instance)
         client._get_obj_by_name.assert_called_once_with(
             vim.dvs.DistributedVirtualPortgroup, 'abc')
         network.obj.Destroy.assert_called_once_with()
