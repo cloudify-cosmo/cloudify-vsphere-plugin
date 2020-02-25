@@ -39,6 +39,12 @@ jobs:
           command: pip install --user tox
       - run: /home/circleci/.local/bin/tox -e code-quality
       - run: /home/circleci/.local/bin/tox -e py27
+      - run: sed "s/\- plugin:cloudify-vsphere-plugin/\- plugin.yaml/g" -i examples/*.yaml
+      - run: sed "s/\- plugin:cloudify-vsphere-plugin/\- plugin.yaml/g" -i system_tests/resources/*/*.yaml
+      - run: sed "s/\- plugin:cloudify-fabric-plugin/\- http:\/\/www.getcloudify.org\/spec\/fabric-plugin\/1.6.0\/plugin.yaml/g" -i examples/*.yaml
+      - run: sed "s/\- plugin:cloudify-fabric-plugin/\- http:\/\/www.getcloudify.org\/spec\/fabric-plugin\/1.6.0\/plugin.yaml/g" -i system_tests/resources/*/*.yaml
+      - run: sed "s/\- plugin:cloudify-utilities-plugin/\- http:\/\/www.getcloudify.org\/spec\/utilities-plugin\/1.16.1\/plugin.yaml/g" -i examples/*.yaml
+      - run: sed "s/\- plugin:cloudify-utilities-plugin/\- http:\/\/www.getcloudify.org\/spec\/utilities-plugin\/1.16.1\/plugin.yaml/g" -i system_tests/resources/*/*.yaml
       - run: /home/circleci/.local/bin/tox -e validate
 
   wagon:

@@ -255,7 +255,7 @@ node_types:
       cloudify.interfaces.power:
         'on':
           implementation: vsphere.vsphere_server_plugin.power.power_on
-          inputs:
+          inputs: &interfaces_power_inputs
             max_wait_time:
               type: integer
               default: 300
@@ -263,36 +263,16 @@ node_types:
                 How long to wait for the operation to complete before retry.
         'off':
           implementation: vsphere.vsphere_server_plugin.power.power_off
-          inputs:
-            max_wait_time:
-              type: integer
-              default: 300
-              description: >
-                How long to wait for the operation to complete before retry.
+          inputs: *interfaces_power_inputs
         reset:
           implementation: vsphere.vsphere_server_plugin.power.reset
-          inputs:
-            max_wait_time:
-              type: integer
-              default: 300
-              description: >
-                How long to wait for the operation to complete before retry.
+          inputs: *interfaces_power_inputs
         reboot:
           implementation: vsphere.vsphere_server_plugin.power.reboot
-          inputs:
-            max_wait_time:
-              type: integer
-              default: 300
-              description: >
-                How long to wait for the operation to complete before retry.
+          inputs: *interfaces_power_inputs
         shut_down:
           implementation: vsphere.vsphere_server_plugin.power.shut_down
-          inputs:
-            max_wait_time:
-              type: integer
-              default: 300
-              description: >
-                How long to wait for the operation to complete before retry.
+          inputs: *interfaces_power_inputs
 
   cloudify.vsphere.nodes.WindowsServer:
     derived_from: cloudify.vsphere.nodes.Server
