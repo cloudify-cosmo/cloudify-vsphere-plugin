@@ -101,3 +101,8 @@ MANAGER_PLUGIN_FILES = os.path.join('/etc', 'cloudify', 'vsphere_plugin')
 DEFAULT_CONFIG_PATH = os.path.join(
     MANAGER_PLUGIN_FILES,
     'connection_config.yaml')
+
+# Cloudify delete node action
+DELETE_NODE_ACTION = "cloudify.interfaces.lifecycle.delete"
+
+ASYNC_TASK_ID = '_task_id'

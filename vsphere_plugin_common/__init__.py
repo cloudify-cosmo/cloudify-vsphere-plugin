@@ -35,7 +35,8 @@ import requests
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.exceptions import NonRecoverableError
+from cloudify import context
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from vsphere_plugin_common.constants import (
@@ -51,6 +52,8 @@ from vsphere_plugin_common.constants import (
     NETWORK_CREATE_ON,
     NETWORK_STATUS,
     VSPHERE_SERVER_ID,
+    DELETE_NODE_ACTION,
+    ASYNC_TASK_ID,
 )
 from collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
@@ -77,6 +80,8 @@ def remove_runtime_properties(ctx):
     keys = [key for key in ctx.instance.runtime_properties.keys()]
     for key in keys:
         del ctx.instance.runtime_properties[key]
+    # save flag as current state before external call
+    ctx.instance.update()
 
 
 class Config(object):
@@ -955,6 +960,18 @@ class VsphereClient(object):
 
         return cloudify_port_group
 
+    def _get_tasks(self, use_cache=True):
+        task_object = namedtuple(
+            'task',
+            ['id', 'obj'],
+        )
+
+        return [
+            task_object(
+                id=task._moId,
+                obj=task
+            ) for task in self.si.content.taskManager.recentTask]
+
     def _get_getter_method(self, vimtype):
         getter_method = {
             vim.VirtualMachine: self._get_vms,
@@ -968,6 +985,7 @@ class VsphereClient(object):
             vim.HostSystem: self._get_hosts,
             vim.dvs.DistributedVirtualPortgroup: self._get_dv_networks,
             vim.Folder: self._get_vm_folders,
+            vim.Task: self._get_tasks,
         }.get(vimtype)
         if getter_method is None:
             raise NonRecoverableError(
@@ -1065,14 +1083,57 @@ class VsphereClient(object):
                 break
         return obj
 
-    def _wait_for_task(self, task):
+    def _wait_for_task(self, task=None, instance=None, max_wait_time=300):
+        if not task and instance:
+            task_id = instance.runtime_properties.get(ASYNC_TASK_ID)
+            ctx.logger.info("Check task_id {}".format(task_id))
+            # no saved tasks
+            if not task_id:
+                return
+        else:
+            task_id = task._moId
+            if instance:
+                ctx.logger.info("Save task_id {}".format(task_id))
+                instance.runtime_properties[ASYNC_TASK_ID] = task_id
+                # save flag as current state before external call
+                instance.update()
+
+        if not task:
+            task_obj = self._get_obj_by_id(vim.Task, task_id)
+            if not task_obj:
+                ctx.logger.info("No task_id? {}".format(task_id))
+                if instance:
+                    # no such tasks
+                    del instance.runtime_properties[ASYNC_TASK_ID]
+                    # save flag as current state before external call
+                    instance.update()
+                return
+            task = task_obj.obj
+
+        retry_count = max_wait_time // TASK_CHECK_SLEEP
+
         while task.info.state in (
             vim.TaskInfo.State.queued,
             vim.TaskInfo.State.running,
         ):
             time.sleep(TASK_CHECK_SLEEP)
-            self._logger.debug('Task state {state}'
-                               .format(state=task.info.state))
+
+            self._logger.debug('Task state {state} left {step} seconds'
+                               .format(state=task.info.state,
+                                       step=(retry_count * TASK_CHECK_SLEEP)))
+            # check async
+            if instance and retry_count <= 0:
+                raise OperationRetry('Task {task_id} is not finished yet.'
+                                     .format(task_id=task._moId))
+            retry_count -= 1
+
+        # we correctly finished
+        if instance:
+            ctx.logger.info("Cleanup task_id {}".format(task_id))
+            del instance.runtime_properties[ASYNC_TASK_ID]
+            # save flag as current state before external call
+            instance.update()
+
         if task.info.state != vim.TaskInfo.State.success:
             raise NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
@@ -2769,14 +2830,19 @@ class NetworkClient(VsphereClient):
         # Each invocation of this takes up to a few seconds, so try to avoid
         # calling it too frequently by caching
         if hasattr(self, 'host_list') and not force_refresh:
-            return self.host_list
+            # make pylint happy
+            return getattr(self, 'host_list')
         self.host_list = self._get_hosts()
         return self.host_list
 
     def delete_port_group(self, name):
         self._logger.debug("Deleting port group {name}.".format(name=name))
         for host in self.get_host_list():
-            host.configManager.networkSystem.RemovePortGroup(name)
+            network_system = host.configManager.networkSystem
+            port_groups = network_system.networkInfo.portgroup
+            for port_group in port_groups:
+                if name.lower() == port_group.spec.name.lower():
+                    host.configManager.networkSystem.RemovePortGroup(name)
         self._logger.debug("Port group {name} was deleted.".format(name=name))
 
     def get_vswitches(self):
@@ -3660,6 +3726,11 @@ class ControllerClient(VsphereClient):
         return nicspec, controller_type
 
 
+def run_deferred_task(client, instance):
+    if instance.runtime_properties.get(ASYNC_TASK_ID):
+        client._wait_for_task(instance=instance)
+
+
 def _with_client(client_name, client):
     def decorator(f):
         @wraps(f)
@@ -3669,7 +3740,34 @@ def _with_client(client_name, client):
                 # don't pass connection_config to the real operation
                 kwargs.pop('connection_config', None)
 
-            return f(*args, **kwargs)
+            try:
+                # check unfinished tasks
+                if ctx.type == context.NODE_INSTANCE:
+                    run_deferred_task(client=kwargs[client_name],
+                                      instance=ctx.instance)
+                elif ctx.type == context.RELATIONSHIP_INSTANCE:
+                    run_deferred_task(client=kwargs[client_name],
+                                      instance=ctx.source.instance)
+                    run_deferred_task(client=kwargs[client_name],
+                                      instance=ctx.target.instance)
+
+                # run real task
+                result = f(*args, **kwargs)
+                # in delete action
+                current_action = ctx.operation.name
+                if (
+                    current_action == DELETE_NODE_ACTION and
+                    ctx.type == context.NODE_INSTANCE
+                ):
+                    # no retry actions
+                    if not ctx.instance.runtime_properties.get(ASYNC_TASK_ID):
+                        ctx.logger.info('Cleanup resource.')
+                        # cleanup runtime
+                        remove_runtime_properties(ctx)
+                # return result
+                return result
+            except Exception:
+                raise
         wrapper.__wrapped__ = f
         return wrapper
     return decorator

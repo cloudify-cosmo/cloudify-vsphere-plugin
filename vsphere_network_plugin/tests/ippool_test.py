@@ -17,7 +17,9 @@ import unittest
 from mock import Mock, patch
 
 from cloudify.state import current_ctx
+from cloudify.mocks import MockCloudifyContext
 
+from vsphere_plugin_common.constants import DELETE_NODE_ACTION
 from vsphere_network_plugin import ippool
 
 
@@ -25,19 +27,23 @@ class IPPoolTest(unittest.TestCase):
 
     def setUp(self):
         super(IPPoolTest, self).setUp()
-        self.mock_ctx = Mock()
+        self.mock_ctx = MockCloudifyContext(
+            'node_name',
+            properties={},
+            runtime_properties={}
+        )
+        self.mock_ctx._operation = Mock()
         current_ctx.set(self.mock_ctx)
 
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_create(self, mock_client_get):
         mock_client_get().create_ippool.side_effect = [12345]
-        self.mock_ctx.instance.runtime_properties = {}
         rel = Mock()
         rel.type_hierarchy = [
             "cloudify.relationships.vsphere.ippool_connected_to_network"]
         rel.target.node.type_hierarchy = ["cloudify.vsphere.nodes.Network"]
-        self.mock_ctx.instance.relationships = [rel]
-        self.mock_ctx.node.properties = {
+        self.mock_ctx.instance._relationships = [rel]
+        self.mock_ctx.node._properties = {
             'connection_config': {
                 'host': 'host',
                 'port': '80'
@@ -70,20 +76,18 @@ class IPPoolTest(unittest.TestCase):
 
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_delete(self, mock_client_get):
+        self.mock_ctx._operation.name = DELETE_NODE_ACTION
         mock_client_get().delete_ippool.side_effect = [None]
-        self.mock_ctx.instance.runtime_properties = {}
-        self.mock_ctx.node.properties = {
-            'connection_config': {
-                'host': 'host',
-                'port': '80'
-            },
-            "datacenter_name": "datacenter"
+        self.mock_ctx.node.properties['connection_config'] = {
+            'host': 'host',
+            'port': '80'
         }
+        self.mock_ctx.node.properties["datacenter_name"] = "datacenter"
         # nothing to remove
         ippool.delete()
         self.assertFalse(self.mock_ctx.instance.runtime_properties)
         # something exists
-        self.mock_ctx.instance.runtime_properties = {'ippool': 12345}
+        self.mock_ctx.instance.runtime_properties['ippool'] = 12345
         ippool.delete()
         mock_client_get().delete_ippool.assert_called_once_with(
             'datacenter', 12345)

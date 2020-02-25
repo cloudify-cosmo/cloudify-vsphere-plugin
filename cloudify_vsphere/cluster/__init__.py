@@ -23,8 +23,7 @@ from cloudify.exceptions import NonRecoverableError
 # This package imports
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
-    with_server_client,
-    remove_runtime_properties,
+    with_server_client
 )
 from vsphere_plugin_common.constants import (
     CLUSTER_ID,
@@ -76,4 +75,3 @@ def delete(ctx, server_client, name, use_external_resource):
                 name=name,
             )
         )
-    remove_runtime_properties(ctx)

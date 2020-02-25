@@ -24,7 +24,6 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_server_client,
-    remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
     HYPERVISOR_HOST_ID,
@@ -75,4 +74,3 @@ def delete(ctx, server_client, name, use_external_resource):
             'hypervisor_hosts is not currently supported by this plugin.'
             .format(name=name,)
         )
-    remove_runtime_properties(ctx)

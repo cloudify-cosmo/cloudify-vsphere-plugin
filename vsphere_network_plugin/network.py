@@ -24,7 +24,6 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_network_client,
-    remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
     NETWORK_ID,
@@ -141,7 +140,6 @@ def delete(ctx, network_client, network, use_external_resource):
         ctx.logger.info('Successfully deleted {type}: {name}'.format(
                         type=get_network_type(ctx, network),
                         name=network['name']))
-    remove_runtime_properties(ctx)
 
 
 def get_network_type(ctx, network):

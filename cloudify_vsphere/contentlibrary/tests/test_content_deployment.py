@@ -17,7 +17,9 @@ import unittest
 from mock import Mock, patch
 
 from cloudify.state import current_ctx
+from cloudify.mocks import MockCloudifyContext
 
+from vsphere_plugin_common.constants import DELETE_NODE_ACTION
 import cloudify_vsphere.contentlibrary.deployment as deployment
 
 
@@ -25,15 +27,21 @@ class ContentDeploymentTest(unittest.TestCase):
 
     def setUp(self):
         super(ContentDeploymentTest, self).setUp()
-        self.mock_ctx = Mock()
+        self.mock_ctx = MockCloudifyContext(
+            'node_name',
+            properties={},
+            runtime_properties={}
+        )
+        self.mock_ctx._operation = Mock()
+        self.mock_ctx._capabilities = Mock()
         current_ctx.set(self.mock_ctx)
 
     def test_delete(self):
-        self.mock_ctx.instance.runtime_properties = {
-            deployment.CONTENT_ITEM_ID: 'item',
-            deployment.CONTENT_LIBRARY_ID: 'library',
-            deployment.VSPHERE_SERVER_ID: 'server'
-        }
+        self.mock_ctx._operation.name = DELETE_NODE_ACTION
+        runtime_properties = self.mock_ctx.instance.runtime_properties
+        runtime_properties[deployment.CONTENT_ITEM_ID] = 'item'
+        runtime_properties[deployment.CONTENT_LIBRARY_ID] = 'library'
+        runtime_properties[deployment.VSPHERE_SERVER_ID] = 'server'
         deployment.delete(ctx=self.mock_ctx)
         self.assertFalse(self.mock_ctx.instance.runtime_properties)
 
@@ -86,9 +94,6 @@ class ContentDeploymentTest(unittest.TestCase):
         requests = Mock()
         requests.request = _fake_response
 
-        self.mock_ctx.instance.id = "a_b_c"
-        self.mock_ctx.instance.runtime_properties = {}
-
         with patch("cloudify_vsphere.contentlibrary.requests", requests):
             deployment.create(ctx=self.mock_ctx,
                               connection_config={'host': 'host',
@@ -101,7 +106,7 @@ class ContentDeploymentTest(unittest.TestCase):
                               deployment_spec={'param': '_param'})
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
-            {'vm_name': 'a-b-c',
+            {'vm_name': 'node-name',
              'vsphere_server_id': 'deployed',
              'content_item_id': 'id_def',
              'content_library_id': 'id_abc'})

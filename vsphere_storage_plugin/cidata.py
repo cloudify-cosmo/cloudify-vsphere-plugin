@@ -22,7 +22,6 @@ from cloudify import ctx
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_rawvolume_client,
-    remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_IMAGE,
@@ -88,4 +87,3 @@ def delete(rawvolume_client, **kwargs):
     rawvolume_client.delete_file(datacenter_id=datacenter_id,
                                  datacenter_name=datacenter_name,
                                  datastorepath=storage_file_name)
-    remove_runtime_properties(ctx)

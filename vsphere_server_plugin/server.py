@@ -25,7 +25,6 @@ from cloudify_vsphere.utils import op, find_rels_by_type
 from cloudify_vsphere.utils.feedback import prepare_for_log
 from vsphere_plugin_common import (
     get_ip_from_vsphere_nic_ips,
-    remove_runtime_properties,
     with_server_client,
 )
 from vsphere_plugin_common.constants import (
@@ -571,7 +570,6 @@ def delete(ctx, server_client, server, os_family, force_delete):
         not force_delete
     ):
         ctx.logger.info('Used existing resource.')
-        remove_runtime_properties(ctx)
         return
     elif force_delete:
         ctx.logger.info('Delete is forced.')
@@ -579,7 +577,7 @@ def delete(ctx, server_client, server, os_family, force_delete):
     if server_obj is None:
         if ctx.instance.runtime_properties.get(VSPHERE_SERVER_ID):
             # skip already deleted host
-            raise NonRecoverableError(
+            ctx.logger.info(
                 "Cannot delete server - server doesn't exist for node: {0}"
                 .format(ctx.instance.id))
         return
@@ -588,7 +586,6 @@ def delete(ctx, server_client, server, os_family, force_delete):
     server_client.delete_server(server_obj)
     ctx.logger.info('Succeessfully deleted server {name}'.format(
                     name=vm_name))
-    remove_runtime_properties(ctx)
 
 
 @op
