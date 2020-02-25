@@ -28,7 +28,6 @@ from vsphere_plugin_common import (
 )
 from vsphere_plugin_common.constants import (
     RESOURCE_POOL_ID,
-    RESOURCE_POOL_RUNTIME_PROPERTIES,
 )
 
 
@@ -77,4 +76,4 @@ def delete(ctx, server_client, name, use_external_resource):
                 name=name,
             )
         )
-    remove_runtime_properties(RESOURCE_POOL_RUNTIME_PROPERTIES, ctx)
+    remove_runtime_properties(ctx)

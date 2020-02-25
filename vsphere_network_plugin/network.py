@@ -32,7 +32,6 @@ from vsphere_plugin_common.constants import (
     SWITCH_DISTRIBUTED,
     NETWORK_MTU,
     NETWORK_CIDR,
-    NETWORK_RUNTIME_PROPERTIES,
 )
 from cloudify_vsphere.utils.feedback import check_name_for_special_characters
 
@@ -142,7 +141,7 @@ def delete(ctx, network_client, network, use_external_resource):
         ctx.logger.info('Successfully deleted {type}: {name}'.format(
                         type=get_network_type(ctx, network),
                         name=network['name']))
-    remove_runtime_properties(NETWORK_RUNTIME_PROPERTIES, ctx)
+    remove_runtime_properties(ctx)
 
 
 def get_network_type(ctx, network):

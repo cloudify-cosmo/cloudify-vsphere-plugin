@@ -25,7 +25,6 @@ from vsphere_plugin_common import (
     remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
-    VSPHERE_STORAGE_RUNTIME_PROPERTIES,
     VSPHERE_STORAGE_IMAGE,
     VSPHERE_STORAGE_FILE_NAME,
     DATACENTER_ID,
@@ -89,4 +88,4 @@ def delete(rawvolume_client, **kwargs):
     rawvolume_client.delete_file(datacenter_id=datacenter_id,
                                  datacenter_name=datacenter_name,
                                  datastorepath=storage_file_name)
-    remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
+    remove_runtime_properties(ctx)

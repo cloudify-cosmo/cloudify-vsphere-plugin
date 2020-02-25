@@ -28,7 +28,6 @@ from vsphere_plugin_common import (
 )
 from vsphere_plugin_common.constants import (
     HYPERVISOR_HOST_ID,
-    HYPERVISOR_HOST_RUNTIME_PROPERTIES,
 )
 
 
@@ -76,4 +75,4 @@ def delete(ctx, server_client, name, use_external_resource):
             'hypervisor_hosts is not currently supported by this plugin.'
             .format(name=name,)
         )
-    remove_runtime_properties(HYPERVISOR_HOST_RUNTIME_PROPERTIES, ctx)
+    remove_runtime_properties(ctx)

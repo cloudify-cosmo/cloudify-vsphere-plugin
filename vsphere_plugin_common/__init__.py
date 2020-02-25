@@ -71,10 +71,12 @@ def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
     return None
 
 
-def remove_runtime_properties(properties, context):
-    for p in properties:
-        if p in context.instance.runtime_properties:
-            del context.instance.runtime_properties[p]
+def remove_runtime_properties(ctx):
+    # cleanup runtime properties
+    # need to convert generaton to list, python 3
+    keys = [key for key in ctx.instance.runtime_properties.keys()]
+    for key in keys:
+        del ctx.instance.runtime_properties[key]
 
 
 class Config(object):

@@ -27,7 +27,6 @@ from vsphere_plugin_common import (
 from vsphere_plugin_common.constants import (
     CONTENT_ITEM_ID,
     CONTENT_LIBRARY_ID,
-    CONTENT_LIBRARY_PROPERTIES,
     CONTENT_LIBRARY_VM_NAME,
     VSPHERE_SERVER_ID,
 )
@@ -84,4 +83,4 @@ def create(ctx, connection_config, library_name, template_name, target,
 
 @op
 def delete(ctx):
-    remove_runtime_properties(CONTENT_LIBRARY_PROPERTIES, ctx)
+    remove_runtime_properties(ctx)

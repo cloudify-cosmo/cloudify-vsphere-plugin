@@ -32,7 +32,6 @@ from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,
     PUBLIC_IP,
-    SERVER_RUNTIME_PROPERTIES,
     VSPHERE_SERVER_ID,
     VSPHERE_SERVER_HOST,
     VSPHERE_SERVER_DATASTORE_IDS,
@@ -572,7 +571,7 @@ def delete(ctx, server_client, server, os_family, force_delete):
         not force_delete
     ):
         ctx.logger.info('Used existing resource.')
-        remove_runtime_properties(SERVER_RUNTIME_PROPERTIES, ctx)
+        remove_runtime_properties(ctx)
         return
     elif force_delete:
         ctx.logger.info('Delete is forced.')
@@ -589,7 +588,7 @@ def delete(ctx, server_client, server, os_family, force_delete):
     server_client.delete_server(server_obj)
     ctx.logger.info('Succeessfully deleted server {name}'.format(
                     name=vm_name))
-    remove_runtime_properties(SERVER_RUNTIME_PROPERTIES, ctx)
+    remove_runtime_properties(ctx)
 
 
 @op

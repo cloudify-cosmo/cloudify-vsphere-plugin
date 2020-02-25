@@ -48,4 +48,4 @@ def delete(ctx, network_client, datacenter_name, **kwargs):
         return
     network_client.delete_ippool(
         datacenter_name, ctx.instance.runtime_properties[IPPOOL_ID])
-    remove_runtime_properties([IPPOOL_ID], ctx)
+    remove_runtime_properties(ctx)

@@ -34,7 +34,6 @@ from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_VM_NAME,
     VSPHERE_STORAGE_SCSI_ID,
     VSPHERE_STORAGE_FILE_NAME,
-    VSPHERE_STORAGE_RUNTIME_PROPERTIES,
 )
 from cloudify_vsphere.utils.feedback import prepare_for_log
 
@@ -150,7 +149,7 @@ def create(storage_client, storage, use_external_resource=False):
 def delete(storage_client, **kwargs):
     if ctx.instance.runtime_properties.get('use_external_resource'):
         ctx.logger.info('Used existing resource.')
-        remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
+        remove_runtime_properties(ctx)
         return
 
     vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
@@ -175,7 +174,7 @@ def delete(storage_client, **kwargs):
             vm=vm_name,
         )
     )
-    remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
+    remove_runtime_properties(ctx)
 
 
 @op
