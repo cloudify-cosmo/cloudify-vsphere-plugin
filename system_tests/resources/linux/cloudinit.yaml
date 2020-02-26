@@ -56,6 +56,10 @@ inputs:
   allowed_datastores:
     default: []
 
+  custom_attributes:
+    default:
+      key: value
+
   test_network_name:
     description: >
       The name to give to the new test network
@@ -126,6 +130,10 @@ node_types:
         default: { get_input: allowed_clusters }
       allowed_datastores:
         default: { get_input: allowed_datastores }
+      postpone_delete_networks:
+        default: true
+      custom_attributes:
+        default: { get_input: custom_attributes }
       server:
         default:
           name: other_vm
