@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2014-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -37,11 +37,11 @@ setuptools.setup(
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
     install_requires=[
-        "cloudify-plugins-common>=4.1",
-        "pyvmomi>=6.5.0.2017.5",
-        "netaddr==0.7.18",
-        "pyyaml>=3.10",
-        "pycdlib", # cdrom image
+        "cloudify-common>=4.4.0",
+        "pyvmomi>=6.7.3",
+        "netaddr>=0.7.19",
+        "pyyaml>=3.12",
+        "cloudify-utilities-plugins-sdk==0.0.13", # cdrom create code
         "requests", # content library
     ],
 )

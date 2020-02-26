@@ -1,8 +1,0 @@
-instance-id: localhost
-network-interfaces: |
-  iface eno16780032 inet static
-  address 172.16.168.156
-  network 172.16.168.0
-  netmask 255.255.255.0
-  broadcast 172.16.168.255
-  gateway 172.16.168.1

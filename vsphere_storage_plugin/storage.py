@@ -1,5 +1,5 @@
 #########
-# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2014-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -9,9 +9,9 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  * See the License for the specific language governing permissions and
-#  * limitations under the License.
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 # Stdlib imports
 
@@ -25,7 +25,6 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_storage_client,
-    remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
@@ -34,7 +33,6 @@ from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_VM_NAME,
     VSPHERE_STORAGE_SCSI_ID,
     VSPHERE_STORAGE_FILE_NAME,
-    VSPHERE_STORAGE_RUNTIME_PROPERTIES,
 )
 from cloudify_vsphere.utils.feedback import prepare_for_log
 
@@ -118,7 +116,8 @@ def create(storage_client, storage, use_external_resource=False):
                 storage_size,
                 parent_key,
                 mode,
-                thin_provision,
+                thin_provision=thin_provision,
+                instance=ctx.instance
             )
         except NonRecoverableError as e:
             # If more than one storage is attached to the same VM, there is
@@ -141,8 +140,12 @@ def create(storage_client, storage, use_external_resource=False):
         ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
             storage_file_name
+
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID] = vm_id
     ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME] = vm_name
+    # force update
+    ctx.instance.runtime_properties.dirty = True
+    ctx.instance.update()
 
 
 @op
@@ -150,7 +153,6 @@ def create(storage_client, storage, use_external_resource=False):
 def delete(storage_client, **kwargs):
     if ctx.instance.runtime_properties.get('use_external_resource'):
         ctx.logger.info('Used existing resource.')
-        remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
         return
 
     vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
@@ -168,14 +170,14 @@ def delete(storage_client, **kwargs):
             vm=vm_name,
         )
     )
-    storage_client.delete_storage(vm_id, storage_file_name)
+    storage_client.delete_storage(vm_id, storage_file_name,
+                                  instance=ctx.instance)
     ctx.logger.info(
         "Successfully deleted storage {file} from {vm}".format(
             file=storage_file_name,
             vm=vm_name,
         )
     )
-    remove_runtime_properties(VSPHERE_STORAGE_RUNTIME_PROPERTIES, ctx)
 
 
 @op
@@ -199,7 +201,8 @@ def resize(storage_client, **kwargs):
     )
     storage_client.resize_storage(vm_id,
                                   storage_file_name,
-                                  storage_size)
+                                  storage_size,
+                                  instance=ctx.instance)
     ctx.logger.info(
         "Successfully resized storage {file} on {vm} to {new_size}".format(
             file=storage_file_name,

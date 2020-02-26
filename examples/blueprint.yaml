@@ -1,8 +1,8 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-    - http://www.getcloudify.org/spec/cloudify/4.5.5/types.yaml
-    - http://www.getcloudify.org/spec/vsphere-plugin/2.1.0/plugin.yaml
+    - https://cloudify.co/spec/cloudify/4.6/types.yaml
+    - plugin:cloudify-vsphere-plugin
 
 node_templates:
     example_server:
@@ -45,10 +45,10 @@ node_templates:
                 switch_distributed: true
 
     example_port:
-        type: cloudify.vsphere.nodes.Port
+        type: cloudify.vsphere.nodes.NIC
         properties:
-            port:
-                mac: 00:00:00:11:11:11
+            name: example_network
+            mac_address: 00:00:00:11:11:11
         relationships:
             - target: example_network
               type: cloudify.vsphere.port_connected_to_network

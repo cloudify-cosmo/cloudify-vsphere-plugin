@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2014-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -101,3 +101,8 @@ MANAGER_PLUGIN_FILES = os.path.join('/etc', 'cloudify', 'vsphere_plugin')
 DEFAULT_CONFIG_PATH = os.path.join(
     MANAGER_PLUGIN_FILES,
     'connection_config.yaml')
+
+# Cloudify delete node action
+DELETE_NODE_ACTION = "cloudify.interfaces.lifecycle.delete"
+
+ASYNC_TASK_ID = '_task_id'

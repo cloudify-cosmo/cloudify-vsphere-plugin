@@ -1,4 +1,4 @@
-# Copyright (c) 2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2019-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -20,6 +20,7 @@ from cloudify.state import current_ctx
 from cloudify.mocks import MockCloudifyContext
 from cloudify.exceptions import NonRecoverableError
 
+from vsphere_plugin_common.constants import DELETE_NODE_ACTION
 import vsphere_server_plugin.server as server
 
 
@@ -49,6 +50,7 @@ class BackupServerTest(unittest.TestCase):
 
         _ctx._execution_id = "execution_id"
         _ctx.instance.host_ip = None
+        _ctx._operation = mock.Mock()
 
         current_ctx.set(_ctx)
         return _ctx
@@ -62,10 +64,13 @@ class BackupServerTest(unittest.TestCase):
 
         # backup for external
         ctx.instance.runtime_properties['use_external_resource'] = True
-        server.snapshot_create(server={"name": "server_name"},
+        server.snapshot_create(ctx=ctx,
+                               server_client=None,
+                               server={"name": "server_name"},
                                os_family="other_os",
                                snapshot_name="snapshot_name",
-                               snapshot_incremental=True)
+                               snapshot_incremental=True,
+                               snapshot_type=None)
 
         # backup without name
         ctx.instance.runtime_properties['use_external_resource'] = False
@@ -73,16 +78,22 @@ class BackupServerTest(unittest.TestCase):
             NonRecoverableError,
             "Backup name must be provided."
         ):
-            server.snapshot_create(server={"name": "server_name"},
+            server.snapshot_create(ctx=ctx,
+                                   server_client=None,
+                                   server={"name": "server_name"},
                                    os_family="other_os",
                                    snapshot_name="",
-                                   snapshot_incremental=True)
+                                   snapshot_incremental=True,
+                                   snapshot_type=None)
 
         # usuported backup type, ignore
-        server.snapshot_create(server={"name": "server_name"},
+        server.snapshot_create(ctx=ctx,
+                               server_client=None,
+                               server={"name": "server_name"},
                                os_family="other_os",
                                snapshot_name="snapshot",
-                               snapshot_incremental=False)
+                               snapshot_incremental=False,
+                               snapshot_type=None)
 
         # nosuch vm
         with mock.patch(
@@ -94,10 +105,13 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot backup server - server doesn't exist for node: "
                 "node_name"
             ):
-                server.snapshot_create(server={"name": "server_name"},
+                server.snapshot_create(ctx=ctx,
+                                       server_client=None,
+                                       server={"name": "server_name"},
                                        os_family="other_os",
                                        snapshot_name="snapshot",
-                                       snapshot_incremental=True)
+                                       snapshot_incremental=True,
+                                       snapshot_type=None)
 
         # with some vm
         vm = mock.Mock()
@@ -111,10 +125,13 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.snapshot_create(server={"name": "server_name"},
+            server.snapshot_create(ctx=ctx,
+                                   server_client=None,
+                                   server={"name": "server_name"},
                                    os_family="other_os",
                                    snapshot_name="snapshot",
-                                   snapshot_incremental=True)
+                                   snapshot_incremental=True,
+                                   snapshot_type=None)
         vm.obj.CreateSnapshot.assert_called_with(
             'snapshot', description=None, memory=False, quiesce=False)
 
@@ -125,10 +142,13 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.snapshot_create(server={"name": "server_name"},
+            server.snapshot_create(ctx=ctx,
+                                   server_client=None,
+                                   server={"name": "server_name"},
                                    os_family="other_os",
                                    snapshot_name="snapshot",
-                                   snapshot_incremental=True)
+                                   snapshot_incremental=True,
+                                   snapshot_type=None)
         vm.obj.CreateSnapshot.assert_called_with(
             'snapshot', description=None, memory=False, quiesce=False)
 
@@ -148,10 +168,13 @@ class BackupServerTest(unittest.TestCase):
                 NonRecoverableError,
                 "Snapshot snapshot already exists."
             ):
-                server.snapshot_create(server={"name": "server_name"},
+                server.snapshot_create(ctx=ctx,
+                                       server_client=None,
+                                       server={"name": "server_name"},
                                        os_family="other_os",
                                        snapshot_name="snapshot",
-                                       snapshot_incremental=True)
+                                       snapshot_incremental=True,
+                                       snapshot_type=None)
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
     @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
@@ -162,7 +185,9 @@ class BackupServerTest(unittest.TestCase):
 
         # backup for external
         ctx.instance.runtime_properties['use_external_resource'] = True
-        server.snapshot_apply(server={"name": "server_name"},
+        server.snapshot_apply(ctx=ctx,
+                              server_client=None,
+                              server={"name": "server_name"},
                               os_family="other_os",
                               snapshot_name="snapshot_name",
                               snapshot_incremental=True)
@@ -173,13 +198,17 @@ class BackupServerTest(unittest.TestCase):
             NonRecoverableError,
             "Backup name must be provided."
         ):
-            server.snapshot_apply(server={"name": "server_name"},
+            server.snapshot_apply(ctx=ctx,
+                                  server_client=None,
+                                  server={"name": "server_name"},
                                   os_family="other_os",
                                   snapshot_name="",
                                   snapshot_incremental=True)
 
         # usuported backup type, ignore
-        server.snapshot_apply(server={"name": "server_name"},
+        server.snapshot_apply(ctx=ctx,
+                              server_client=None,
+                              server={"name": "server_name"},
                               os_family="other_os",
                               snapshot_name="snapshot",
                               snapshot_incremental=False)
@@ -194,7 +223,9 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot restore server - server doesn't exist for node: "
                 "node_name"
             ):
-                server.snapshot_apply(server={"name": "server_name"},
+                server.snapshot_apply(ctx=ctx,
+                                      server_client=None,
+                                      server={"name": "server_name"},
                                       os_family="other_os",
                                       snapshot_name="snapshot",
                                       snapshot_incremental=True)
@@ -212,7 +243,9 @@ class BackupServerTest(unittest.TestCase):
                 NonRecoverableError,
                 "No snapshots found with name: snapshot."
             ):
-                server.snapshot_apply(server={"name": "server_name"},
+                server.snapshot_apply(ctx=ctx,
+                                      server_client=None,
+                                      server={"name": "server_name"},
                                       os_family="other_os",
                                       snapshot_name="snapshot",
                                       snapshot_incremental=True)
@@ -229,7 +262,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.snapshot_apply(server={"name": "server_name"},
+            server.snapshot_apply(ctx=ctx,
+                                  server_client=None,
+                                  server={"name": "server_name"},
                                   os_family="other_os",
                                   snapshot_name="snapshot",
                                   snapshot_incremental=True)
@@ -244,7 +279,9 @@ class BackupServerTest(unittest.TestCase):
 
         # backup for external
         ctx.instance.runtime_properties['use_external_resource'] = True
-        server.snapshot_delete(server={"name": "server_name"},
+        server.snapshot_delete(ctx=ctx,
+                               server_client=None,
+                               server={"name": "server_name"},
                                os_family="other_os",
                                snapshot_name="snapshot_name",
                                snapshot_incremental=True)
@@ -255,13 +292,17 @@ class BackupServerTest(unittest.TestCase):
             NonRecoverableError,
             "Backup name must be provided."
         ):
-            server.snapshot_delete(server={"name": "server_name"},
+            server.snapshot_delete(ctx=ctx,
+                                   server_client=None,
+                                   server={"name": "server_name"},
                                    os_family="other_os",
                                    snapshot_name="",
                                    snapshot_incremental=True)
 
         # usuported backup type, ignore
-        server.snapshot_delete(server={"name": "server_name"},
+        server.snapshot_delete(ctx=ctx,
+                               server_client=None,
+                               server={"name": "server_name"},
                                os_family="other_os",
                                snapshot_name="snapshot",
                                snapshot_incremental=False)
@@ -276,7 +317,9 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot remove backup for server - server doesn't exist "
                 "for node: node_name"
             ):
-                server.snapshot_delete(server={"name": "server_name"},
+                server.snapshot_delete(ctx=ctx,
+                                       server_client=None,
+                                       server={"name": "server_name"},
                                        os_family="other_os",
                                        snapshot_name="snapshot",
                                        snapshot_incremental=True)
@@ -294,7 +337,9 @@ class BackupServerTest(unittest.TestCase):
                 NonRecoverableError,
                 "No snapshots found with name: snapshot."
             ):
-                server.snapshot_delete(server={"name": "server_name"},
+                server.snapshot_delete(ctx=ctx,
+                                       server_client=None,
+                                       server={"name": "server_name"},
                                        os_family="other_os",
                                        snapshot_name="snapshot",
                                        snapshot_incremental=True)
@@ -311,7 +356,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.snapshot_delete(server={"name": "server_name"},
+            server.snapshot_delete(ctx=ctx,
+                                   server_client=None,
+                                   server={"name": "server_name"},
                                    os_family="other_os",
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
@@ -331,7 +378,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.snapshot_delete(server={"name": "server_name"},
+            server.snapshot_delete(ctx=ctx,
+                                   server_client=None,
+                                   server={"name": "server_name"},
                                    os_family="other_os",
                                    snapshot_name="snapshot",
                                    snapshot_incremental=True)
@@ -356,7 +405,9 @@ class BackupServerTest(unittest.TestCase):
                 "Sub snapshots \\[\'snapshot\'\\] found for snapshotparent. "
                 "You should remove subsnaphots before remove current."
             ):
-                server.snapshot_delete(server={"name": "server_name"},
+                server.snapshot_delete(ctx=ctx,
+                                       server_client=None,
+                                       server={"name": "server_name"},
                                        os_family="other_os",
                                        snapshot_name="snapshotparent",
                                        snapshot_incremental=True)
@@ -381,8 +432,12 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot get info - server doesn't exist for node: "
                 "node_name"
             ):
-                server.get_state(server={"name": "server_name"},
-                                 os_family="other_os")
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
+                                 os_family="other_os",
+                                 wait_ip=True,
+                                 networking={})
 
         # skip other vm
         vm = mock.Mock()
@@ -391,8 +446,12 @@ class BackupServerTest(unittest.TestCase):
             mock.Mock(return_value=vm)
         ):
             self.assertTrue(
-                server.get_state(server={"name": "server_name"},
-                                 os_family="other"))
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
+                                 os_family="other",
+                                 wait_ip=True,
+                                 networking={}))
 
         # rerun solaris
         vm = mock.Mock()
@@ -402,8 +461,12 @@ class BackupServerTest(unittest.TestCase):
             mock.Mock(return_value=vm)
         ):
             self.assertFalse(
-                server.get_state(server={"name": "server_name"},
-                                 os_family="solaris"))
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
+                                 os_family="solaris",
+                                 wait_ip=True,
+                                 networking={}))
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
     @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
@@ -425,8 +488,11 @@ class BackupServerTest(unittest.TestCase):
             mock.Mock(return_value=vm)
         ):
             self.assertTrue(
-                server.get_state(server={"name": "server_name"},
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
                                  os_family="solaris",
+                                 wait_ip=False,
                                  networking={}))
 
         # guest running, check ip
@@ -438,7 +504,9 @@ class BackupServerTest(unittest.TestCase):
             mock.Mock(return_value=vm)
         ):
             self.assertFalse(
-                server.get_state(server={"name": "server_name"},
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={}))
@@ -455,7 +523,9 @@ class BackupServerTest(unittest.TestCase):
             mock.Mock(return_value=vm)
         ):
             self.assertTrue(
-                server.get_state(server={"name": "server_name"},
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={}))
@@ -477,7 +547,9 @@ class BackupServerTest(unittest.TestCase):
             mock.Mock(return_value=vm)
         ):
             self.assertTrue(
-                server.get_state(server={"name": "server_name"},
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={
@@ -485,7 +557,7 @@ class BackupServerTest(unittest.TestCase):
                                         'name': 'other_net',
                                         'management': True
                                      }]
-                                }))
+                                 }))
         self.assertEqual(
             ctx.instance.runtime_properties[server.IP], "192.0.2.2")
 
@@ -499,7 +571,9 @@ class BackupServerTest(unittest.TestCase):
                 Exception,
                 'retry?'
             ):
-                server.get_state(server={"name": "server_name"},
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={
@@ -507,7 +581,7 @@ class BackupServerTest(unittest.TestCase):
                                         'name': 'broken',
                                         'management': True
                                      }]
-                                })
+                                 })
 
         # managment network exists by without ip yet
         vm = mock.Mock()
@@ -521,7 +595,9 @@ class BackupServerTest(unittest.TestCase):
             mock.Mock(return_value=vm)
         ):
             self.assertFalse(
-                server.get_state(server={"name": "server_name"},
+                server.get_state(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={
@@ -529,7 +605,7 @@ class BackupServerTest(unittest.TestCase):
                                         'name': 'other_net',
                                         'management': True
                                      }]
-                                }))
+                                 }))
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
     @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
@@ -537,11 +613,15 @@ class BackupServerTest(unittest.TestCase):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
         ctx = self._gen_ctx()
+        ctx._operation.name = DELETE_NODE_ACTION
 
         # delete for external
         ctx.instance.runtime_properties['use_external_resource'] = True
-        server.delete(server={"name": "server_name"},
-                      os_family="other_os")
+        server.delete(ctx=ctx,
+                      server_client=None,
+                      server={"name": "server_name"},
+                      os_family="other_os",
+                      force_delete=False)
 
         # nosuch vm (we dont have vm_id)
         ctx.instance.runtime_properties['use_external_resource'] = False
@@ -550,8 +630,11 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
-            server.delete(server={"name": "server_name"},
-                          os_family="other_os")
+            server.delete(ctx=ctx,
+                          server_client=None,
+                          server={"name": "server_name"},
+                          os_family="other_os",
+                          force_delete=False)
 
         # nosuch vm (we have vm_id)
         ctx.instance.runtime_properties['use_external_resource'] = False
@@ -560,15 +643,16 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
-            with self.assertRaisesRegexp(
-                NonRecoverableError,
-                "Cannot delete server - server doesn't exist for node: "
-                "node_name"
-            ):
-                server.delete(server={"name": "server_name"},
-                              os_family="other_os")
+            server.delete(ctx=ctx,
+                          server_client=None,
+                          server={"name": "server_name"},
+                          os_family="other_os",
+                          force_delete=False)
+            self.assertFalse(ctx.instance.runtime_properties)
 
         # with some vm
+        ctx.instance.runtime_properties['use_external_resource'] = False
+        ctx.instance.runtime_properties['vsphere_server_id'] = 'vm-unknow'
         vm = mock.Mock()
         task = mock.Mock()
         task.info.state = vim.TaskInfo.State.success
@@ -579,8 +663,11 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
-            server.delete(server={"name": "server_name"},
-                          os_family="other_os")
+            server.delete(ctx=ctx,
+                          server_client=None,
+                          server={"name": "server_name"},
+                          os_family="other_os",
+                          force_delete=False)
         vm.obj.Destroy.assert_called_with()
 
         # with some external vm with force action
@@ -599,7 +686,9 @@ class BackupServerTest(unittest.TestCase):
                 "vsphere_plugin_common.VsphereClient._get_obj_by_name",
                 mock.Mock(return_value=vm)
             ):
-                server.delete(server={"name": "server_name"},
+                server.delete(ctx=ctx,
+                              server_client=None,
+                              server={"name": "server_name"},
                               os_family="other_os",
                               force_delete=True)
         vm.obj.Destroy.assert_called_with()
@@ -622,7 +711,9 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot shutdown server guest - server doesn't exist for "
                 "node: node_name"
             ):
-                server.shutdown_guest(server={"name": "server_name"},
+                server.shutdown_guest(ctx=ctx,
+                                      server_client=None,
+                                      server={"name": "server_name"},
                                       os_family="other_os")
 
         # nosuch vm
@@ -636,7 +727,9 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot shutdown server guest - server doesn't exist for "
                 "node: node_name"
             ):
-                server.shutdown_guest(server={"name": "server_name"},
+                server.shutdown_guest(ctx=ctx,
+                                      server_client=None,
+                                      server={"name": "server_name"},
                                       os_family="other_os")
 
         # with poweredoff vm
@@ -646,7 +739,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.shutdown_guest(server={"name": "server_name"},
+            server.shutdown_guest(ctx=ctx,
+                                  server_client=None,
+                                  server={"name": "server_name"},
                                   os_family="other_os")
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
@@ -658,7 +753,9 @@ class BackupServerTest(unittest.TestCase):
 
         # stop for external
         ctx.instance.runtime_properties['use_external_resource'] = True
-        server.stop(server={"name": "server_name"},
+        server.stop(ctx=ctx,
+                    server_client=None,
+                    server={"name": "server_name"},
                     os_family="other_os")
 
         # nosuch vm (we dont have vm_id)
@@ -668,7 +765,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
-            server.stop(server={"name": "server_name"},
+            server.stop(ctx=ctx,
+                        server_client=None,
+                        server={"name": "server_name"},
                         os_family="other_os")
 
         # nosuch vm (we have vm_id)
@@ -683,7 +782,9 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot stop server - server doesn't exist for node: "
                 "node_name"
             ):
-                server.stop(server={"name": "server_name"},
+                server.stop(ctx=ctx,
+                            server_client=None,
+                            server={"name": "server_name"},
                             os_family="other_os")
 
         # with poweredoff vm
@@ -693,7 +794,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
-            server.stop(server={"name": "server_name"},
+            server.stop(ctx=ctx,
+                        server_client=None,
+                        server={"name": "server_name"},
                         os_family="other_os")
 
         # with poweredoff vm
@@ -707,7 +810,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
-            server.stop(server={"name": "server_name"},
+            server.stop(ctx=ctx,
+                        server_client=None,
+                        server={"name": "server_name"},
                         os_family="other_os")
         vm.obj.PowerOff.assert_called_with()
 
@@ -723,7 +828,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
-            server.stop(server={"name": "server_name"},
+            server.stop(ctx=ctx,
+                        server_client=None,
+                        server={"name": "server_name"},
                         os_family="other_os",
                         force_stop=True)
         vm.obj.PowerOff.assert_called_with()
@@ -737,7 +844,9 @@ class BackupServerTest(unittest.TestCase):
 
         # suspend for external
         ctx.instance.runtime_properties['use_external_resource'] = True
-        server.freeze_suspend(server={"name": "server_name"},
+        server.freeze_suspend(ctx=ctx,
+                              server_client=None,
+                              server={"name": "server_name"},
                               os_family="other_os")
 
         # nosuch vm
@@ -751,7 +860,9 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot suspend server - server doesn't exist for node: "
                 "node_name"
             ):
-                server.freeze_suspend(server={"name": "server_name"},
+                server.freeze_suspend(ctx=ctx,
+                                      server_client=None,
+                                      server={"name": "server_name"},
                                       os_family="other_os")
 
         # with suspended vm
@@ -761,7 +872,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.freeze_suspend(server={"name": "server_name"},
+            server.freeze_suspend(ctx=ctx,
+                                  server_client=None,
+                                  server={"name": "server_name"},
                                   os_family="other_os")
 
         # with poweredoff vm
@@ -771,7 +884,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.freeze_suspend(server={"name": "server_name"},
+            server.freeze_suspend(ctx=ctx,
+                                  server_client=None,
+                                  server={"name": "server_name"},
                                   os_family="other_os")
 
         # with poweredon vm
@@ -785,7 +900,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.freeze_suspend(server={"name": "server_name"},
+            server.freeze_suspend(ctx=ctx,
+                                  server_client=None,
+                                  server={"name": "server_name"},
                                   os_family="other_os")
         vm.obj.Suspend.assert_called_with()
 
@@ -798,7 +915,9 @@ class BackupServerTest(unittest.TestCase):
 
         # resume external resorce
         ctx.instance.runtime_properties['use_external_resource'] = True
-        server.freeze_resume(server={"name": "server_name"},
+        server.freeze_resume(ctx=ctx,
+                             server_client=None,
+                             server={"name": "server_name"},
                              os_family="other_os")
 
         # nosuch vm
@@ -812,7 +931,9 @@ class BackupServerTest(unittest.TestCase):
                 "Cannot resume server - server doesn't exist for node: "
                 "node_name"
             ):
-                server.freeze_resume(server={"name": "server_name"},
+                server.freeze_resume(ctx=ctx,
+                                     server_client=None,
+                                     server={"name": "server_name"},
                                      os_family="other_os")
 
         # with started vm
@@ -822,7 +943,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.freeze_resume(server={"name": "server_name"},
+            server.freeze_resume(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
                                  os_family="other_os")
 
         # with poweredoff vm
@@ -836,7 +959,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
-            server.freeze_resume(server={"name": "server_name"},
+            server.freeze_resume(ctx=ctx,
+                                 server_client=None,
+                                 server={"name": "server_name"},
                                  os_family="other_os")
         vm.obj.PowerOn.assert_called_with()
 

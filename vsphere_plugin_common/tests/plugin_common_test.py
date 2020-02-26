@@ -1,5 +1,5 @@
 #########
-# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2014-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -9,10 +9,9 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  * See the License for the specific language governing permissions and
-#  * limitations under the License.
-
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import BaseHTTPServer
 import multiprocessing
 import os
@@ -1895,7 +1894,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
-            client.resize_server(None, memory=572)
+            client.resize_server(None, instance=None, memory=572)
 
         self.assertIn('must be an integer multiple of 128', str(e.exception))
 
@@ -1903,7 +1902,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
-            client.resize_server(None, memory=128)
+            client.resize_server(None, instance=None, memory=128)
 
         self.assertIn('at least 512MB', str(e.exception))
 
@@ -1911,7 +1910,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
-            client.resize_server(None, memory='banana')
+            client.resize_server(None, instance=None, memory='banana')
 
         self.assertIn('Invalid memory value', str(e.exception))
 
@@ -1919,7 +1918,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
-            client.resize_server(None, cpus=0)
+            client.resize_server(None, instance=None, cpus=0)
 
         self.assertIn('must be at least 1', str(e.exception))
 
@@ -1927,7 +1926,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         client = vsphere_plugin_common.ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
-            client.resize_server(None, cpus='apple')
+            client.resize_server(None, instance=None, cpus='apple')
 
         self.assertIn('Invalid cpus value', str(e.exception))
 
@@ -1937,7 +1936,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         server = Mock()
         server.obj.Reconfigure.return_value.info.state = 'success'
 
-        client.resize_server(server, cpus=3, memory=1024)
+        client.resize_server(server, instance=None, cpus=3, memory=1024)
 
         server.obj.Reconfigure.assert_called_once_with(
             spec=configSpec.return_value,

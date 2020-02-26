@@ -1,9 +1,9 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - http://www.getcloudify.org/spec/cloudify/4.5.5/types.yaml
-  - http://www.getcloudify.org/spec/utilities-plugin/1.14.0/plugin.yaml
-  - ../../../plugin.yaml
+  - https://cloudify.co/spec/cloudify/4.6/types.yaml
+  - plugin:cloudify-utilities-plugin
+  - plugin:cloudify-vsphere-plugin
 
 inputs:
 
@@ -56,8 +56,12 @@ inputs:
     type: string
     description: >
       "CentOS template name"
-    default: "CentOS-7-x86_64-GenericCloud-ContainerHost"
+    default: "CentOS-7-x86_64-GenericCloud-1907"
 
+  agent_user:
+    description: >
+      The username of the agent running on the instance created from the image.
+    default: 'centos'
 
 ###############################################################################
 #  DSL section
@@ -76,14 +80,36 @@ dsl_definitions:
 
 node_templates:
 
+  rsa_key:
+    type: cloudify.keys.nodes.RSAKey
+    properties:
+      use_secret_store: false
+      resource_config:
+        openssh_format: true
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: keys.cloudify_ssh_key.operations.create
+          inputs:
+            store_public_key_material: true
+            store_private_key_material: true
+
   cloud_init:
     type: cloudify.nodes.CloudInit.CloudConfig
-    properties:
-      resource_config:
-        password: passw0rd
-        chpasswd:
-           expire: False
-        ssh_pwauth: True
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            resource_config:
+              ssh_authorized_keys:
+              - { get_attribute: [rsa_key, public_key_export] }
+              password: passw0rd
+              chpasswd:
+                expire: False
+              ssh_pwauth: True
+    relationships:
+    - target: rsa_key
+      type: cloudify.relationships.depends_on
 
   vm_folder:
     type: cloudify.vsphere.nodes.VMFolder
@@ -189,9 +215,10 @@ node_templates:
             allowed_datastore_ids: { get_attribute: [vm_instance, datastore_ids] }
             vol_ident: cidata
             raw_files:
-              meta-data: templates/cloudinit_meta_data.yaml
+              network-config: templates/cloudinit_network.yaml
             files:
               user-data: { get_attribute: [cloud_init, cloud_config ] }
+              meta-data: { concat: [ 'instance-id: ', { get_attribute: [vm_instance, vm_name ] } ] }
     relationships:
     - target: vm_instance
       type: cloudify.relationships.depends_on
@@ -204,8 +231,12 @@ node_templates:
       use_external_resource: true
       connection_config: *connection_config
       os_family: other
+      ip: 172.16.168.156
       agent_config:
-        install_method: none
+        install_method: remote
+        user: { get_input: agent_user }
+        port: 22
+        key: { get_attribute: [rsa_key, private_key_export] }
     interfaces:
       cloudify.interfaces.lifecycle:
         start:

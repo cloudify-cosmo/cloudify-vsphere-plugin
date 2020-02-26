@@ -1,4 +1,4 @@
-# Copyright (c) 2016-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2016-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_network_client,
-    remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import IPPOOL_ID
 
@@ -48,4 +47,3 @@ def delete(ctx, network_client, datacenter_name, **kwargs):
         return
     network_client.delete_ippool(
         datacenter_name, ctx.instance.runtime_properties[IPPOOL_ID])
-    remove_runtime_properties([IPPOOL_ID], ctx)

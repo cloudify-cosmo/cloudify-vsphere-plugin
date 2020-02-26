@@ -1,5 +1,5 @@
 #########
-# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2014-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -9,10 +9,9 @@
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
-#  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-#  * See the License for the specific language governing permissions and
-#  * limitations under the License.
-
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 # Stdlib imports
 import urllib
 
@@ -25,7 +24,6 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_network_client,
-    remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
     NETWORK_ID,
@@ -33,7 +31,7 @@ from vsphere_plugin_common.constants import (
     SWITCH_DISTRIBUTED,
     NETWORK_MTU,
     NETWORK_CIDR,
-    NETWORK_RUNTIME_PROPERTIES,
+    NETWORK_STATUS,
 )
 from cloudify_vsphere.utils.feedback import check_name_for_special_characters
 
@@ -55,7 +53,7 @@ def create(ctx, network_client, network, use_external_resource):
 
     runtime_properties = ctx.instance.runtime_properties
 
-    creating = runtime_properties.get('status') == 'creating'
+    creating = runtime_properties.get(NETWORK_STATUS) == 'creating'
 
     if use_external_resource:
         if not existing_id:
@@ -67,47 +65,48 @@ def create(ctx, network_client, network, use_external_resource):
                 )
             )
         network_id = existing_id
-        mtu = network_client.get_network_mtu(
-            name=port_group_name, switch_distributed=switch_distributed)
-        ctx.instance.runtime_properties[NETWORK_MTU] = mtu
-        cidr = network_client.get_network_cidr(
-            name=port_group_name, switch_distributed=switch_distributed)
-        ctx.instance.runtime_properties[NETWORK_CIDR] = cidr
     else:
-        if existing_id and runtime_properties.get('status') == 'created':
+        if existing_id and runtime_properties.get(NETWORK_STATUS) == 'created':
             ctx.logger.info('Instance is already created.')
-            return
-        if existing_id and not creating:
-            raise NonRecoverableError(
-                'Could not create new {distributed}network "{name}" as a '
-                '{distributed}network by that name already exists!'.format(
-                    name=port_group_name,
-                    distributed='distributed ' if switch_distributed else '',
+        elif existing_id and creating and switch_distributed:
+            ctx.instance.runtime_properties[NETWORK_STATUS] = 'created'
+            ctx.instance.update()
+        else:
+            if existing_id and not creating:
+                raise NonRecoverableError(
+                    'Could not create new {distributed}network "{name}" as a '
+                    '{distributed}network by that name already exists!'
+                    .format(
+                        name=port_group_name,
+                        distributed=(
+                            'distributed ' if switch_distributed else ''),
+                    )
+                )
+            vlan_id = network['vlan_id']
+            vswitch_name = network['vswitch_name']
+
+            ctx.logger.info(
+                'Creating {type} called {name} and VLAN {vlan} on '
+                '{vswitch}'.format(
+                    type=get_network_type(ctx, network),
+                    name=network['name'],
+                    vlan=network['vlan_id'],
+                    vswitch=network['vswitch_name'],
                 )
             )
-        vlan_id = network['vlan_id']
-        vswitch_name = network['vswitch_name']
-
-        ctx.logger.info(
-            'Creating {type} called {name} and VLAN {vlan} on '
-            '{vswitch}'.format(
-                type=get_network_type(ctx, network),
-                name=network['name'],
-                vlan=network['vlan_id'],
-                vswitch=network['vswitch_name'],
-            )
-        )
-        if switch_distributed:
-            network_client.create_dv_port_group(port_group_name,
-                                                vlan_id,
-                                                vswitch_name)
-        else:
-            network_client.create_port_group(port_group_name,
-                                             vlan_id,
-                                             vswitch_name)
-        ctx.logger.info('Successfully created {type}: {name}'.format(
-                        type=get_network_type(ctx, network),
-                        name=network['name']))
+            if switch_distributed:
+                network_client.create_dv_port_group(port_group_name,
+                                                    vlan_id,
+                                                    vswitch_name,
+                                                    instance=ctx.instance)
+            else:
+                network_client.create_port_group(port_group_name,
+                                                 vlan_id,
+                                                 vswitch_name)
+            ctx.logger.info('Successfully created {type}: {name}'.format(
+                            type=get_network_type(ctx, network),
+                            name=network['name']))
+        # update networks id's
         network_id = _get_network_ids(
             name=port_group_name,
             distributed=switch_distributed,
@@ -115,9 +114,18 @@ def create(ctx, network_client, network, use_external_resource):
             use_cached=False,
         )
 
-    runtime_properties[NETWORK_ID] = network_id
+    ctx.instance.runtime_properties[NETWORK_ID] = network_id
     ctx.instance.runtime_properties[NETWORK_NAME] = port_group_name
     ctx.instance.runtime_properties[SWITCH_DISTRIBUTED] = switch_distributed
+    ctx.instance.update()
+
+    mtu = network_client.get_network_mtu(
+        name=port_group_name, switch_distributed=switch_distributed)
+    ctx.instance.runtime_properties[NETWORK_MTU] = mtu
+    cidr = network_client.get_network_cidr(
+        name=port_group_name, switch_distributed=switch_distributed)
+    ctx.instance.runtime_properties[NETWORK_CIDR] = cidr
+    ctx.instance.update()
 
 
 @op
@@ -137,13 +145,13 @@ def delete(ctx, network_client, network, use_external_resource):
                         type=get_network_type(ctx, network),
                         name=network['name']))
         if switch_distributed:
-            network_client.delete_dv_port_group(port_group_name)
+            network_client.delete_dv_port_group(port_group_name,
+                                                instance=ctx.instance)
         else:
             network_client.delete_port_group(port_group_name)
         ctx.logger.info('Successfully deleted {type}: {name}'.format(
                         type=get_network_type(ctx, network),
                         name=network['name']))
-    remove_runtime_properties(NETWORK_RUNTIME_PROPERTIES, ctx)
 
 
 def get_network_type(ctx, network):

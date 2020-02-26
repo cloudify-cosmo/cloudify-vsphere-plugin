@@ -1,4 +1,4 @@
-# Copyright (c) 2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2019-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -24,11 +24,9 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_server_client,
-    remove_runtime_properties,
 )
 from vsphere_plugin_common.constants import (
     RESOURCE_POOL_ID,
-    RESOURCE_POOL_RUNTIME_PROPERTIES,
 )
 
 
@@ -77,4 +75,3 @@ def delete(ctx, server_client, name, use_external_resource):
                 name=name,
             )
         )
-    remove_runtime_properties(RESOURCE_POOL_RUNTIME_PROPERTIES, ctx)

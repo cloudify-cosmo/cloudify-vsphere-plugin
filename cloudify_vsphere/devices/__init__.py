@@ -1,5 +1,5 @@
 ########
-# Copyright (c) 2018-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2018-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -23,7 +23,12 @@ from vsphere_plugin_common.constants import (
     IP,
     SWITCH_DISTRIBUTED,
     VSPHERE_SERVER_CONNECTED_NICS)
-from vsphere_plugin_common import ControllerClient, ServerClient
+from vsphere_plugin_common import (
+    ControllerClient,
+    ServerClient,
+    remove_runtime_properties,
+    run_deferred_task,
+)
 
 RELATIONSHIP_NIC_TO_NETWORK = \
     'cloudify.relationships.vsphere.nic_connected_to_network'
@@ -73,7 +78,7 @@ def controller_without_connected_networks(runtime_properties):
     return controller_properties
 
 
-@operation
+@operation(resumable=True)
 def create_controller(ctx, **kwargs):
     controller_properties = ctx.instance.runtime_properties
     controller_properties.update(kwargs)
@@ -81,13 +86,12 @@ def create_controller(ctx, **kwargs):
     add_connected_network(ctx.instance, controller_properties)
 
 
-@operation
+@operation(resumable=True)
 def delete_controller(ctx, **kwargs):
-    for key in list(ctx.instance.runtime_properties.keys()):
-        del ctx.instance.runtime_properties[key]
+    remove_runtime_properties(ctx)
 
 
-@operation
+@operation(resumable=True)
 def attach_scsi_controller(ctx, **kwargs):
     if 'busKey' in ctx.source.instance.runtime_properties:
         ctx.logger.info("Controller attached with {buskey} key.".format(
@@ -105,12 +109,20 @@ def attach_scsi_controller(ctx, **kwargs):
     scsi_spec, controller_type = cl.generate_scsi_card(
         scsi_properties, hostvm_properties.get(VSPHERE_SERVER_ID))
 
-    ctx.source.instance.runtime_properties.update(cl.attach_controller(
+    controller_settings = cl.attach_controller(
         hostvm_properties.get(VSPHERE_SERVER_ID),
-        scsi_spec, controller_type))
+        scsi_spec, controller_type,
+        instance=ctx.source.instance)
+
+    ctx.logger.info("Controller attached with {buskey} key.".format(
+        buskey=controller_settings['busKey']))
+
+    ctx.source.instance.runtime_properties.update(controller_settings)
+    ctx.source.instance.runtime_properties.dirty = True
+    ctx.source.instance.update()
 
 
-@operation
+@operation(resumable=True)
 def attach_ethernet_card(ctx, **kwargs):
     if 'busKey' in ctx.source.instance.runtime_properties:
         ctx.logger.info("Controller attached with {buskey} key.".format(
@@ -120,11 +132,14 @@ def attach_ethernet_card(ctx, **kwargs):
         ctx.source.node.properties.get("connection_config"),
         ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
         controller_without_connected_networks(
-            ctx.source.instance.runtime_properties))
+            ctx.source.instance.runtime_properties),
+        instance=ctx.target.instance)
     ctx.source.instance.runtime_properties.update(attachment)
+    ctx.source.instance.runtime_properties.dirty = True
+    ctx.source.instance.update()
 
 
-@operation
+@operation(resumable=True)
 def attach_server_to_ethernet_card(ctx, **kwargs):
     if 'busKey' in ctx.target.instance.runtime_properties:
         ctx.logger.info("Controller attached with {buskey} key.".format(
@@ -137,16 +152,21 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
             ctx.target.node.properties.get("connection_config"),
             ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
             controller_without_connected_networks(
-                ctx.target.instance.runtime_properties))
+                ctx.target.instance.runtime_properties),
+            instance=ctx.target.instance)
         ctx.target.instance.runtime_properties.update(attachment)
+        ctx.target.instance.runtime_properties.dirty = True
+        ctx.target.instance.update()
     ip = _get_card_ip(
         ctx.source.node.properties.get("connection_config"),
         ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
         ctx.target.instance.runtime_properties.get('name'))
     ctx.source.instance.runtime_properties[IP] = ip
+    ctx.source.instance.runtime_properties.dirty = True
+    ctx.source.instance.update()
 
 
-@operation
+@operation(resumable=True)
 def detach_controller(ctx, **kwargs):
     if 'busKey' not in ctx.source.instance.runtime_properties:
         ctx.logger.info("Controller was not attached, skipping.")
@@ -154,13 +174,14 @@ def detach_controller(ctx, **kwargs):
     _detach_controller(
         ctx.source.node.properties.get("connection_config"),
         ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
-        ctx.source.instance.runtime_properties.get('busKey'))
+        ctx.source.instance.runtime_properties.get('busKey'),
+        instance=ctx.source.instance)
     del ctx.source.instance.runtime_properties['busKey']
     controller_without_connected_networks(
             ctx.source.instance.runtime_properties)
 
 
-@operation
+@operation(resumable=True)
 def detach_server_from_controller(ctx, **kwargs):
     if ctx.target.instance.id not in \
             ctx.source.instance.runtime_properties.get(
@@ -171,26 +192,30 @@ def detach_server_from_controller(ctx, **kwargs):
         _detach_controller(
             ctx.target.node.properties.get("connection_config"),
             ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
-            ctx.target.instance.runtime_properties.get('busKey'))
+            ctx.target.instance.runtime_properties.get('busKey'),
+            instance=ctx.target.instance)
         del ctx.target.instance.runtime_properties['busKey']
     ctx.target.instance.runtime_properties = \
         controller_without_connected_networks(
             ctx.target.instance.runtime_properties)
 
 
-def _attach_ethernet_card(client_config, server_id, ethernet_card_properties):
+def _attach_ethernet_card(client_config, server_id, ethernet_card_properties,
+                          instance):
     cl = ControllerClient()
     cl.get(config=client_config)
 
     nicspec, controller_type = cl.generate_ethernet_card(
         ethernet_card_properties)
-    return cl.attach_controller(server_id, nicspec, controller_type)
+    return cl.attach_controller(server_id, nicspec, controller_type,
+                                instance=instance)
 
 
-def _detach_controller(client_config, server_id, bus_key):
+def _detach_controller(client_config, server_id, bus_key, instance):
     cl = ControllerClient()
     cl.get(config=client_config)
-    cl.detach_controller(server_id, bus_key)
+    run_deferred_task(cl, instance)
+    cl.detach_controller(server_id, bus_key, instance)
 
 
 def _get_card_ip(client_config, server_id, nic_name):

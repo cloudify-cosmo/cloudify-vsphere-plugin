@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2014-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -35,7 +35,8 @@ import requests
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.exceptions import NonRecoverableError
+from cloudify import context
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from vsphere_plugin_common.constants import (
@@ -43,7 +44,6 @@ from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,
     NETWORK_ID,
-    NETWORK_MTU,
     TASK_CHECK_SLEEP,
     VSPHERE_SERVER_CLUSTER_NAME,
     VSPHERE_SERVER_HYPERVISOR_HOSTNAME,
@@ -51,6 +51,8 @@ from vsphere_plugin_common.constants import (
     NETWORK_CREATE_ON,
     NETWORK_STATUS,
     VSPHERE_SERVER_ID,
+    DELETE_NODE_ACTION,
+    ASYNC_TASK_ID,
 )
 from collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
@@ -71,10 +73,14 @@ def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
     return None
 
 
-def remove_runtime_properties(properties, context):
-    for p in properties:
-        if p in context.instance.runtime_properties:
-            del context.instance.runtime_properties[p]
+def remove_runtime_properties(ctx):
+    # cleanup runtime properties
+    # need to convert generaton to list, python 3
+    keys = [key for key in ctx.instance.runtime_properties.keys()]
+    for key in keys:
+        del ctx.instance.runtime_properties[key]
+    # save flag as current state before external call
+    ctx.instance.update()
 
 
 class Config(object):
@@ -953,6 +959,18 @@ class VsphereClient(object):
 
         return cloudify_port_group
 
+    def _get_tasks(self, use_cache=True):
+        task_object = namedtuple(
+            'task',
+            ['id', 'obj'],
+        )
+
+        return [
+            task_object(
+                id=task._moId,
+                obj=task
+            ) for task in self.si.content.taskManager.recentTask]
+
     def _get_getter_method(self, vimtype):
         getter_method = {
             vim.VirtualMachine: self._get_vms,
@@ -966,6 +984,7 @@ class VsphereClient(object):
             vim.HostSystem: self._get_hosts,
             vim.dvs.DistributedVirtualPortgroup: self._get_dv_networks,
             vim.Folder: self._get_vm_folders,
+            vim.Task: self._get_tasks,
         }.get(vimtype)
         if getter_method is None:
             raise NonRecoverableError(
@@ -1063,14 +1082,57 @@ class VsphereClient(object):
                 break
         return obj
 
-    def _wait_for_task(self, task):
+    def _wait_for_task(self, task=None, instance=None, max_wait_time=300):
+        if not task and instance:
+            task_id = instance.runtime_properties.get(ASYNC_TASK_ID)
+            ctx.logger.info("Check task_id {}".format(task_id))
+            # no saved tasks
+            if not task_id:
+                return
+        else:
+            task_id = task._moId
+            if instance:
+                ctx.logger.info("Save task_id {}".format(task_id))
+                instance.runtime_properties[ASYNC_TASK_ID] = task_id
+                # save flag as current state before external call
+                instance.update()
+
+        if not task:
+            task_obj = self._get_obj_by_id(vim.Task, task_id)
+            if not task_obj:
+                ctx.logger.info("No task_id? {}".format(task_id))
+                if instance:
+                    # no such tasks
+                    del instance.runtime_properties[ASYNC_TASK_ID]
+                    # save flag as current state before external call
+                    instance.update()
+                return
+            task = task_obj.obj
+
+        retry_count = max_wait_time // TASK_CHECK_SLEEP
+
         while task.info.state in (
             vim.TaskInfo.State.queued,
             vim.TaskInfo.State.running,
         ):
             time.sleep(TASK_CHECK_SLEEP)
-            self._logger.debug('Task state {state}'
-                               .format(state=task.info.state))
+
+            self._logger.debug('Task state {state} left {step} seconds'
+                               .format(state=task.info.state,
+                                       step=(retry_count * TASK_CHECK_SLEEP)))
+            # check async
+            if instance and retry_count <= 0:
+                raise OperationRetry('Task {task_id} is not finished yet.'
+                                     .format(task_id=task._moId))
+            retry_count -= 1
+
+        # we correctly finished
+        if instance:
+            ctx.logger.info("Cleanup task_id {}".format(task_id))
+            del instance.runtime_properties[ASYNC_TASK_ID]
+            # save flag as current state before external call
+            instance.update()
+
         if task.info.state != vim.TaskInfo.State.success:
             raise NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
@@ -1927,7 +1989,7 @@ class ServerClient(VsphereClient):
 
         return task.info.result
 
-    def suspend_server(self, server):
+    def suspend_server(self, server, instance, max_wait_time=30):
         if self.is_server_suspended(server.obj):
             self._logger.info("Server '{}' already suspended."
                               .format(server.name))
@@ -1938,52 +2000,46 @@ class ServerClient(VsphereClient):
             return
         self._logger.debug("Entering server suspend procedure.")
         task = server.obj.Suspend()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server is suspended.")
 
-    def start_server(self, server):
+    def start_server(self, server, instance, max_wait_time=30):
         if self.is_server_poweredon(server):
             self._logger.info("Server '{}' already running"
                               .format(server.name))
             return
         self._logger.debug("Entering server start procedure.")
         task = server.obj.PowerOn()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server is now running.")
 
-    def shutdown_server_guest(
-        self, server,
-        timeout=TASK_CHECK_SLEEP,
-        max_wait_time=300,
-    ):
+    def shutdown_server_guest(self, server, instance, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info("Server '{}' already stopped"
                               .format(server.name))
             return
         self._logger.debug("Entering server shutdown procedure.")
-        server.obj.ShutdownGuest()
-        for _ in range(max_wait_time // timeout):
-            time.sleep(timeout)
-            if self.is_server_poweredoff(server):
-                break
-        else:
-            raise NonRecoverableError(
-                "Server still running after {time}s timeout.".format(
-                    time=max_wait_time,
-                ))
+        task = server.obj.ShutdownGuest()
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server is now shut down.")
 
-    def stop_server(self, server):
+    def stop_server(self, server, instance, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info("Server '{}' already stopped"
                               .format(server.name))
             return
         self._logger.debug("Entering stop server procedure.")
         task = server.obj.PowerOff()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server is now stopped.")
 
-    def backup_server(self, server, snapshot_name, description):
+    def backup_server(
+        self, server, snapshot_name, description, instance, max_wait_time=30
+    ):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -1995,7 +2051,8 @@ class ServerClient(VsphereClient):
         task = server.obj.CreateSnapshot(
             snapshot_name, description=description,
             memory=False, quiesce=False)
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
 
     def get_snapshot_by_name(self, snapshots, snapshot_name):
         for snapshot in snapshots:
@@ -2008,7 +2065,9 @@ class ServerClient(VsphereClient):
                     return subsnapshot
         return False
 
-    def restore_server(self, server, snapshot_name):
+    def restore_server(
+        self, server, snapshot_name, instance, max_wait_time=30
+    ):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -2020,9 +2079,10 @@ class ServerClient(VsphereClient):
                 .format(snapshot_name=snapshot_name,))
 
         task = snapshot.snapshot.RevertToSnapshot_Task()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
 
-    def remove_backup(self, server, snapshot_name):
+    def remove_backup(self, server, snapshot_name, instance, max_wait_time=30):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -2042,39 +2102,31 @@ class ServerClient(VsphereClient):
                         subsnapshots=repr(subsnapshots)))
 
         task = snapshot.snapshot.RemoveSnapshot_Task(True)
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
 
-    def reset_server(self, server):
+    def reset_server(self, server, instance, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info(
                 "Server '{}' currently stopped, starting.".format(server.name))
-            return self.start_server(server)
+            return self.start_server(server, instance=instance,
+                                     max_wait_time=max_wait_time)
         self._logger.debug("Entering stop server procedure.")
         task = server.obj.Reset()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server has been reset")
 
-    def reboot_server(
-        self, server,
-        timeout=TASK_CHECK_SLEEP,
-        max_wait_time=300,
-    ):
+    def reboot_server(self, server, instance, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info(
                 "Server '{}' currently stopped, starting.".format(server.name))
-            return self.start_server(server)
+            return self.start_server(server, instance=instance,
+                                     max_wait_time=max_wait_time)
         self._logger.debug("Entering reboot server procedure.")
-        start_bootTime = server.obj.runtime.bootTime
-        server.obj.RebootGuest()
-        for _ in range(max_wait_time // timeout):
-            time.sleep(timeout)
-            if server.obj.runtime.bootTime > start_bootTime:
-                break
-        else:
-            raise NonRecoverableError(
-                "Server still running after {time}s timeout.".format(
-                    time=max_wait_time,
-                ))
+        task = server.obj.RebootGuest()
+        self._wait_for_task(task, instance=instance,
+                            max_wait_time=max_wait_time)
         self._logger.debug("Server has been rebooted")
 
     def is_server_poweredoff(self, server):
@@ -2086,12 +2138,12 @@ class ServerClient(VsphereClient):
     def is_server_guest_running(self, server):
         return server.obj.guest.guestState == "running"
 
-    def delete_server(self, server):
+    def delete_server(self, server, instance):
         self._logger.debug("Entering server delete procedure.")
         if self.is_server_poweredon(server):
-            self.stop_server(server)
+            self.stop_server(server, instance=instance)
         task = server.obj.Destroy()
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
         self._logger.debug("Server is now deleted.")
 
     def get_server_by_name(self, name):
@@ -2641,9 +2693,10 @@ class ServerClient(VsphereClient):
         else:
             return False
 
-    def resize_server(self, server, cpus=None, memory=None):
+    def resize_server(self, server, instance, cpus=None, memory=None):
         self._logger.debug("Entering resize reconfiguration.")
         config = vim.vm.ConfigSpec()
+        update_required = False
         if cpus is not None:
             try:
                 cpus = int(cpus)
@@ -2653,7 +2706,10 @@ class ServerClient(VsphereClient):
             if cpus < 1:
                 raise NonRecoverableError(
                     "cpus must be at least 1. Is {}".format(cpus))
-            config.numCPUs = cpus
+            if server.config.hardware.numCPU != cpus:
+                config.numCPUs = cpus
+                update_required = True
+
         if memory is not None:
             try:
                 memory = int(memory)
@@ -2667,21 +2723,24 @@ class ServerClient(VsphereClient):
                 raise NonRecoverableError(
                     "Memory must be an integer multiple of 128. Is {}".format(
                         memory))
-            config.memoryMB = memory
+            if server.config.hardware.memoryMB != memory:
+                config.memoryMB = memory
+                update_required = True
 
-        task = server.obj.Reconfigure(spec=config)
+        if update_required:
+            task = server.obj.Reconfigure(spec=config)
 
-        try:
-            self._wait_for_task(task)
-        except NonRecoverableError as e:
-            if 'configSpec.memoryMB' in e.args[0]:
-                raise NonRecoverableError(
-                    "Memory error resizing Server. May be caused by "
-                    "https://kb.vmware.com/kb/2008405 . If so the Server may "
-                    "be resized while it is switched off.",
-                    e,
-                )
-            raise
+            try:
+                self._wait_for_task(task, instance=instance)
+            except NonRecoverableError as e:
+                if 'configSpec.memoryMB' in e.args[0]:
+                    raise NonRecoverableError(
+                        "Memory error resizing Server. May be caused by "
+                        "https://kb.vmware.com/kb/2008405 . If so the Server "
+                        "may be resized while it is switched off.",
+                        e,
+                    )
+                raise
 
         self._logger.debug(
             "Server '%s' resized with new number of "
@@ -2767,14 +2826,19 @@ class NetworkClient(VsphereClient):
         # Each invocation of this takes up to a few seconds, so try to avoid
         # calling it too frequently by caching
         if hasattr(self, 'host_list') and not force_refresh:
-            return self.host_list
+            # make pylint happy
+            return getattr(self, 'host_list')
         self.host_list = self._get_hosts()
         return self.host_list
 
     def delete_port_group(self, name):
         self._logger.debug("Deleting port group {name}.".format(name=name))
         for host in self.get_host_list():
-            host.configManager.networkSystem.RemovePortGroup(name)
+            network_system = host.configManager.networkSystem
+            port_groups = network_system.networkInfo.portgroup
+            for port_group in port_groups:
+                if name.lower() == port_group.spec.name.lower():
+                    host.configManager.networkSystem.RemovePortGroup(name)
         self._logger.debug("Port group {name} was deleted.".format(name=name))
 
     def get_vswitches(self):
@@ -2824,13 +2888,13 @@ class NetworkClient(VsphereClient):
 
     def create_port_group(self, port_group_name, vlan_id, vswitch_name):
         self._logger.debug("Entering create port procedure.")
-        runtime_properties = ctx.instance.runtime_properties
-        if NETWORK_STATUS not in runtime_properties.keys():
-            runtime_properties[NETWORK_STATUS] = 'preparing'
+        if NETWORK_STATUS not in ctx.instance.runtime_properties.keys():
+            ctx.instance.runtime_properties[NETWORK_STATUS] = 'preparing'
+            ctx.instance.update()
 
         vswitches = self.get_vswitches()
 
-        if runtime_properties[NETWORK_STATUS] == 'preparing':
+        if ctx.instance.runtime_properties[NETWORK_STATUS] == 'preparing':
             if vswitch_name not in vswitches:
                 if len(vswitches) == 0:
                     raise NonRecoverableError(
@@ -2848,18 +2912,18 @@ class NetworkClient(VsphereClient):
                         )
                     )
 
-        # update mtu
-        ctx.instance.runtime_properties[NETWORK_MTU] = self.get_vswitch_mtu(
-            vswitch_name)
-
-        if runtime_properties[NETWORK_STATUS] in ('preparing', 'creating'):
-            runtime_properties[NETWORK_STATUS] = 'creating'
-            if NETWORK_CREATE_ON not in runtime_properties.keys():
-                runtime_properties[NETWORK_CREATE_ON] = []
+        if ctx.instance.runtime_properties[NETWORK_STATUS] in (
+            'preparing', 'creating'
+        ):
+            ctx.instance.runtime_properties[NETWORK_STATUS] = 'creating'
+            ctx.instance.update()
+            if NETWORK_CREATE_ON not in ctx.instance.runtime_properties:
+                ctx.instance.runtime_properties[NETWORK_CREATE_ON] = []
 
             hosts = [
                 host for host in self.get_host_list()
-                if host.name not in runtime_properties[NETWORK_CREATE_ON]
+                if host.name not in ctx.instance.runtime_properties[
+                    NETWORK_CREATE_ON]
             ]
 
             for host in hosts:
@@ -2888,10 +2952,14 @@ class NetworkClient(VsphereClient):
                     # existed before we tried to create it anywhere, so it
                     # should be safe to proceed.
                     pass
-                runtime_properties[NETWORK_CREATE_ON].append(host.name)
+                ctx.instance.runtime_properties[NETWORK_CREATE_ON].append(
+                    host.name)
+                ctx.instance.runtime_properties.dirty = True
+                ctx.instance.update()
 
             if self.port_group_is_on_all_hosts(port_group_name):
-                runtime_properties[NETWORK_STATUS] = 'created'
+                ctx.instance.runtime_properties[NETWORK_STATUS] = 'created'
+                ctx.instance.update()
             else:
                 return ctx.operation.retry(
                     'Waiting for port group {name} to be created on all '
@@ -2962,7 +3030,9 @@ class NetworkClient(VsphereClient):
                     result.append(port_group)
         return result
 
-    def create_dv_port_group(self, port_group_name, vlan_id, vswitch_name):
+    def create_dv_port_group(
+        self, port_group_name, vlan_id, vswitch_name, instance
+    ):
         self._logger.debug("Creating dv port group.")
 
         dvswitches = self.get_dvswitches()
@@ -2983,6 +3053,9 @@ class NetworkClient(VsphereClient):
                     )
                 )
 
+        ctx.instance.runtime_properties[NETWORK_STATUS] = 'creating'
+        ctx.instance.update()
+
         dv_port_group_type = 'earlyBinding'
         dvswitch = self._get_obj_by_name(
             vim.DistributedVirtualSwitch,
@@ -2990,13 +3063,7 @@ class NetworkClient(VsphereClient):
         )
         self._logger.debug("Distributed vSwitch info: {dvswitch}"
                            .format(dvswitch=dvswitch))
-        # update mtu
-        dvswitch = self._get_obj_by_name(
-            vim.DistributedVirtualSwitch,
-            vswitch_name,
-        )
-        ctx.instance.runtime_properties[
-            NETWORK_MTU] = dvswitch.obj.config.maxMtu
+
         vlan_spec = vim.dvs.VmwareDistributedVirtualSwitch.VlanIdSpec(
             vlanId=vlan_id)
         port_settings = \
@@ -3014,18 +3081,19 @@ class NetworkClient(VsphereClient):
             )
         )
         task = dvswitch.obj.AddPortgroup(specification)
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
         self._logger.debug("Port created.")
 
-    def delete_dv_port_group(self, name):
+    def delete_dv_port_group(self, name, instance):
         self._logger.debug("Deleting dv port group {name}.".format(name=name))
         dv_port_group = self._get_obj_by_name(
             vim.dvs.DistributedVirtualPortgroup,
             name,
         )
-        task = dv_port_group.obj.Destroy()
-        self._wait_for_task(task)
-        self._logger.debug("Port deleted.")
+        if dv_port_group:
+            task = dv_port_group.obj.Destroy()
+            self._wait_for_task(task, instance=instance)
+            self._logger.debug("Port deleted.")
 
     def get_network_cidr(self, name, switch_distributed):
         # search in all datacenters
@@ -3224,9 +3292,12 @@ class RawVolumeClient(VsphereClient):
 class StorageClient(VsphereClient):
 
     def create_storage(self, vm_id, storage_size, parent_key, mode,
-                       thin_provision=False):
+                       instance, thin_provision=False):
         self._logger.debug("Entering create storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
+        if not vm:
+            raise NonRecoverableError("Unable to get vm: {vm_id}"
+                                      .format(vm_id=vm_id))
         self._logger.debug("VM info: \n{}".format(vm))
         if self.is_server_suspended(vm):
             raise NonRecoverableError(
@@ -3234,111 +3305,123 @@ class StorageClient(VsphereClient):
                 ' invalid VM state - \'suspended\''
             )
 
-        devices = []
-        virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
-        virtual_device_spec.operation =\
-            vim.vm.device.VirtualDeviceSpec.Operation.add
-        virtual_device_spec.fileOperation =\
-            vim.vm.device.VirtualDeviceSpec.FileOperation.create
+        vm_disk_filename = instance.runtime_properties.get('vm_disk_name')
+        # we don't have name for new disk
+        if not vm_disk_filename:
+            devices = []
+            virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
+            virtual_device_spec.operation =\
+                vim.vm.device.VirtualDeviceSpec.Operation.add
+            virtual_device_spec.fileOperation =\
+                vim.vm.device.VirtualDeviceSpec.FileOperation.create
 
-        virtual_device_spec.device = vim.vm.device.VirtualDisk()
-        virtual_device_spec.device.capacityInKB = storage_size * 1024 * 1024
-        virtual_device_spec.device.capacityInBytes =\
-            storage_size * 1024 * 1024 * 1024
-        virtual_device_spec.device.backing =\
-            vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
+            virtual_device_spec.device = vim.vm.device.VirtualDisk()
+            virtual_device_spec.device.capacityInKB = \
+                storage_size * 1024 * 1024
+            virtual_device_spec.device.capacityInBytes =\
+                storage_size * 1024 * 1024 * 1024
+            virtual_device_spec.device.backing =\
+                vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
 
-        virtual_device_spec.device.backing.diskMode = mode
-        virtual_device_spec.device.backing.thinProvisioned = thin_provision
-        virtual_device_spec.device.backing.datastore = vm.datastore[0].obj
+            virtual_device_spec.device.backing.diskMode = mode
+            virtual_device_spec.device.backing.thinProvisioned = thin_provision
+            virtual_device_spec.device.backing.datastore = vm.datastore[0].obj
 
-        vm_devices = vm.config.hardware.device
-        vm_disk_filename = None
-        vm_disk_filename_increment = 0
-        vm_disk_filename_cur = None
+            vm_devices = vm.config.hardware.device
+            vm_disk_filename = None
+            vm_disk_filename_increment = 0
+            vm_disk_filename_cur = None
 
-        for vm_device in vm_devices:
-            # Search all virtual disks
-            if isinstance(vm_device, vim.vm.device.VirtualDisk):
-                # Generate filename (add increment to VMDK base name)
-                vm_disk_filename_cur = vm_device.backing.fileName
-                p = re.compile('^(\\[.*\\]\\s+.*\\/.*)\\.vmdk$')
-                m = p.match(vm_disk_filename_cur)
-                if vm_disk_filename is None:
-                    vm_disk_filename = m.group(1)
-                p = re.compile('^(.*)_([0-9]+)\\.vmdk$')
-                m = p.match(vm_disk_filename_cur)
-                if m:
-                    if m.group(2) is not None:
-                        increment = int(m.group(2))
+            for vm_device in vm_devices:
+                # Search all virtual disks
+                if isinstance(vm_device, vim.vm.device.VirtualDisk):
+                    # Generate filename (add increment to VMDK base name)
+                    vm_disk_filename_cur = vm_device.backing.fileName
+                    p = re.compile('^(\\[.*\\]\\s+.*\\/.*)\\.vmdk$')
+                    m = p.match(vm_disk_filename_cur)
+                    if vm_disk_filename is None:
                         vm_disk_filename = m.group(1)
-                        if increment > vm_disk_filename_increment:
-                            vm_disk_filename_increment = increment
+                    p = re.compile('^(.*)_([0-9]+)\\.vmdk$')
+                    m = p.match(vm_disk_filename_cur)
+                    if m:
+                        if m.group(2) is not None:
+                            increment = int(m.group(2))
+                            vm_disk_filename = m.group(1)
+                            if increment > vm_disk_filename_increment:
+                                vm_disk_filename_increment = increment
 
-        # Exit error if VMDK filename undefined
-        if vm_disk_filename is None:
-            raise NonRecoverableError(
-                'Error during trying to create storage:'
-                ' Invalid VMDK name - \'{0}\''.format(vm_disk_filename_cur)
-            )
+            # Exit error if VMDK filename undefined
+            if vm_disk_filename is None:
+                raise NonRecoverableError(
+                    'Error during trying to create storage:'
+                    ' Invalid VMDK name - \'{0}\''.format(vm_disk_filename_cur)
+                )
 
-        # Set target VMDK filename
-        vm_disk_filename =\
-            vm_disk_filename +\
-            "_" + str(vm_disk_filename_increment + 1) +\
-            ".vmdk"
+            # Set target VMDK filename
+            vm_disk_filename =\
+                vm_disk_filename +\
+                "_" + str(vm_disk_filename_increment + 1) +\
+                ".vmdk"
 
-        # Search virtual SCSI controller
-        controller = None
-        num_controller = 0
-        controller_types = (
-            vim.vm.device.VirtualBusLogicController,
-            vim.vm.device.VirtualLsiLogicController,
-            vim.vm.device.VirtualLsiLogicSASController,
-            vim.vm.device.ParaVirtualSCSIController)
-        for vm_device in vm_devices:
-            if isinstance(vm_device, controller_types):
-                if parent_key < 0:
-                    num_controller += 1
-                    controller = vm_device
-                else:
-                    if parent_key == vm_device.key:
-                        num_controller = 1
+            # Search virtual SCSI controller
+            controller = None
+            num_controller = 0
+            controller_types = (
+                vim.vm.device.VirtualBusLogicController,
+                vim.vm.device.VirtualLsiLogicController,
+                vim.vm.device.VirtualLsiLogicSASController,
+                vim.vm.device.ParaVirtualSCSIController)
+            for vm_device in vm_devices:
+                if isinstance(vm_device, controller_types):
+                    if parent_key < 0:
+                        num_controller += 1
                         controller = vm_device
-                        break
-        if num_controller != 1:
-            raise NonRecoverableError(
-                'Error during trying to create storage: '
-                'SCSI controller cannot be found or is present more than '
-                'once.'
-            )
+                    else:
+                        if parent_key == vm_device.key:
+                            num_controller = 1
+                            controller = vm_device
+                            break
+            if num_controller != 1:
+                raise NonRecoverableError(
+                    'Error during trying to create storage: '
+                    'SCSI controller cannot be found or is present more than '
+                    'once.'
+                )
 
-        controller_key = controller.key
+            controller_key = controller.key
 
-        # Set new unit number (7 cannot be used, and limit is 15)
-        unit_number = None
-        vm_vdisk_number = len(controller.device)
-        if vm_vdisk_number < 7:
-            unit_number = vm_vdisk_number
-        elif vm_vdisk_number == 15:
-            raise NonRecoverableError(
-                'Error during trying to create storage: one SCSI controller '
-                'cannot have more than 15 virtual disks.'
-            )
-        else:
-            unit_number = vm_vdisk_number + 1
+            # Set new unit number (7 cannot be used, and limit is 15)
+            unit_number = None
+            vm_vdisk_number = len(controller.device)
+            if vm_vdisk_number < 7:
+                unit_number = vm_vdisk_number
+            elif vm_vdisk_number == 15:
+                raise NonRecoverableError(
+                    'Error during trying to create storage: one SCSI '
+                    'controller cannot have more than 15 virtual disks.'
+                )
+            else:
+                unit_number = vm_vdisk_number + 1
 
-        virtual_device_spec.device.backing.fileName = vm_disk_filename
-        virtual_device_spec.device.controllerKey = controller_key
-        virtual_device_spec.device.unitNumber = unit_number
-        devices.append(virtual_device_spec)
+            virtual_device_spec.device.backing.fileName = vm_disk_filename
+            virtual_device_spec.device.controllerKey = controller_key
+            virtual_device_spec.device.unitNumber = unit_number
+            devices.append(virtual_device_spec)
 
-        config_spec = vim.vm.ConfigSpec()
-        config_spec.deviceChange = devices
+            config_spec = vim.vm.ConfigSpec()
+            config_spec.deviceChange = devices
 
-        task = vm.obj.Reconfigure(spec=config_spec)
-        self._logger.debug("Task info: \n%s." % prepare_for_log(vars(task)))
-        self._wait_for_task(task)
+            task = vm.obj.Reconfigure(spec=config_spec)
+
+            instance.runtime_properties['vm_disk_name'] = vm_disk_filename
+            instance.runtime_properties.dirty = True
+            instance.update()
+            self._wait_for_task(task, instance=instance)
+
+        # remove old vm disk name
+        del instance.runtime_properties['vm_disk_name']
+        instance.runtime_properties.dirty = True
+        instance.update()
 
         # Get the SCSI bus and unit IDs
         scsi_controllers = []
@@ -3364,7 +3447,7 @@ class StorageClient(VsphereClient):
         if bus_id is None:
             raise NonRecoverableError(
                 'Could not find SCSI bus ID for disk with filename: '
-                '{file}'.format(file=vm_disk_filename)
+                '{file_name}'.format(file_name=vm_disk_filename)
             )
         else:
             # Give the SCSI ID in the usual format, e.g. 0:1
@@ -3372,7 +3455,7 @@ class StorageClient(VsphereClient):
 
         return vm_disk_filename, scsi_id
 
-    def delete_storage(self, vm_id, storage_file_name):
+    def delete_storage(self, vm_id, storage_file_name, instance):
         self._logger.debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         self._logger.debug("VM info: \n{}".format(vm))
@@ -3397,9 +3480,9 @@ class StorageClient(VsphereClient):
                     and device.backing.fileName == storage_file_name:
                 device_to_delete = device
 
-        if device_to_delete is None:
-            raise NonRecoverableError(
-                'Error during trying to delete storage: storage not found')
+        if not device_to_delete:
+            self._logger.debug("Storage removed on previous step.")
+            return
 
         virtual_device_spec.device = device_to_delete
 
@@ -3409,8 +3492,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        self._logger.debug("Task info: \n%s." % prepare_for_log(vars(task)))
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
 
     def get_storage(self, vm_id, storage_file_name):
         self._logger.debug("Entering get storage procedure.")
@@ -3426,7 +3508,7 @@ class StorageClient(VsphereClient):
                     return device
         return None
 
-    def resize_storage(self, vm_id, storage_filename, storage_size):
+    def resize_storage(self, vm_id, storage_filename, storage_size, instance):
         self._logger.debug("Entering resize storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         self._logger.debug("VM info: \n{}".format(vm))
@@ -3446,6 +3528,12 @@ class StorageClient(VsphereClient):
             raise NonRecoverableError(
                 'Error during trying to resize storage: storage not found')
 
+        if (
+            disk_to_resize.capacityInKB == storage_size * 1024 * 1024 and
+            disk_to_resize.capacityInBytes == storage_size * 1024 * 1024 * 1024
+        ):
+            self._logger.debug("Storage size is {}".format(storage_size))
+            return
         updated_devices = []
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
         virtual_device_spec.operation =\
@@ -3462,14 +3550,13 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = updated_devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        self._logger.debug("VM info: \n{}".format(vm))
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
         self._logger.debug("Storage resized to a new size %s." % storage_size)
 
 
 class ControllerClient(VsphereClient):
 
-    def detach_controller(self, vm_id, bus_key):
+    def detach_controller(self, vm_id, bus_key, instance):
         if not vm_id:
             raise NonRecoverableError("VM is not defined")
         if not bus_key:
@@ -3493,22 +3580,31 @@ class ControllerClient(VsphereClient):
         spec = vim.vm.ConfigSpec()
         spec.deviceChange = [config_spec]
         task = vm.obj.ReconfigVM_Task(spec=spec)
-        self._wait_for_task(task)
+        self._wait_for_task(task, instance=instance)
 
-    def attach_controller(self, vm_id, dev_spec, controller_type):
+    def attach_controller(self, vm_id, dev_spec, controller_type, instance):
         if not vm_id:
             raise NonRecoverableError("VM is not defined")
 
-        vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
-        known_keys = []
-        for dev in vm.config.hardware.device:
-            if isinstance(dev, controller_type):
-                known_keys.append(dev.key)
+        known_keys = instance.runtime_properties.get('known_keys')
 
-        spec = vim.vm.ConfigSpec()
-        spec.deviceChange = [dev_spec]
-        task = vm.obj.ReconfigVM_Task(spec=spec)
-        self._wait_for_task(task)
+        if not known_keys:
+            vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
+            known_keys = []
+            for dev in vm.config.hardware.device:
+                if isinstance(dev, controller_type):
+                    known_keys.append(dev.key)
+
+            instance.runtime_properties['known_keys'] = known_keys
+            instance.runtime_properties.dirty = True
+            instance.update()
+
+            spec = vim.vm.ConfigSpec()
+            spec.deviceChange = [dev_spec]
+            task = vm.obj.ReconfigVM_Task(spec=spec)
+            # we need to wait, as we use results directly
+            self._wait_for_task(task, instance=instance)
+
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id, use_cache=False)
 
         controller_properties = {}
@@ -3522,6 +3618,11 @@ class ControllerClient(VsphereClient):
         else:
             raise NonRecoverableError(
                 'Have not found key for new added device')
+
+        del instance.runtime_properties['known_keys']
+        instance.runtime_properties.dirty = True
+        instance.update()
+
         return controller_properties
 
     def generate_scsi_card(self, scsi_properties, vm_id):
@@ -3658,6 +3759,11 @@ class ControllerClient(VsphereClient):
         return nicspec, controller_type
 
 
+def run_deferred_task(client, instance):
+    if instance.runtime_properties.get(ASYNC_TASK_ID):
+        client._wait_for_task(instance=instance)
+
+
 def _with_client(client_name, client):
     def decorator(f):
         @wraps(f)
@@ -3667,7 +3773,34 @@ def _with_client(client_name, client):
                 # don't pass connection_config to the real operation
                 kwargs.pop('connection_config', None)
 
-            return f(*args, **kwargs)
+            try:
+                # check unfinished tasks
+                if ctx.type == context.NODE_INSTANCE:
+                    run_deferred_task(client=kwargs[client_name],
+                                      instance=ctx.instance)
+                elif ctx.type == context.RELATIONSHIP_INSTANCE:
+                    run_deferred_task(client=kwargs[client_name],
+                                      instance=ctx.source.instance)
+                    run_deferred_task(client=kwargs[client_name],
+                                      instance=ctx.target.instance)
+
+                # run real task
+                result = f(*args, **kwargs)
+                # in delete action
+                current_action = ctx.operation.name
+                if (
+                    current_action == DELETE_NODE_ACTION and
+                    ctx.type == context.NODE_INSTANCE
+                ):
+                    # no retry actions
+                    if not ctx.instance.runtime_properties.get(ASYNC_TASK_ID):
+                        ctx.logger.info('Cleanup resource.')
+                        # cleanup runtime
+                        remove_runtime_properties(ctx)
+                # return result
+                return result
+            except Exception:
+                raise
         wrapper.__wrapped__ = f
         return wrapper
     return decorator

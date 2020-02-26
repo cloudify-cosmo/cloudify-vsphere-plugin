@@ -1,9 +1,9 @@
 tosca_definitions_version: cloudify_dsl_1_3
 
 imports:
-  - http://www.getcloudify.org/spec/cloudify/4.5.5/types.yaml
-  - http://www.getcloudify.org/spec/utilities-plugin/1.14.0/plugin.yaml
-  - ../../../plugin.yaml
+  - https://cloudify.co/spec/cloudify/4.6/types.yaml
+  - plugin:cloudify-utilities-plugin
+  - plugin:cloudify-vsphere-plugin
 
 inputs:
 
@@ -82,6 +82,18 @@ inputs:
     default: vSwitch0
     #default: dvSwitch
 
+  management_name:
+    type: string
+    description: >
+      Management network
+    default: Management
+
+  management_distributed:
+    type: boolean
+    description: >
+      Management distributed
+    default: true
+
 ###############################################################################
 #  DSL section
 ###############################################################################
@@ -127,6 +139,7 @@ node_types:
         default:
           connect_networks:
             - name: { get_input: test_network_name }
+              switch_distributed: { get_input: test_network_distributed }
 
 node_templates:
 
@@ -198,6 +211,23 @@ node_templates:
     - target: ippool
       type: cloudify.relationships.depends_on
 
+  vm_stopped:
+    type: host
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.vsphere_server_plugin.server.start
+          inputs:
+            enable_start_vm: false
+        start:
+          implementation: vsphere.vsphere_server_plugin.server.resize_server
+          inputs:
+            cpus: 2
+            memory: 1024
+    relationships:
+    - target: network_reuse
+      type: cloudify.relationships.depends_on
+
   vm_base:
     type: host
     properties:
@@ -215,13 +245,76 @@ node_templates:
     - target: vm_stopped
       type: cloudify.relationships.depends_on
 
-  vm_stopped:
-    type: host
+  scsi_controller:
+    type: cloudify.vsphere.nodes.SCSIController
+    properties:
+      connection_config: *connection_config
+    relationships:
+      - target: vm_stopped
+        type: cloudify.vsphere.controller_connected_to_vm
+
+  vm_volume:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      storage: {}
+      connection_config: *connection_config
     interfaces:
       cloudify.interfaces.lifecycle:
-        start:
+        create:
           inputs:
-            enable_start_vm: false
+            storage:
+              parent_key: { get_attribute: [ scsi_controller, busKey ] }
+              storage_size: 10
+              mode: independent_persistent
     relationships:
-    - target: network_reuse
-      type: cloudify.relationships.depends_on
+      - target: vm_stopped
+        type: cloudify.vsphere.storage_connected_to_server
+      - target: scsi_controller
+        type: cloudify.relationships.depends_on
+
+  vm_nic:
+    type: cloudify.vsphere.nodes.NIC
+    properties:
+      name: External
+      mac_address: 00:50:56:85:18:da
+      connection_config: *connection_config
+    relationships:
+      - target: vm_stopped
+        type: cloudify.vsphere.nic_connected_to_server
+      - target: scsi_controller
+        type: cloudify.relationships.depends_on
+
+  vm_nic_distributed:
+    type: cloudify.vsphere.nodes.NIC
+    properties:
+      name: { get_input: management_name }
+      switch_distributed: { get_input: management_distributed }
+      mac_address: 00:50:56:85:18:01
+      connection_config: *connection_config
+    relationships:
+      - target: vm_stopped
+        type: cloudify.vsphere.nic_connected_to_server
+      - target: vm_nic
+        type: cloudify.relationships.depends_on
+
+  vm_volume_resize:
+    type: cloudify.vsphere.nodes.Storage
+    properties:
+      use_external_resource: true
+      storage: {}
+      connection_config: *connection_config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          inputs:
+            storage:
+              datastore_file_name: { get_attribute: [vm_volume, datastore_file_name] }
+              scsi_id: { get_attribute: [vm_volume, scsi_id] }
+              storage_size: 30
+        start:
+          implementation: vsphere.vsphere_storage_plugin.storage.resize
+    relationships:
+      - target: vm_stopped
+        type: cloudify.vsphere.storage_connected_to_server
+      - target: vm_nic_distributed
+        type: cloudify.relationships.depends_on

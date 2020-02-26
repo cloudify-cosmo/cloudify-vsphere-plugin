@@ -1,4 +1,4 @@
-# Copyright (c) 2018-2019 Cloudify Platform Ltd. All rights reserved
+# Copyright (c) 2018-2020 Cloudify Platform Ltd. All rights reserved
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -15,10 +15,33 @@ import unittest
 from mock import MagicMock, Mock, patch, call
 from pyVmomi import vim
 
+from cloudify.state import current_ctx
+from cloudify.mocks import MockCloudifyContext
+from cloudify.manager import DirtyTrackingDict
+
 from vsphere_plugin_common import ControllerClient
 
 
 class VsphereDeviceTest(unittest.TestCase):
+
+    def tearDown(self):
+        current_ctx.clear()
+        super(VsphereDeviceTest, self).tearDown()
+
+    def _gen_ctx(self):
+        _ctx = MockCloudifyContext(
+            'node_name',
+            properties={},
+            runtime_properties={}
+        )
+
+        _ctx.instance._runtime_properties = DirtyTrackingDict({})
+
+        _ctx._execution_id = "execution_id"
+        _ctx.instance.host_ip = None
+
+        current_ctx.set(_ctx)
+        return _ctx
 
     def _get_vm(self):
         vm = Mock()
@@ -36,6 +59,8 @@ class VsphereDeviceTest(unittest.TestCase):
         return vm
 
     def test_check_attach_card(self):
+        _ctx = self._gen_ctx()
+
         cl = ControllerClient()
 
         vm_original = self._get_vm()
@@ -60,8 +85,13 @@ class VsphereDeviceTest(unittest.TestCase):
             vm_get_mock
         ):
             self.assertEqual(
-                cl.attach_controller(10, scsi_spec, controller_type),
+                cl.attach_controller(10, scsi_spec, controller_type,
+                                     instance=_ctx.instance),
                 {'busKey': 1001, 'busNumber': 0})
             vm_get_mock.assert_has_calls([
                 call(vim.VirtualMachine, 10),
                 call(vim.VirtualMachine, 10, use_cache=False)])
+
+
+if __name__ == '__main__':
+    unittest.main()
