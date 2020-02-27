@@ -58,6 +58,13 @@ class VsphereCIDataTest(unittest.TestCase):
              'datastore_file_name': '[storage] check',
              'vsphere_datacenter_id': 'datacenter_id'})
 
+        # Rerun create
+        cidata.create(
+            files=None, raw_files={
+                'g': 'file_call'
+            }, datacenter_name='datacenter', allowed_datastores=['abc'],
+            vol_ident="vol", sys_ident="sys", volume_prefix="abc")
+
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_storage_delete_id(self, mock_client_get):
         # delete volume
