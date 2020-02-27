@@ -88,7 +88,7 @@ def create_controller(ctx, **kwargs):
 
 @operation(resumable=True)
 def delete_controller(ctx, **kwargs):
-    remove_runtime_properties(ctx)
+    remove_runtime_properties(ctx.instance)
 
 
 @operation(resumable=True)
