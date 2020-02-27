@@ -42,7 +42,6 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 from vsphere_plugin_common.constants import (
     DEFAULT_CONFIG_PATH,
     IP,
-    NETWORKS,
     NETWORK_ID,
     TASK_CHECK_SLEEP,
     VSPHERE_SERVER_CLUSTER_NAME,
@@ -53,6 +52,7 @@ from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
     DELETE_NODE_ACTION,
     ASYNC_TASK_ID,
+    ASYNC_RESOURCE_ID,
 )
 from collections import namedtuple
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
@@ -73,14 +73,14 @@ def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
     return None
 
 
-def remove_runtime_properties(ctx):
+def remove_runtime_properties(instance):
     # cleanup runtime properties
     # need to convert generaton to list, python 3
-    keys = [key for key in ctx.instance.runtime_properties.keys()]
+    keys = [key for key in instance.runtime_properties.keys()]
     for key in keys:
-        del ctx.instance.runtime_properties[key]
+        del instance.runtime_properties[key]
     # save flag as current state before external call
-    ctx.instance.update()
+    instance.update()
 
 
 class Config(object):
@@ -443,7 +443,7 @@ class VsphereClient(object):
                             mapped = None
 
                     if mapped is None:
-                        return ctx.operation.retry(
+                        raise OperationRetry(
                             'Platform {entity} configuration changed '
                             'while building {obj_name} cache.'.format(
                                 entity=mapping,
@@ -538,7 +538,7 @@ class VsphereClient(object):
                 this_pool = pool
                 break
         if this_pool is None:
-            return ctx.operation.retry(
+            raise OperationRetry(
                 'Resource pools changed while getting resource pool details.'
             )
 
@@ -646,12 +646,12 @@ class VsphereClient(object):
             use_cache=use_cache,
         )
 
-    def _get_connected_network_name(self, network):
+    def _get_connected_network_name(self, network, instance):
         name = None
         if network.get('from_relationship'):
             net_id = None
             found = False
-            for relationship in ctx.instance.relationships:
+            for relationship in instance.relationships:
                 if relationship.target.node.name == network['name']:
                     props = relationship.target.instance.runtime_properties
                     net_id = props.get(NETWORK_ID)
@@ -801,7 +801,7 @@ class VsphereClient(object):
                     dvswitch = dvs
                     break
             if dvswitch is None:
-                return ctx.operation.retry(
+                raise OperationRetry(
                     'DVswitches on platform changed while getting port '
                     'group details.'
                 )
@@ -1082,25 +1082,29 @@ class VsphereClient(object):
                 break
         return obj
 
-    def _wait_for_task(self, task=None, instance=None, max_wait_time=300):
+    def _wait_for_task(
+        self, task=None, instance=None, max_wait_time=300, resource_id=None
+    ):
         if not task and instance:
             task_id = instance.runtime_properties.get(ASYNC_TASK_ID)
-            ctx.logger.info("Check task_id {}".format(task_id))
+            resource_id = instance.runtime_properties.get(ASYNC_RESOURCE_ID)
+            self._logger.info("Check task_id {}".format(task_id))
             # no saved tasks
             if not task_id:
                 return
         else:
             task_id = task._moId
             if instance:
-                ctx.logger.info("Save task_id {}".format(task_id))
+                self._logger.info("Save task_id {}".format(task_id))
                 instance.runtime_properties[ASYNC_TASK_ID] = task_id
+                instance.runtime_properties[ASYNC_RESOURCE_ID] = resource_id
                 # save flag as current state before external call
                 instance.update()
 
         if not task:
             task_obj = self._get_obj_by_id(vim.Task, task_id)
             if not task_obj:
-                ctx.logger.info("No task_id? {}".format(task_id))
+                self._logger.info("No task_id? {}".format(task_id))
                 if instance:
                     # no such tasks
                     del instance.runtime_properties[ASYNC_TASK_ID]
@@ -1126,10 +1130,11 @@ class VsphereClient(object):
                                      .format(task_id=task._moId))
             retry_count -= 1
 
-        # we correctly finished
+        # we correctly finished, and need to cleanup
         if instance:
-            ctx.logger.info("Cleanup task_id {}".format(task_id))
+            self._logger.info("Cleanup task_id {}".format(task_id))
             del instance.runtime_properties[ASYNC_TASK_ID]
+            del instance.runtime_properties[ASYNC_RESOURCE_ID]
             # save flag as current state before external call
             instance.update()
 
@@ -1137,6 +1142,12 @@ class VsphereClient(object):
             raise NonRecoverableError(
                 "Error during executing task on vSphere: '{0}'"
                 .format(task.info.error))
+        elif instance and resource_id:
+            self._logger.info("Save resource_id {}"
+                              .format(task.info.result._moId))
+            instance.runtime_properties[resource_id] = task.info.result._moId
+            # save flag as current state before external call
+            instance.update()
 
     def _port_group_is_distributed(self, port_group):
         return port_group.id.startswith('dvportgroup')
@@ -1282,7 +1293,8 @@ class ServerClient(VsphereClient):
                          template_name,
                          datacenter_name,
                          resource_pool_name,
-                         networks):
+                         networks,
+                         instance):
         """
             Make sure we can actually continue with the inputs given.
             If we can't, we want to report all of the issues at once.
@@ -1352,7 +1364,8 @@ class ServerClient(VsphereClient):
         port_groups, distributed_port_groups = self._get_port_group_names()
         for network in networks:
             try:
-                network_name = self._get_connected_network_name(network)
+                network_name = self._get_connected_network_name(
+                    network, instance=instance)
             except NonRecoverableError as err:
                 issues.append(str(err))
                 continue
@@ -1541,7 +1554,7 @@ class ServerClient(VsphereClient):
                 keys.append(device.key)
         return keys
 
-    def _remove_nic_keys(self, server, keys):
+    def remove_nic_keys(self, server, keys, instance):
         self._logger.debug(
             'Removing network adapters {keys} from vm. '
             .format(keys=repr(keys)))
@@ -1564,7 +1577,7 @@ class ServerClient(VsphereClient):
                 spec = vim.vm.ConfigSpec()
                 spec.deviceChange = devices
                 task = server.obj.ReconfigVM_Task(spec=spec)
-                self._wait_for_task(task)
+                self._wait_for_task(task, instance=instance)
                 # update server object
                 server = self._get_obj_by_id(
                     vim.VirtualMachine,
@@ -1647,7 +1660,9 @@ class ServerClient(VsphereClient):
             devices.append(cdrom_device)
         return devices
 
-    def update_server(self, server, cdrom_image=None, extra_config=None):
+    def update_server(
+        self, server, cdrom_image=None, extra_config=None, instance=None
+    ):
         # Attrach cdrom image to vm without change networks list
         devices_changes = self._update_vm(server, cdrom_image=cdrom_image,
                                           remove_networks=False)
@@ -1664,7 +1679,7 @@ class ServerClient(VsphereClient):
                     spec.extraConfig.append(
                         vim.option.OptionValue(key=k, value=extra_config[k]))
             task = server.obj.ReconfigVM_Task(spec=spec)
-            self._wait_for_task(task)
+            self._wait_for_task(task, instance=instance)
 
     def _get_virtual_hardware_version(self, vm):
         # See https://kb.vmware.com/s/article/1003746 for documentation on VM
@@ -1686,7 +1701,7 @@ class ServerClient(VsphereClient):
             windows_timezone,
             agent_config,
             custom_sysprep,
-            custom_attributes,
+            instance,
             os_type='linux',
             domain=None,
             dns_servers=None,
@@ -1698,7 +1713,6 @@ class ServerClient(VsphereClient):
             extra_config=None,
             enable_start_vm=True,
             postpone_delete_networks=False,
-            minimal_vm_version=13,
             ):
         self._logger.debug(
             "Entering create_server with parameters %s"
@@ -1712,6 +1726,7 @@ class ServerClient(VsphereClient):
             networks=networks,
             resource_pool_name=resource_pool_name,
             datacenter_name=datacenter_name,
+            instance=instance,
         )
 
         # If cpus and memory are not specified, take values from the template.
@@ -1724,7 +1739,8 @@ class ServerClient(VsphereClient):
 
         # Correct the network name for all networks from relationships
         for network in networks:
-            network['name'] = self._get_connected_network_name(network)
+            network['name'] = self._get_connected_network_name(
+                network, instance=instance)
 
         datacenter = self._get_obj_by_name(vim.Datacenter,
                                            datacenter_name)
@@ -1745,9 +1761,9 @@ class ServerClient(VsphereClient):
             template=template_vm,
             allowed_datastores=allowed_datastores,
         )
-        ctx.instance.runtime_properties[
+        instance.runtime_properties[
             VSPHERE_SERVER_HYPERVISOR_HOSTNAME] = host.name
-        ctx.instance.runtime_properties[
+        instance.runtime_properties[
             VSPHERE_SERVER_CLUSTER_NAME] = host.parent.name
         self._logger.debug(
             'Using host {host} and datastore {ds} for deployment.'.format(
@@ -1786,9 +1802,13 @@ class ServerClient(VsphereClient):
             relospec.host = host.obj
 
         # Get list of NIC MAC addresses for removal
-        keys_for_remove = []
         if postpone_delete_networks and not enable_start_vm:
+            keys_for_remove = []
             keys_for_remove = self._get_nic_keys_for_remove(template_vm)
+            instance.runtime_properties[
+                '_keys_for_remove'] = keys_for_remove
+            instance.runtime_properties.dirty = True
+            instance.update()
 
         if postpone_delete_networks and enable_start_vm:
             self._logger.info("Using postpone_delete_networks with "
@@ -1929,65 +1949,50 @@ class ServerClient(VsphereClient):
         try:
             self._logger.debug(
                 "Task info: {task}".format(task=repr(task)))
+            # wait for task finish
+            self._wait_for_task(task, instance=instance,
+                                resource_id=VSPHERE_SERVER_ID)
+
+            instance.runtime_properties['name'] = vm_name
+            instance.runtime_properties.dirty = True
+            instance.update()
+
             if enable_start_vm:
                 self._logger.info('VM created in running state')
-                self._wait_vm_running(task, adaptermaps, os_type == "other")
+                while not self._wait_vm_running(
+                    task.info.result, adaptermaps, os_type == "other"
+                ):
+                    time.sleep(TASK_CHECK_SLEEP)
             else:
                 self._logger.info('VM created in stopped state')
-                self._wait_for_task(task)
         except task.info.error:
             raise NonRecoverableError(
                 "Error during executing VM creation task. VM name: \'{0}\'."
                 .format(vm_name))
 
         # VM object created. Now perform final post-creation tasks
-        vm = task.info.result
-        self._logger.info('VM version: vmx-{old}/vmx-{new}'.format(
-            old=self._get_virtual_hardware_version(vm),
-            new=minimal_vm_version))
-        if self._get_virtual_hardware_version(vm) < minimal_vm_version:
-            if enable_start_vm:
-                self._logger.info(
-                    "Use VM hardware update with `enable_start_vm` is "
-                    "unsupported.")
-            else:
-                self._logger.info("Going to update VM hardware version.")
-                try:
-                    self._wait_for_task(vm.UpgradeVM_Task(
-                        "vmx-{version}".format(version=minimal_vm_version)))
-                except NonRecoverableError as e:
-                    raise NonRecoverableError(
-                        "Could not upgrade the VM to a {version} hardware "
-                        "version: {e}"
-                        .format(e=str(e), version=minimal_vm_version)
-                    )
-
-        # remove nic's by mac
-        if keys_for_remove:
-            vm = self._get_obj_by_id(
-                vim.VirtualMachine,
-                task.info.result._moId,
-                use_cache=False,
-            )
-            self._remove_nic_keys(vm, keys_for_remove)
-
-        # get new state of vm
         vm = self._get_obj_by_id(
             vim.VirtualMachine,
             task.info.result._moId,
             use_cache=False,
         )
-        ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = vm.obj._moId
-        ctx.instance.runtime_properties['name'] = vm_name
 
-        ctx.instance.runtime_properties[NETWORKS] = \
-            self.get_vm_networks(vm)
-        self._logger.debug(
-            'Updated runtime properties with network information')
+        return vm
 
-        self.add_custom_values(vm, custom_attributes or {})
-
-        return task.info.result
+    def upgrade_server(self, server, minimal_vm_version, instance):
+        self._logger.info('VM version: vmx-{old}/vmx-{new}'.format(
+            old=self._get_virtual_hardware_version(server.obj),
+            new=minimal_vm_version))
+        if self._get_virtual_hardware_version(server.obj) < minimal_vm_version:
+            if self.is_server_poweredon(server):
+                self._logger.info(
+                    "Use VM hardware update with `enable_start_vm` is "
+                    "unsupported.")
+            else:
+                self._logger.info("Going to update VM hardware version.")
+                task = server.obj.UpgradeVM_Task(
+                    "vmx-{version}".format(version=minimal_vm_version))
+                self._wait_for_task(task, instance=instance)
 
     def suspend_server(self, server, instance, max_wait_time=30):
         if self.is_server_suspended(server.obj):
@@ -2779,45 +2784,45 @@ class ServerClient(VsphereClient):
                 )
                 return ip_address
 
-    def _task_guest_state_is_running(self, task):
+    def _task_guest_state_is_running(self, vm):
         try:
             self._logger.debug("VM state: {state}".format(
-                state=task.info.result.guest.guestState))
-            return task.info.result.guest.guestState == "running"
+                state=vm.guest.guestState))
+            return vm.guest.guestState == "running"
         except vmodl.fault.ManagedObjectNotFound:
             raise NonRecoverableError(
                 'Server failed to enter running state, task has been deleted '
                 'by vCenter after failing.'
             )
 
-    def _task_guest_has_networks(self, task, adaptermaps):
+    def _task_guest_has_networks(self, vm, adaptermaps):
         # We should possibly be checking that it has the number of networks
         # expected here, but investigation will be required to confirm this
         # behaves as expected (and the VM state check later handles it anyway)
         if len(adaptermaps) == 0:
             return True
         else:
-            if len(task.info.result.guest.net) > 0:
+            if len(vm.guest.net) > 0:
                 return True
             else:
                 return False
 
-    def _wait_vm_running(self, task, adaptermaps, other=False):
-        # wait for task finish
-        self._wait_for_task(task)
-
+    def _wait_vm_running(self, vm, adaptermaps, other=False):
         # check VM state
-        while not self._task_guest_state_is_running(task):
-            time.sleep(TASK_CHECK_SLEEP)
+        if not self._task_guest_state_is_running(vm):
+            return False
 
         # skip guests check for other
         if other:
             self._logger.info("Skip guest checks for other os")
-            return
+            return True
 
         # check guest networks
-        if not self._task_guest_has_networks(task, adaptermaps):
-            time.sleep(TASK_CHECK_SLEEP)
+        if not self._task_guest_has_networks(vm, adaptermaps):
+            return False
+
+        # everything looks good
+        return True
 
 
 class NetworkClient(VsphereClient):
@@ -2886,15 +2891,17 @@ class NetworkClient(VsphereClient):
                            .format(dvswitches=dvswitches))
         return dvswitches
 
-    def create_port_group(self, port_group_name, vlan_id, vswitch_name):
+    def create_port_group(
+        self, port_group_name, vlan_id, vswitch_name, instance
+    ):
         self._logger.debug("Entering create port procedure.")
-        if NETWORK_STATUS not in ctx.instance.runtime_properties.keys():
-            ctx.instance.runtime_properties[NETWORK_STATUS] = 'preparing'
-            ctx.instance.update()
+        if NETWORK_STATUS not in instance.runtime_properties.keys():
+            instance.runtime_properties[NETWORK_STATUS] = 'preparing'
+            instance.update()
 
         vswitches = self.get_vswitches()
 
-        if ctx.instance.runtime_properties[NETWORK_STATUS] == 'preparing':
+        if instance.runtime_properties[NETWORK_STATUS] == 'preparing':
             if vswitch_name not in vswitches:
                 if len(vswitches) == 0:
                     raise NonRecoverableError(
@@ -2912,17 +2919,17 @@ class NetworkClient(VsphereClient):
                         )
                     )
 
-        if ctx.instance.runtime_properties[NETWORK_STATUS] in (
+        if instance.runtime_properties[NETWORK_STATUS] in (
             'preparing', 'creating'
         ):
-            ctx.instance.runtime_properties[NETWORK_STATUS] = 'creating'
-            ctx.instance.update()
-            if NETWORK_CREATE_ON not in ctx.instance.runtime_properties:
-                ctx.instance.runtime_properties[NETWORK_CREATE_ON] = []
+            instance.runtime_properties[NETWORK_STATUS] = 'creating'
+            instance.update()
+            if NETWORK_CREATE_ON not in instance.runtime_properties:
+                instance.runtime_properties[NETWORK_CREATE_ON] = []
 
             hosts = [
                 host for host in self.get_host_list()
-                if host.name not in ctx.instance.runtime_properties[
+                if host.name not in instance.runtime_properties[
                     NETWORK_CREATE_ON]
             ]
 
@@ -2952,16 +2959,16 @@ class NetworkClient(VsphereClient):
                     # existed before we tried to create it anywhere, so it
                     # should be safe to proceed.
                     pass
-                ctx.instance.runtime_properties[NETWORK_CREATE_ON].append(
+                instance.runtime_properties[NETWORK_CREATE_ON].append(
                     host.name)
-                ctx.instance.runtime_properties.dirty = True
-                ctx.instance.update()
+                instance.runtime_properties.dirty = True
+                instance.update()
 
             if self.port_group_is_on_all_hosts(port_group_name):
-                ctx.instance.runtime_properties[NETWORK_STATUS] = 'created'
-                ctx.instance.update()
+                instance.runtime_properties[NETWORK_STATUS] = 'created'
+                instance.update()
             else:
-                return ctx.operation.retry(
+                raise OperationRetry(
                     'Waiting for port group {name} to be created on all '
                     'hosts.'.format(
                         name=port_group_name,
@@ -3053,8 +3060,8 @@ class NetworkClient(VsphereClient):
                     )
                 )
 
-        ctx.instance.runtime_properties[NETWORK_STATUS] = 'creating'
-        ctx.instance.update()
+        instance.runtime_properties[NETWORK_STATUS] = 'creating'
+        instance.update()
 
         dv_port_group_type = 'earlyBinding'
         dvswitch = self._get_obj_by_name(
@@ -3796,7 +3803,7 @@ def _with_client(client_name, client):
                     if not ctx.instance.runtime_properties.get(ASYNC_TASK_ID):
                         ctx.logger.info('Cleanup resource.')
                         # cleanup runtime
-                        remove_runtime_properties(ctx)
+                        remove_runtime_properties(ctx.instance)
                 # return result
                 return result
             except Exception:

@@ -52,12 +52,18 @@ class VsphereCIDataTest(unittest.TestCase):
             }, datacenter_name='datacenter', allowed_datastores=['abc'],
             vol_ident="vol", sys_ident="sys", volume_prefix="abc")
 
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {'storage_image': '[storage] check',
              'datastore_file_name': '[storage] check',
              'vsphere_datacenter_id': 'datacenter_id'})
+
+        # Rerun create
+        cidata.create(
+            files=None, raw_files={
+                'g': 'file_call'
+            }, datacenter_name='datacenter', allowed_datastores=['abc'],
+            vol_ident="vol", sys_ident="sys", volume_prefix="abc")
 
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_storage_delete_id(self, mock_client_get):
@@ -70,14 +76,12 @@ class VsphereCIDataTest(unittest.TestCase):
         runtime_properties['datastore_file_name'] = '[storage] check'
 
         cidata.delete()
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {}
         )
         # already deleted volume
         cidata.delete()
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {}
@@ -93,14 +97,12 @@ class VsphereCIDataTest(unittest.TestCase):
         runtime_properties['datastore_file_name'] = '[storage] check'
 
         cidata.delete(datacenter_name='datacenter')
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {}
         )
         # already deleted volume
         cidata.delete(datacenter_name='datacenter')
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {}

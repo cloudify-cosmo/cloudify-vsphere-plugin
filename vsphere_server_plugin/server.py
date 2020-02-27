@@ -18,7 +18,7 @@ import string
 # Third party imports
 
 # Cloudify imports
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from cloudify_vsphere.utils import op, find_rels_by_type
@@ -185,7 +185,6 @@ def create_new_server(
         windows_timezone,
         agent_config,
         custom_sysprep,
-        custom_attributes,
         # Backwards compatibility- only linux was really working
         os_family='linux',
         cdrom_image=None,
@@ -193,7 +192,7 @@ def create_new_server(
         extra_config=None,
         enable_start_vm=True,
         postpone_delete_networks=False,
-        minimal_vm_version=13,
+        instance=None,
         ):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info(
@@ -280,37 +279,35 @@ def create_new_server(
 
     ctx.logger.info('Creating server called {name}'.format(name=vm_name))
     server_obj = server_client.create_server(
-        auto_placement,
-        cpus,
-        datacenter_name,
-        memory,
-        connect_networks,
-        resource_pool_name,
-        template_name,
-        vm_name,
-        windows_password,
-        windows_organization,
-        windows_timezone,
-        agent_config,
-        custom_sysprep,
-        custom_attributes,
-        os_family,
-        domain,
-        dns_servers,
-        allowed_hosts,
-        allowed_clusters,
-        allowed_datastores,
+        auto_placement=auto_placement,
+        cpus=cpus,
+        datacenter_name=datacenter_name,
+        memory=memory,
+        networks=connect_networks,
+        resource_pool_name=resource_pool_name,
+        template_name=template_name,
+        vm_name=vm_name,
+        windows_password=windows_password,
+        windows_organization=windows_organization,
+        windows_timezone=windows_timezone,
+        agent_config=agent_config,
+        custom_sysprep=custom_sysprep,
+        instance=instance,
+        os_type=os_family,
+        domain=domain,
+        dns_servers=dns_servers,
+        allowed_hosts=allowed_hosts,
+        allowed_clusters=allowed_clusters,
+        allowed_datastores=allowed_datastores,
         cdrom_image=cdrom_image,
         vm_folder=vm_folder,
         extra_config=extra_config,
         enable_start_vm=enable_start_vm,
-        minimal_vm_version=minimal_vm_version,
-        postpone_delete_networks=postpone_delete_networks)
+        postpone_delete_networks=postpone_delete_networks,
+        )
     ctx.logger.info('Successfully created server called {name}'.format(
                     name=vm_name))
-    ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj._moId
-    ctx.instance.runtime_properties['name'] = vm_name
-    _update_vm_properties(ctx, server_obj)
+    return server_obj
 
 
 @op
@@ -347,10 +344,7 @@ def start(
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(
                     server.get('name')))
-        ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
-        ctx.instance.runtime_properties['name'] = server_obj.name
-        ctx.instance.runtime_properties[NETWORKS] = \
-            server_client.get_vm_networks(server_obj)
+        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
     elif "template" not in server:
         raise NonRecoverableError('template is not provided.')
@@ -359,7 +353,7 @@ def start(
                                            server, os_family)
     if server_obj is None:
         ctx.logger.info("Server does not exist, creating from scratch.")
-        create_new_server(
+        server_obj = create_new_server(
             ctx,
             server_client,
             server,
@@ -372,19 +366,19 @@ def start(
             windows_timezone,
             agent_config,
             custom_sysprep,
-            custom_attributes,
             os_family=os_family,
             cdrom_image=cdrom_image,
             vm_folder=vm_folder,
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
-            minimal_vm_version=minimal_vm_version,
             postpone_delete_networks=postpone_delete_networks,
+            instance=ctx.instance,
             )
     else:
         server_client.update_server(server=server_obj,
                                     cdrom_image=cdrom_image,
-                                    extra_config=extra_config)
+                                    extra_config=extra_config,
+                                    instance=ctx.instance)
         if enable_start_vm:
             ctx.logger.info("Server already exists, powering on.")
             server_client.start_server(server=server_obj,
@@ -393,8 +387,28 @@ def start(
         else:
             ctx.logger.info("Server already exists, but will not be powered"
                             "on as enable_start_vm is set to false")
-        _get_existing_server_details(ctx, server_client, server_obj)
-        _update_vm_properties(ctx, server_obj)
+
+    server_client.add_custom_values(server_obj, custom_attributes or {})
+
+    # update vm version
+    server_client.upgrade_server(server_obj,
+                                 minimal_vm_version=minimal_vm_version,
+                                 instance=ctx.instance)
+
+    # remove nic's by mac
+    keys_for_remove = ctx.instance.runtime_properties.get('_keys_for_remove')
+    if keys_for_remove:
+        ctx.logger.info("Remove devices: {keys}"
+                        .format(keys=keys_for_remove))
+        server_client.remove_nic_keys(server_obj, keys_for_remove,
+                                      instance=ctx.instance)
+        del ctx.instance.runtime_properties['_keys_for_remove']
+        ctx.instance.runtime_properties.dirty = True
+        ctx.instance.update()
+
+    _get_server_details(ctx, server_client, server_obj)
+    ctx.instance.runtime_properties.dirty = True
+    ctx.instance.update()
 
 
 @op
@@ -662,9 +676,7 @@ def get_state(ctx, server_client, server, networking, os_family, wait_ip):
         # if we have some managment network but no ip in such by some reason
         # go and run one more time
         if management_network_name and not manager_network_ip:
-            return ctx.operation.retry(
-                message="Management IP addresses not yet assigned.",
-            )
+            raise OperationRetry("Management IP addresses not yet assigned.")
 
         ctx.instance.runtime_properties[NETWORKS] = nets
         ctx.instance.runtime_properties[IP] = manager_network_ip or default_ip
@@ -684,9 +696,7 @@ def get_state(ctx, server_client, server, networking, os_family, wait_ip):
             if not public_ips:
                 ctx.logger.info("No Server public IP addresses.")
             elif None in public_ips:
-                return ctx.operation.retry(
-                    message="Public IP addresses not yet assigned.",
-                )
+                raise OperationRetry("Public IP addresses not yet assigned.")
             else:
                 ctx.logger.info("Server public IP addresses: {ips}."
                                 .format(ips=repr(public_ips)))
@@ -807,24 +817,17 @@ def resize(ctx, server_client, server, os_family):
             "Server resize parameters should be specified.")
 
 
-def _update_vm_properties(ctx, server_obj):
+def _get_server_details(ctx, server_client, server_obj):
     ctx.instance.runtime_properties[VSPHERE_SERVER_HOST] = str(
         server_obj.summary.runtime.host.name)
+    ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
+    ctx.instance.runtime_properties['name'] = server_obj.name
     ctx.instance.runtime_properties[VSPHERE_SERVER_DATASTORE] = [
         datastore.name for datastore in server_obj.datastore]
-
-
-def _get_existing_server_details(ctx, server_client, server_obj):
-    ctx.instance.runtime_properties['name'] = server_obj.name
     ctx.instance.runtime_properties[VSPHERE_SERVER_DATASTORE_IDS] = [
         datastore.id for datastore in server_obj.datastore]
     ctx.instance.runtime_properties[NETWORKS] = \
         server_client.get_vm_networks(server_obj)
-    # change VSPHERE_SERVER_ID only if runtume does not have id
-    if not ctx.instance.runtime_properties.get(VSPHERE_SERVER_ID):
-        ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
-        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
-        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
 
 
 def get_vm_name(ctx, server, os_family):

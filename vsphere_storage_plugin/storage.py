@@ -19,7 +19,7 @@
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from cloudify_vsphere.utils import op
@@ -124,9 +124,8 @@ def create(storage_client, storage, use_external_resource=False):
             # a race and they might try to use the same name. If that happens
             # the loser will retry.
             if 'vim.fault.FileAlreadyExists' in str(e):
-                ctx.operation.retry('Name clash with another storage. '
-                                    'Retrying')
-                return
+                raise OperationRetry(
+                    'Name clash with another storage. Retrying')
             raise
 
         ctx.logger.info(

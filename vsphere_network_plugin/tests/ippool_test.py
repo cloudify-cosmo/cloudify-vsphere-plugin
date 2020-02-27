@@ -59,7 +59,6 @@ class IPPoolTest(unittest.TestCase):
         }
 
         ippool.create()
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {'ippool': 12345}

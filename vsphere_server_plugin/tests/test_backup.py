@@ -18,7 +18,7 @@ from pyVmomi import vim
 
 from cloudify.state import current_ctx
 from cloudify.mocks import MockCloudifyContext
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 from vsphere_plugin_common.constants import DELETE_NODE_ACTION
 import vsphere_server_plugin.server as server
@@ -566,10 +566,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
-            ctx.operation.retry = mock.Mock(side_effect=Exception('retry?'))
             with self.assertRaisesRegexp(
-                Exception,
-                'retry?'
+                OperationRetry,
+                'Management IP addresses not yet assigned.'
             ):
                 server.get_state(ctx=ctx,
                                  server_client=None,

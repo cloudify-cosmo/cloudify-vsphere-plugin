@@ -111,6 +111,18 @@ class ContentDeploymentTest(unittest.TestCase):
              'content_item_id': 'id_def',
              'content_library_id': 'id_abc'})
 
+        # check rerun
+        with patch("cloudify_vsphere.contentlibrary.requests", requests):
+            deployment.create(ctx=self.mock_ctx,
+                              connection_config={'host': 'host',
+                                                 'username': 'username',
+                                                 'password': 'password',
+                                                 'allow_insecure': True},
+                              library_name="abc",
+                              template_name="def",
+                              target={'target': '_target'},
+                              deployment_spec={'param': '_param'})
+
 
 if __name__ == '__main__':
     unittest.main()

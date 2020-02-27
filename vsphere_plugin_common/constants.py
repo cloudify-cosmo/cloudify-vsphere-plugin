@@ -105,4 +105,7 @@ DEFAULT_CONFIG_PATH = os.path.join(
 # Cloudify delete node action
 DELETE_NODE_ACTION = "cloudify.interfaces.lifecycle.delete"
 
+# task id for recheck
 ASYNC_TASK_ID = '_task_id'
+# field name for save resulted resource id
+ASYNC_RESOURCE_ID = '_resource_id'

@@ -102,7 +102,8 @@ def create(ctx, network_client, network, use_external_resource):
             else:
                 network_client.create_port_group(port_group_name,
                                                  vlan_id,
-                                                 vswitch_name)
+                                                 vswitch_name,
+                                                 instance=ctx.instance)
             ctx.logger.info('Successfully created {type}: {name}'.format(
                             type=get_network_type(ctx, network),
                             name=network['name']))
