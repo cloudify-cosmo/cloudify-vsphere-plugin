@@ -52,7 +52,6 @@ class VsphereCIDataTest(unittest.TestCase):
             }, datacenter_name='datacenter', allowed_datastores=['abc'],
             vol_ident="vol", sys_ident="sys", volume_prefix="abc")
 
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {'storage_image': '[storage] check',
@@ -70,14 +69,12 @@ class VsphereCIDataTest(unittest.TestCase):
         runtime_properties['datastore_file_name'] = '[storage] check'
 
         cidata.delete()
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {}
         )
         # already deleted volume
         cidata.delete()
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {}
@@ -93,14 +90,12 @@ class VsphereCIDataTest(unittest.TestCase):
         runtime_properties['datastore_file_name'] = '[storage] check'
 
         cidata.delete(datacenter_name='datacenter')
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {}
         )
         # already deleted volume
         cidata.delete(datacenter_name='datacenter')
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(
             self.mock_ctx.instance.runtime_properties,
             {}

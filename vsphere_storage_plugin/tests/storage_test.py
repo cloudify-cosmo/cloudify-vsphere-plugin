@@ -16,7 +16,7 @@ import unittest
 
 from mock import Mock, patch
 
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 from cloudify.state import current_ctx
 from cloudify.manager import DirtyTrackingDict
 from cloudify.mocks import MockCloudifyContext
@@ -56,7 +56,6 @@ class VsphereStorageTest(unittest.TestCase):
                 'storage_size': 7,
             }, use_external_resource=False)
 
-        self.mock_ctx.operation.retry.assert_not_called()
         self.assertEqual(self.mock_ctx.instance.runtime_properties,
                          {'scsi_id': 'something',
                           'datastore_file_name': 'file name',
@@ -103,14 +102,16 @@ class VsphereStorageTest(unittest.TestCase):
             },
         })
 
-        storage.create(
-            storage={
-                'storage_size': 7,
-            }, use_external_resource=False)
+        with self.assertRaisesRegexp(
+            OperationRetry,
+            'Name clash with another storage. Retrying'
+        ):
+            storage.create(
+                storage={
+                    'storage_size': 7,
+                }, use_external_resource=False)
 
-        self.mock_ctx.operation.retry.assert_called_once()
-        self.assertEqual(self.mock_ctx.instance.runtime_properties,
-                         {})
+        self.assertEqual(self.mock_ctx.instance.runtime_properties, {})
 
 
 if __name__ == '__main__':

@@ -18,7 +18,7 @@ import string
 # Third party imports
 
 # Cloudify imports
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from cloudify_vsphere.utils import op, find_rels_by_type
@@ -676,9 +676,7 @@ def get_state(ctx, server_client, server, networking, os_family, wait_ip):
         # if we have some managment network but no ip in such by some reason
         # go and run one more time
         if management_network_name and not manager_network_ip:
-            return ctx.operation.retry(
-                message="Management IP addresses not yet assigned.",
-            )
+            raise OperationRetry("Management IP addresses not yet assigned.")
 
         ctx.instance.runtime_properties[NETWORKS] = nets
         ctx.instance.runtime_properties[IP] = manager_network_ip or default_ip
@@ -698,9 +696,7 @@ def get_state(ctx, server_client, server, networking, os_family, wait_ip):
             if not public_ips:
                 ctx.logger.info("No Server public IP addresses.")
             elif None in public_ips:
-                return ctx.operation.retry(
-                    message="Public IP addresses not yet assigned.",
-                )
+                raise OperationRetry("Public IP addresses not yet assigned.")
             else:
                 ctx.logger.info("Server public IP addresses: {ips}."
                                 .format(ips=repr(public_ips)))
