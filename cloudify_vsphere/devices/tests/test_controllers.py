@@ -96,11 +96,12 @@ class VsphereControllerTest(unittest.TestCase):
         devices.delete_controller(ctx=_ctx)
         self.assertEqual(_ctx.instance.runtime_properties, {})
 
-    def _get_vm(self):
+    def _get_vm(self, new_adapter=None):
         vm = Mock()
         task = Mock()
         task.info.state = vim.TaskInfo.State.success
         vm.obj.ReconfigVM_Task = MagicMock(return_value=task)
+        vm.guest.net = []
         contr_device = vim.vm.device.VirtualController()
         contr_device.key = 4001
         contr_device.busNumber = 2
@@ -108,7 +109,11 @@ class VsphereControllerTest(unittest.TestCase):
         net_device.key = 4002
         scsi_device = vim.vm.device.ParaVirtualSCSIController()
         scsi_device.key = 4003
-        vm.config.hardware.device = [contr_device, net_device, scsi_device]
+        devices = [contr_device, net_device, scsi_device]
+        if new_adapter:
+            new_adapter.key = 4004
+            devices.append(new_adapter)
+        vm.config.hardware.device = devices
         return vm
 
     def test_detach_controller(self):
@@ -149,6 +154,38 @@ class VsphereControllerTest(unittest.TestCase):
                 self.assertEqual(
                     _ctx.source.instance.runtime_properties, {}
                 )
+
+                # rerun
+                vm = self._get_vm()
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    devices.detach_controller(ctx=_ctx)
+                self.assertEqual(
+                    _ctx.source.instance.runtime_properties, {}
+                )
+
+    def test_detach_server_from_controller(self):
+        _ctx = self._gen_relation_ctx()
+        conn_mock = Mock()
+        smart_connect = MagicMock(return_value=conn_mock)
+        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
+            with patch("vsphere_plugin_common.Disconnect", Mock()):
+                # reinstall with empty properties
+                devices.detach_server_from_controller(ctx=_ctx)
+
+                # real delte conteroller
+                _ctx.source.instance.runtime_properties[
+                    'vsphere_server_id'
+                ] = "vm-101"
+                _ctx.target.instance.runtime_properties['busKey'] = 4010
+                vm = self._get_vm()
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    devices.detach_server_from_controller(ctx=_ctx)
 
     def check_attach_ethernet_card(self, settings):
         _ctx = self._gen_relation_ctx()
@@ -225,15 +262,51 @@ class VsphereControllerTest(unittest.TestCase):
                 self.assertEqual(kwargs.keys(), ['spec'])
                 new_adapter = str(
                     type(kwargs['spec'].deviceChange[0].device))
+                runtime_properties = _ctx.target.instance.runtime_properties
+
                 if settings.get('adapter_type'):
                     self.assertTrue(
                         settings['adapter_type'].lower() in new_adapter.lower()
                     )
+                    if "virtualvmxnet3" in new_adapter.lower():
+                        self.assertEqual(
+                            runtime_properties.get('known_keys'),
+                            [4002]
+                        )
+                    else:
+                        self.assertFalse(runtime_properties.get('known_keys'))
                 else:
                     self.assertEqual(
                         new_adapter,
                         "<class 'pyVmomi.VmomiSupport.vim.vm.device."
                         "VirtualVmxnet3'>")
+
+                # successful attach
+                runtime_properties = _ctx.target.instance.runtime_properties
+                runtime_properties['connected_networks'] = False
+                runtime_properties['connected'] = False
+                runtime_properties['known_keys'] = [4001, 4002, 4003]
+                vm = self._get_vm(kwargs['spec'].deviceChange[0].device)
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    with patch(
+                        "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                        MagicMock(return_value=network)
+                    ):
+                        devices.attach_ethernet_card(ctx=_ctx)
+
+                # rerun ignore
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    with patch(
+                        "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                        MagicMock(return_value=network)
+                    ):
+                        devices.attach_ethernet_card(ctx=_ctx)
 
     def test_attach_ethernet_card(self):
         for settings in [{
@@ -285,24 +358,49 @@ class VsphereControllerTest(unittest.TestCase):
                 self.assertEqual(args, ())
                 self.assertEqual(kwargs.keys(), ['spec'])
                 new_adapter = str(type(kwargs['spec'].deviceChange[0].device))
+                runtime_properties = _ctx.source.instance.runtime_properties
                 if settings.get('adapterType') == "lsilogic":
                     self.assertEqual(
                         new_adapter,
                         "<class 'pyVmomi.VmomiSupport.vim.vm.device."
                         "VirtualLsiLogicController'>"
                     )
+                    self.assertFalse(runtime_properties.get('known_keys'))
                 elif settings.get('adapterType') == "lsilogic_sas":
                     self.assertEqual(
                         new_adapter,
                         "<class 'pyVmomi.VmomiSupport.vim.vm.device."
                         "VirtualLsiLogicSASController'>"
                     )
+                    self.assertFalse(runtime_properties.get('known_keys'))
                 else:
                     self.assertEqual(
                         new_adapter,
                         "<class 'pyVmomi.VmomiSupport.vim.vm.device."
                         "ParaVirtualSCSIController'>"
                     )
+                    self.assertEqual(
+                        runtime_properties.get('known_keys'), [4003]
+                    )
+
+                # successful attach
+                runtime_properties = _ctx.source.instance.runtime_properties
+                runtime_properties['connected_networks'] = False
+                runtime_properties['connected'] = False
+                runtime_properties['known_keys'] = [4003]
+                vm = self._get_vm(kwargs['spec'].deviceChange[0].device)
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    devices.attach_scsi_controller(ctx=_ctx)
+
+                # rerun ignore
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    devices.attach_scsi_controller(ctx=_ctx)
 
     def test_attach_scsi_controller(self):
         for settings in [{
@@ -392,6 +490,37 @@ class VsphereControllerTest(unittest.TestCase):
                         self.assertEqual(
                             str(e.exception),
                             "Have not found key for new added device")
+
+                args, kwargs = vm.obj.ReconfigVM_Task.call_args
+                self.assertEqual(args, ())
+                self.assertEqual(kwargs.keys(), ['spec'])
+
+                # successful attach
+                runtime_properties = _ctx.target.instance.runtime_properties
+                runtime_properties['connected_networks'] = False
+                runtime_properties['connected'] = False
+                runtime_properties['known_keys'] = [4003]
+                vm = self._get_vm(kwargs['spec'].deviceChange[0].device)
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    with patch(
+                        "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                        MagicMock(return_value=network)
+                    ):
+                        devices.attach_server_to_ethernet_card(ctx=_ctx)
+
+                # rerun ignore
+                with patch(
+                    "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+                    MagicMock(return_value=vm)
+                ):
+                    with patch(
+                        "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                        MagicMock(return_value=network)
+                    ):
+                        devices.attach_server_to_ethernet_card(ctx=_ctx)
 
     def test_attach_server_ethernet_card(self):
         for settings in [{

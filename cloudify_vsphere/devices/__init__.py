@@ -106,6 +106,8 @@ def attach_scsi_controller(ctx, **kwargs):
     cl = ControllerClient()
     cl.get(config=ctx.source.node.properties.get("connection_config"))
 
+    run_deferred_task(cl, ctx.source.instance)
+
     scsi_spec, controller_type = cl.generate_scsi_card(
         scsi_properties, hostvm_properties.get(VSPHERE_SERVER_ID))
 
@@ -177,8 +179,6 @@ def detach_controller(ctx, **kwargs):
         ctx.source.instance.runtime_properties.get('busKey'),
         instance=ctx.source.instance)
     del ctx.source.instance.runtime_properties['busKey']
-    controller_without_connected_networks(
-            ctx.source.instance.runtime_properties)
 
 
 @operation(resumable=True)
@@ -195,15 +195,14 @@ def detach_server_from_controller(ctx, **kwargs):
             ctx.target.instance.runtime_properties.get('busKey'),
             instance=ctx.target.instance)
         del ctx.target.instance.runtime_properties['busKey']
-    ctx.target.instance.runtime_properties = \
-        controller_without_connected_networks(
-            ctx.target.instance.runtime_properties)
 
 
 def _attach_ethernet_card(client_config, server_id, ethernet_card_properties,
                           instance):
     cl = ControllerClient()
     cl.get(config=client_config)
+
+    run_deferred_task(cl, instance)
 
     nicspec, controller_type = cl.generate_ethernet_card(
         ethernet_card_properties)
@@ -214,7 +213,9 @@ def _attach_ethernet_card(client_config, server_id, ethernet_card_properties,
 def _detach_controller(client_config, server_id, bus_key, instance):
     cl = ControllerClient()
     cl.get(config=client_config)
+
     run_deferred_task(cl, instance)
+
     cl.detach_controller(server_id, bus_key, instance)
 
 
