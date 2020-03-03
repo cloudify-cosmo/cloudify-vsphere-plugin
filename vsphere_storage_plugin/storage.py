@@ -62,7 +62,7 @@ def create(storage_client, storage, use_external_resource=False):
 
     connected_vms = [rt_properties for rt_properties in capabilities
                      if VSPHERE_SERVER_ID in rt_properties]
-    if len(connected_vms) > 1:
+    if len(connected_vms) != 1:
         raise NonRecoverableError(
             'Error during trying to create storage: storage may be '
             'connected to at most one VM')
@@ -182,8 +182,13 @@ def delete(storage_client, **kwargs):
 @op
 @with_storage_client
 def resize(storage_client, **kwargs):
-    vm_id = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_ID]
-    vm_name = ctx.instance.runtime_properties[VSPHERE_STORAGE_VM_NAME]
+    vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
+    vm_name = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_NAME)
+    if not vm_name or not vm_id:
+        ctx.logger.info(
+            'Storage resize not needed due to not being fully initialized.')
+        return
+
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
     storage_size = ctx.instance.runtime_properties.get('storage_size')
