@@ -73,4 +73,4 @@ before submission using tox environments, both PEP8(flake8) and PY27(nosetests).
 Examples
 -------
 
-For official blueprint examples using this Cloudify plugin, please see `Cloudify Community Blueprints Examples <ttps://github.com/cloudify-community/blueprint-examples/>`_.
+For official blueprint examples using this Cloudify plugin, please see `Cloudify Community Blueprints Examples <https://github.com/cloudify-community/blueprint-examples/>`_ .
