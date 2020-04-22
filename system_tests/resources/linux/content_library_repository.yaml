@@ -5,6 +5,7 @@ imports:
   - plugin:cloudify-utilities-plugin
   - plugin:cloudify-vsphere-plugin
 
+
 inputs:
 
   vcenter_user:
