@@ -38,6 +38,14 @@
       <Label>2 CPUs/4096 MB RAM</Label>
       <Description>2 CPUs and 4096 MB RAM.</Description>
     </Configuration>
+    <Configuration ovf:id="quadcpu">
+      <Label>4 CPUs/8192 MB RAM</Label>
+      <Description>4 CPUs and 8192 MB RAM.</Description>
+    </Configuration>
+    <Configuration ovf:id="octacpu">
+      <Label>8 CPUs/16384 MB RAM</Label>
+      <Description>8 CPUs and 16384 MB RAM.</Description>
+    </Configuration>
   </DeploymentOptionSection>
   <vmw:IpAssignmentSection vmw:schemes="ovfenv" vmw:protocols="IPv4">
     <Info>Supported IP assignment schemes</Info>
@@ -106,6 +114,40 @@
         <rasd:Reservation>4096</rasd:Reservation>
         <rasd:ResourceType>4</rasd:ResourceType>
         <rasd:VirtualQuantity>4096</rasd:VirtualQuantity>
+      </Item>
+      <Item ovf:configuration="quadcpu">
+        <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
+        <rasd:Description>Number of Virtual CPUs</rasd:Description>
+        <rasd:ElementName>4 virtual CPU(s)</rasd:ElementName>
+        <rasd:InstanceID>1</rasd:InstanceID>
+        <rasd:ResourceType>3</rasd:ResourceType>
+        <rasd:VirtualQuantity>4</rasd:VirtualQuantity>
+      </Item>
+      <Item ovf:configuration="quadcpu">
+        <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
+        <rasd:Description>Memory Size</rasd:Description>
+        <rasd:ElementName>8192MB of memory</rasd:ElementName>
+        <rasd:InstanceID>2</rasd:InstanceID>
+        <rasd:Reservation>8192</rasd:Reservation>
+        <rasd:ResourceType>4</rasd:ResourceType>
+        <rasd:VirtualQuantity>8192</rasd:VirtualQuantity>
+      </Item>
+      <Item ovf:configuration="octacpu">
+        <rasd:AllocationUnits>hertz * 10^6</rasd:AllocationUnits>
+        <rasd:Description>Number of Virtual CPUs</rasd:Description>
+        <rasd:ElementName>8 virtual CPU(s)</rasd:ElementName>
+        <rasd:InstanceID>1</rasd:InstanceID>
+        <rasd:ResourceType>3</rasd:ResourceType>
+        <rasd:VirtualQuantity>8</rasd:VirtualQuantity>
+      </Item>
+      <Item ovf:configuration="octacpu">
+        <rasd:AllocationUnits>byte * 2^20</rasd:AllocationUnits>
+        <rasd:Description>Memory Size</rasd:Description>
+        <rasd:ElementName>16384MB of memory</rasd:ElementName>
+        <rasd:InstanceID>2</rasd:InstanceID>
+        <rasd:Reservation>16384</rasd:Reservation>
+        <rasd:ResourceType>4</rasd:ResourceType>
+        <rasd:VirtualQuantity>16384</rasd:VirtualQuantity>
       </Item>
       <Item>
         <rasd:Address>0</rasd:Address>
