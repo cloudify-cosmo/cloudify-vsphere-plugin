@@ -16,6 +16,7 @@
 import string
 
 # Third party imports
+import six
 
 # Cloudify imports
 from cloudify.exceptions import NonRecoverableError, OperationRetry
@@ -113,15 +114,15 @@ def validate_connect_network(_network):
 
     # The charges.
     network_validations = {
-        'name': (basestring, None),
+        'name': (six.string_types, None),
         'from_relationship': (bool, False),
         'external': (bool, False),
         'management': (bool, False),
         'switch_distributed': (bool, False),
         'use_dhcp': (bool, True),
-        'network': (basestring, None),
-        'gateway': (basestring, None),
-        'ip': (basestring, None)
+        'network': (six.string_types, None),
+        'gateway': (six.string_types, None),
+        'ip': (six.string_types, None)
     }
 
     # Assumed innocent until proven guilty.
@@ -212,11 +213,11 @@ def create_new_server(
         )
     )
 
-    if isinstance(allowed_hosts, basestring):
+    if isinstance(allowed_hosts, six.string_types):
         allowed_hosts = [allowed_hosts]
-    if isinstance(allowed_clusters, basestring):
+    if isinstance(allowed_clusters, six.string_types):
         allowed_clusters = [allowed_clusters]
-    if isinstance(allowed_datastores, basestring):
+    if isinstance(allowed_datastores, six.string_types):
         allowed_datastores = [allowed_datastores]
 
     domain = networking.get('domain')

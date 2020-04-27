@@ -91,7 +91,7 @@ class WindowsCommandHelper(object):
             arguments=r'/c {cmd} 2>&1 > c:\windows\temp\cfy_test_cmd'.format(
                 cmd=command))
 
-        for i in range(timeout / 3):
+        for i in range(timeout // 3):
             try:
                 pid = pm.StartProgramInGuest(vm, creds, ps)
                 break
@@ -104,7 +104,7 @@ class WindowsCommandHelper(object):
         else:
             raise CommandTimeoutError('running', command)
 
-        for i in range(timeout / 3):
+        for i in range(timeout // 3):
             sleep(3)
             procs = {
                 proc.pid: proc
