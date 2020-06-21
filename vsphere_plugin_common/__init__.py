@@ -2546,7 +2546,7 @@ class ServerClient(VsphereClient):
             if not vm.summary.config.template:
                 try:
                     used_memory += int(vm.summary.config.memorySizeMB)
-                except StandardError:
+                except Exception:
                     self._logger.warning(
                         "Incorrect value for memorySizeMB. It is {0} but "
                         "integer value is expected"
@@ -2572,7 +2572,7 @@ class ServerClient(VsphereClient):
         for vm in host.vm:
             try:
                 total_assigned += int(vm.summary.config.numCpu)
-            except StandardError:
+            except Exception:
                 self._logger.warning("Incorrect value for numCpu. It is "
                                      "{0} but integer value is expected"
                                      .format(vm.summary.config.numCpu))
