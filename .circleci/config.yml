@@ -11,6 +11,10 @@ checkout:
 
 
 executors:
+  py2715:
+    docker:
+      - image: circleci/python:2.7.15-stretch
+
   py27:
     docker:
       - image: circleci/python:2.7
@@ -36,6 +40,9 @@ commands:
           command: |
             git submodule init
             git submodule update --remote --recursive
+      - run:
+          name: update packages list
+          command: sudo apt-get update
       - run:
           name: install tox
           command: pip install --user tox
@@ -205,7 +212,7 @@ commands:
 jobs:
 
   unittests_py27:
-    executor: py27
+    executor: py2715
     steps:
       - checkout
       - run_unittest

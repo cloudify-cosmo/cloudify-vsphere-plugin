@@ -12,9 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Stdlib imports
-import string
-
 # Third party imports
 
 # Cloudify imports
@@ -39,6 +36,7 @@ from vsphere_plugin_common.constants import (
     VSPHERE_RESOURCE_EXTERNAL,
     VSPHERE_RESOURCE_EXISTING,
 )
+from vsphere_plugin_common._compat import text_type
 
 RELATIONSHIP_VM_TO_NIC = \
     'cloudify.relationships.vsphere.server_connected_to_nic'
@@ -113,15 +111,15 @@ def validate_connect_network(_network):
 
     # The charges.
     network_validations = {
-        'name': (basestring, None),
+        'name': (text_type, None),
         'from_relationship': (bool, False),
         'external': (bool, False),
         'management': (bool, False),
         'switch_distributed': (bool, False),
         'use_dhcp': (bool, True),
-        'network': (basestring, None),
-        'gateway': (basestring, None),
-        'ip': (basestring, None)
+        'network': (text_type, None),
+        'gateway': (text_type, None),
+        'ip': (text_type, None)
     }
 
     # Assumed innocent until proven guilty.
@@ -137,7 +135,7 @@ def validate_connect_network(_network):
         del network_validations['name']
 
     # We review each charge as a distinct offense.
-    for key, value in _network.items():
+    for key, value in list(_network.items()):
 
         try:
             # We check if the defendant has an alibi.
@@ -163,7 +161,7 @@ def validate_connect_network(_network):
                     key, expected_type, _network[key]))
 
     if validation_error:
-        raise NonRecoverableError(str(validation_error_messages))
+        raise NonRecoverableError(text_type(validation_error_messages))
 
     # We return the citizen its rights.
     for validation_key, (_, default_value) in network_validations.items():
@@ -192,8 +190,7 @@ def create_new_server(
         extra_config=None,
         enable_start_vm=True,
         postpone_delete_networks=False,
-        instance=None,
-        ):
+        instance=None):
     vm_name = get_vm_name(ctx, server, os_family)
     ctx.logger.info(
         'Creating new server with name: {name}'.format(name=vm_name))
@@ -212,11 +209,11 @@ def create_new_server(
         )
     )
 
-    if isinstance(allowed_hosts, basestring):
+    if isinstance(allowed_hosts, text_type):
         allowed_hosts = [allowed_hosts]
-    if isinstance(allowed_clusters, basestring):
+    if isinstance(allowed_clusters, text_type):
         allowed_clusters = [allowed_clusters]
-    if isinstance(allowed_datastores, basestring):
+    if isinstance(allowed_datastores, text_type):
         allowed_datastores = [allowed_datastores]
 
     domain = networking.get('domain')
@@ -266,9 +263,9 @@ def create_new_server(
     # Computer name may only contain A-Z, 0-9, and hyphens
     # May not be entirely digits
     valid_name = True
-    if vm_name.strip(string.digits) == '':
+    if [c for c in vm_name if not c.isdigit()]:
         valid_name = False
-    elif vm_name.strip(string.letters + string.digits + '-') != '':
+    elif [c for c in vm_name if not c.isalnum()] + '-' != '':
         valid_name = False
     if not valid_name:
         raise NonRecoverableError(
@@ -303,8 +300,7 @@ def create_new_server(
         vm_folder=vm_folder,
         extra_config=extra_config,
         enable_start_vm=enable_start_vm,
-        postpone_delete_networks=postpone_delete_networks,
-        )
+        postpone_delete_networks=postpone_delete_networks)
     ctx.logger.info('Successfully created server called {name}'.format(
                     name=vm_name))
     return server_obj
@@ -333,8 +329,7 @@ def start(
         postpone_delete_networks=False,
         cdrom_image=None,
         vm_folder=None,
-        extra_config=None,
-        ):
+        extra_config=None):
     ctx.logger.debug("Checking whether server exists...")
 
     server_obj = None
@@ -372,8 +367,7 @@ def start(
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
             postpone_delete_networks=postpone_delete_networks,
-            instance=ctx.instance,
-            )
+            instance=ctx.instance)
     else:
         server_client.update_server(server=server_obj,
                                     cdrom_image=cdrom_image,
@@ -430,10 +424,8 @@ def shutdown_guest(ctx, server_client, server, os_family):
 @op
 @with_server_client
 def stop(ctx, server_client, server, os_family, force_stop=False):
-    if (
-        ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL) and
-        not force_stop
-    ):
+    if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL) and not \
+            force_stop:
         ctx.logger.info('Used existing resource.')
         return
     elif force_stop:
@@ -583,10 +575,8 @@ def snapshot_delete(ctx, server_client, server, os_family, snapshot_name,
 @op
 @with_server_client
 def delete(ctx, server_client, server, os_family, force_delete):
-    if (
-        ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL) and
-        not force_delete
-    ):
+    if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL) \
+            and not force_delete:
         ctx.logger.info('Used existing resource.')
         return
     elif force_delete:
@@ -748,8 +738,8 @@ def get_state(ctx, server_client, server, networking, os_family, wait_ip):
 def resize_server(
         ctx, server_client,
         server, os_family,
-        cpus=None, memory=None,
-        ):
+        cpus=None, memory=None):
+
     if not any((
         cpus,
         memory,
@@ -818,7 +808,7 @@ def resize(ctx, server_client, server, os_family):
 
 
 def _get_server_details(ctx, server_client, server_obj):
-    ctx.instance.runtime_properties[VSPHERE_SERVER_HOST] = str(
+    ctx.instance.runtime_properties[VSPHERE_SERVER_HOST] = text_type(
         server_obj.summary.runtime.host.name)
     ctx.instance.runtime_properties[VSPHERE_SERVER_ID] = server_obj.id
     ctx.instance.runtime_properties['name'] = server_obj.name

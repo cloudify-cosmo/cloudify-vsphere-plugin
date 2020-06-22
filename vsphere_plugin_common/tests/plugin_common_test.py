@@ -12,38 +12,42 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import BaseHTTPServer
-import multiprocessing
 import os
-import SimpleHTTPServer
-import socket
 import ssl
-import subprocess
 import time
+import socket
 import unittest
+import subprocess
+import multiprocessing
 
 from mock import Mock, MagicMock, patch, call
 
-from cloudify.exceptions import NonRecoverableError, OperationRetry
 from cloudify.state import current_ctx
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 import vsphere_plugin_common
+from vsphere_plugin_common._compat import (
+    HTTPServer,
+    SimpleHTTPRequestHandler)
 
 
 class WebServer(object):
-    def __init__(self, port=4443,
-                 key='private.pem', cert='public.pem',
-                 badkey='badkey.pem', badcert='badcert.pem'):
+
+    def __init__(self,
+                 port=4443,
+                 key='private.pem',
+                 cert='public.pem',
+                 badkey='badkey.pem',
+                 badcert='badcert.pem'):
+
         self.key = key
         self.cert = cert
         self.badkey = badkey
         self.badcert = badcert
-        for i in range(0, 6):
+        for i in range(0, 10):
             try:
-                self.httpd = BaseHTTPServer.HTTPServer(
-                    ('localhost', port),
-                    SimpleHTTPServer.SimpleHTTPRequestHandler,
-                )
+                self.httpd = HTTPServer(
+                    ('localhost', port), SimpleHTTPRequestHandler)
             except socket.error:
                 time.sleep(0.5)
 
@@ -1677,8 +1681,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
         result = client.recurse_resource_pools(pool)
 
         # We should have the same in each list, but order is unimportant
-        expected.sort()
-        result.sort()
+        # expected.sort()
+        # result.sort()
 
         self.assertEqual(result, expected)
 
@@ -2100,14 +2104,12 @@ class VspherePluginsCommonTests(unittest.TestCase):
         values[1].value = 8
         vals = client.custom_values(server)
 
-        out = vals.items()
-
         self.assertEqual(
             {
                 'Lever': 5,
                 'Yale': 8,
             },
-            dict(out))
+            dict(vals.items()))
 
     def test_len_custom_attr(self):
         client = vsphere_plugin_common.ServerClient()
@@ -2163,6 +2165,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                             unexpected_nre_message_contents=(),
                             expected_warn_message_contents=(),
                             unexpected_warn_message_contents=()):
+
         cfg = {
             'host': '127.0.0.1',
             'username': 'user',

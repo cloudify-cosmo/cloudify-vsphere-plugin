@@ -61,13 +61,13 @@ def create(rawvolume_client, files, files_raw, datacenter_name,
     iso_disk = "{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)
     datacenter_id, storage_file_name = rawvolume_client.upload_file(
-            datacenter_name=datacenter_name,
-            allowed_datastores=allowed_datastores,
-            allowed_datastore_ids=allowed_datastore_ids,
-            remote_file=iso_disk,
-            data=outiso,
-            host=ctx.node.properties['connection_config']['host'],
-            port=ctx.node.properties['connection_config']['port'])
+        datacenter_name=datacenter_name,
+        allowed_datastores=allowed_datastores,
+        allowed_datastore_ids=allowed_datastore_ids,
+        remote_file=iso_disk,
+        data=outiso,
+        host=ctx.node.properties['connection_config']['host'],
+        port=ctx.node.properties['connection_config']['port'])
     runtime_properties[VSPHERE_STORAGE_IMAGE] = storage_file_name
     runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_file_name
     runtime_properties[DATACENTER_ID] = datacenter_id

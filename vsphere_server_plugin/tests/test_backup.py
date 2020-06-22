@@ -553,9 +553,9 @@ class BackupServerTest(unittest.TestCase):
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={
-                                    'connect_networks': [{
-                                        'name': 'other_net',
-                                        'management': True
+                                     'connect_networks': [{
+                                         'name': 'other_net',
+                                         'management': True
                                      }]
                                  }))
         self.assertEqual(
@@ -576,9 +576,9 @@ class BackupServerTest(unittest.TestCase):
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={
-                                    'connect_networks': [{
-                                        'name': 'broken',
-                                        'management': True
+                                     'connect_networks': [{
+                                         'name': 'broken',
+                                         'management': True
                                      }]
                                  })
 
@@ -594,17 +594,20 @@ class BackupServerTest(unittest.TestCase):
             mock.Mock(return_value=vm)
         ):
             self.assertFalse(
-                server.get_state(ctx=ctx,
-                                 server_client=None,
-                                 server={"name": "server_name"},
-                                 os_family="solaris",
-                                 wait_ip=True,
-                                 networking={
-                                    'connect_networks': [{
-                                        'name': 'other_net',
-                                        'management': True
-                                     }]
-                                 }))
+                server.get_state(
+                    ctx=ctx,
+                    server_client=None,
+                    server={"name": "server_name"},
+                    os_family="solaris",
+                    wait_ip=True,
+                    networking={
+                        'connect_networks': [
+                            {
+                                'name': 'other_net',
+                                'management': True
+                            }
+                        ]
+                    }))
 
     @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
     @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())

@@ -41,7 +41,7 @@ setuptools.setup(
         "pyvmomi>=6.7.3",
         "netaddr>=0.7.19",
         "pyyaml>=3.12",
-        "cloudify-utilities-plugins-sdk==0.0.13", # cdrom create code
-        "requests", # content library
+        "cloudify-utilities-plugins-sdk==0.0.26", # cdrom create code
+        "requests"
     ],
 )

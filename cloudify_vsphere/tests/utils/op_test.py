@@ -95,8 +95,7 @@ def test_op_inputs_only(ctx):
     assert (ctx, obj, obj2, obj) == example_operation(
         has=obj,
         some=obj2,
-        args=obj,
-        )
+        args=obj)
 
 
 def test_op_inputs_override_properties(ctx):

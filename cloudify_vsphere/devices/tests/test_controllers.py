@@ -259,7 +259,7 @@ class VsphereControllerTest(unittest.TestCase):
                             "Have not found key for new added device")
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
                 self.assertEqual(args, ())
-                self.assertEqual(kwargs.keys(), ['spec'])
+                self.assertEqual(list(kwargs.keys()), ['spec'])
                 new_adapter = str(
                     type(kwargs['spec'].deviceChange[0].device))
                 runtime_properties = _ctx.target.instance.runtime_properties
@@ -356,7 +356,7 @@ class VsphereControllerTest(unittest.TestCase):
                                      "Have not found key for new added device")
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
                 self.assertEqual(args, ())
-                self.assertEqual(kwargs.keys(), ['spec'])
+                self.assertEqual(list(kwargs.keys()), ['spec'])
                 new_adapter = str(type(kwargs['spec'].deviceChange[0].device))
                 runtime_properties = _ctx.source.instance.runtime_properties
                 if settings.get('adapterType') == "lsilogic":
@@ -404,19 +404,19 @@ class VsphereControllerTest(unittest.TestCase):
 
     def test_attach_scsi_controller(self):
         for settings in [{
-           'adapterType': None,
-           'label': "Cloudify",
-           'hotAddRemove': False,
-           "sharedBus": "virtualSharing"
+            'adapterType': None,
+            'label': "Cloudify",
+            'hotAddRemove': False,
+            "sharedBus": "virtualSharing"
         }, {
-           'adapterType': "lsilogic",
-           'label': "Cloudify",
-           "scsiCtlrUnitNumber": 100,
-           "sharedBus": "physicalSharing"
+            'adapterType': "lsilogic",
+            'label': "Cloudify",
+            "scsiCtlrUnitNumber": 100,
+            "sharedBus": "physicalSharing"
         }, {
-           'adapterType': "lsilogic_sas",
-           'label': "Cloudify",
-           'hotAddRemove': True
+            'adapterType': "lsilogic_sas",
+            'label': "Cloudify",
+            'hotAddRemove': True
         }]:
             self.check_attach_scsi_controller(settings)
 
@@ -493,7 +493,7 @@ class VsphereControllerTest(unittest.TestCase):
 
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
                 self.assertEqual(args, ())
-                self.assertEqual(kwargs.keys(), ['spec'])
+                self.assertEqual(list(kwargs.keys()), ['spec'])
 
                 # successful attach
                 runtime_properties = _ctx.target.instance.runtime_properties

@@ -12,8 +12,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-# Stdlib imports
-import urllib
 
 # Third party imports
 
@@ -27,12 +25,13 @@ from vsphere_plugin_common import (
 )
 from vsphere_plugin_common.constants import (
     NETWORK_ID,
-    NETWORK_NAME,
-    SWITCH_DISTRIBUTED,
     NETWORK_MTU,
+    NETWORK_NAME,
     NETWORK_CIDR,
     NETWORK_STATUS,
+    SWITCH_DISTRIBUTED,
 )
+from vsphere_plugin_common._compat import unquote
 from cloudify_vsphere.utils.feedback import check_name_for_special_characters
 
 
@@ -169,7 +168,7 @@ def get_network_name(ctx, network):
 
 
 def _get_network_ids(name, distributed, client, use_cached=True):
-    name = urllib.unquote(name)
+    name = unquote(name)
     if distributed:
         networks = client._get_dv_networks(use_cached)
         networks = [

@@ -15,23 +15,22 @@
 from __future__ import division
 
 # Stdlib imports
-import atexit
 import os
 import re
 import ssl
 import time
-import urllib
-import netaddr
-from collections import MutableMapping
+import atexit
 from copy import copy
 from functools import wraps
+from collections import namedtuple, MutableMapping
 
 # Third party imports
 import yaml
-from netaddr import IPNetwork
-from pyVim.connect import SmartConnect, SmartConnectNoSSL, Disconnect
-from pyVmomi import vim, vmodl
+import netaddr
 import requests
+from netaddr import IPNetwork
+from pyVmomi import vim, vmodl
+from pyVim.connect import SmartConnect, SmartConnectNoSSL, Disconnect
 
 # Cloudify imports
 from cloudify import ctx
@@ -39,7 +38,7 @@ from cloudify import context
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
-from vsphere_plugin_common.constants import (
+from .constants import (
     DEFAULT_CONFIG_PATH,
     IP,
     NETWORK_ID,
@@ -54,7 +53,9 @@ from vsphere_plugin_common.constants import (
     ASYNC_TASK_ID,
     ASYNC_RESOURCE_ID,
 )
-from collections import namedtuple
+from ._compat import (
+    unquote,
+    text_type)
 from cloudify_vsphere.utils.feedback import logger, prepare_for_log
 
 
@@ -76,8 +77,7 @@ def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
 def remove_runtime_properties(instance):
     # cleanup runtime properties
     # need to convert generaton to list, python 3
-    keys = [key for key in instance.runtime_properties.keys()]
-    for key in keys:
+    for key in list(instance.runtime_properties.keys()):
         del instance.runtime_properties[key]
     # save flag as current state before external call
     instance.update()
@@ -209,12 +209,12 @@ class CustomValues(MutableMapping):
 class VsphereClient(object):
 
     def __init__(self):
+        self.cfg = {}
         self._cache = {}
         self._logger = logger()
 
-    def get(self, config=None, *args, **kw):
+    def get(self, config=None, *_, **__):
         static_config = Config().get()
-        self.cfg = {}
         self.cfg.update(static_config)
         if config:
             self.cfg.update(config)
@@ -227,6 +227,7 @@ class VsphereClient(object):
         username = cfg['username']
         password = cfg['password']
         port = cfg['port']
+
         certificate_path = cfg.get('certificate_path')
         # Until the next major release this will have limited effect, but is
         # in place to allow a clear path to the next release for users
@@ -274,16 +275,14 @@ class VsphereClient(object):
                     )
                 ssl_context.load_verify_locations(certificate_path)
             except ssl.SSLError as err:
-                if 'unknown error' in str(err).lower():
+                if 'unknown error' in text_type(err).lower() or \
+                        'no certificate or crl found' in \
+                        text_type(err).lower():
                     raise NonRecoverableError(
                         'Could not create SSL context with provided '
                         'certificate {path}. This problem may be caused by '
                         'the certificate not being in the correct format '
-                        '(PEM).'.format(
-                            host=host,
-                            path=certificate_path,
-                        )
-                    )
+                        '(PEM).'.format(path=certificate_path))
                 else:
                     raise
         elif not allow_insecure:
@@ -388,7 +387,7 @@ class VsphereClient(object):
         """
             Get the normalised form of a platform entity's name.
         """
-        name = urllib.unquote(name)
+        name = unquote(name)
         return name.lower() if tolower else name
 
     def _make_cached_object(self, obj_name, props_dict, platform_results,
@@ -436,10 +435,8 @@ class VsphereClient(object):
                             if other_entity.id in mapping_ids
                         ]
 
-                        if (
-                            map_type == 'static' and
-                            len(mapped) != len(args[mapping])
-                        ):
+                        if map_type == 'static' and \
+                                len(mapped) != len(args[mapping]):
                             mapped = None
 
                     if mapped is None:
@@ -468,7 +465,7 @@ class VsphereClient(object):
                 root_object=False,
             )
 
-        if 'name' in args.keys():
+        if 'name' in args:
             args['name'] = self._get_normalised_name(args['name'], False)
 
         result = obj(
@@ -542,7 +539,7 @@ class VsphereClient(object):
                 'Resource pools changed while getting resource pool details.'
             )
 
-        if 'name' in this_pool.keys():
+        if 'name' in this_pool:
             this_pool['name'] = self._get_normalised_name(this_pool['name'],
                                                           False)
 
@@ -731,7 +728,7 @@ class VsphereClient(object):
 
         networks = []
         for item in results:
-            if 'name' in item.keys():
+            if 'name' in item:
                 item['name'] = self._get_normalised_name(item['name'], False)
 
             network = net_object(
@@ -901,8 +898,9 @@ class VsphereClient(object):
             use_cache=use_cache,
             other_entity_mappings={
                 'single': {
-                    'parent': (self._get_clusters(use_cache=use_cache) +
-                               self._get_computes(use_cache=use_cache)),
+                    'parent': self._get_clusters(
+                        use_cache=use_cache) + self._get_computes(
+                        use_cache=use_cache),
                 },
                 'dynamic': {
                     'vm': self._get_vms(use_cache=use_cache),
@@ -1380,50 +1378,45 @@ class ServerClient(VsphereClient):
             # Use lowercase name for comparison as vSphere appears to be case
             # insensitive for this.
             if switch_distributed:
-                error_message = (
-                    'Distributed network "{name}" not present on vSphere.'
-                )
+                error_message = \
+                    'Distributed network "{name}" ' \
+                    'not present on vSphere.'.format(name=network_name)
                 if network_name not in distributed_port_groups:
                     if network_name in port_groups:
                         issues.append(
-                            (error_message + ' However, this is present as a '
-                             'standard network. You may need to set the '
-                             'switch_distributed setting for this network to '
-                             'false.').format(name=network_name)
+                            error_message + ' However, this is present as a '
+                            'standard network. You may need to set the '
+                            'switch_distributed setting for this network to '
+                            'false.'
                         )
                     else:
-                        issues.append(error_message.format(name=network_name))
+                        issues.append(error_message)
                         list_distributed_networks = True
             else:
-                error_message = 'Network "{name}" not present on vSphere.'
+                error_message = \
+                    'Network "{name}" not present on vSphere.'.format(
+                        name=network_name)
                 if network_name not in port_groups:
                     if network_name in distributed_port_groups:
                         issues.append(
-                            (error_message + ' However, this is present as a '
-                             'distributed network. You may need to set the '
-                             'switch_distributed setting for this network to '
-                             'true.').format(name=network_name)
+                            error_message + ' However, this is present as a '
+                            'distributed network. You may need to set the '
+                            'switch_distributed setting for this network to '
+                            'true.'
                         )
                     else:
-                        issues.append(error_message.format(name=network_name))
+                        issues.append(error_message)
                         list_networks = True
 
             if list_distributed_networks:
                 issues.append(
-                    (' Available distributed networks '
-                     'are: {nets}.').format(
-                        name=network_name,
-                        nets=', '.join(distributed_port_groups),
-                    )
-                )
+                    ' Available distributed networks '
+                    'are: {nets}.'.format(
+                        nets=', '.join(distributed_port_groups)))
             if list_networks:
                 issues.append(
-                    (' Available networks are: '
-                     '{nets}.').format(
-                        name=network_name,
-                        nets=', '.join(port_groups),
-                    )
-                )
+                    ' Available networks are: '
+                    '{nets}.'.format(nets=', '.join(port_groups)))
 
         if issues:
             issues.insert(0, 'Issues found while validating inputs:')
@@ -1434,8 +1427,7 @@ class ServerClient(VsphereClient):
             self,
             custom_sysprep,
             windows_organization,
-            windows_password,
-            ):
+            windows_password):
         issues = []
 
         if windows_password == '':
@@ -1603,10 +1595,8 @@ class ServerClient(VsphereClient):
                     vim.vm.device.VirtualDeviceSpec.Operation.remove
                 devices.append(nicspec)
             # remove cdrom when we have cloudinit
-            elif (
-                isinstance(device, vim.vm.device.VirtualCdrom) and
-                cdrom_image
-            ):
+            elif isinstance(device, vim.vm.device.VirtualCdrom) and \
+                    cdrom_image:
                 self._logger.warn(
                     'Edit cdrom from template. '
                     'Template should have no inserted cdroms.')
@@ -1712,8 +1702,7 @@ class ServerClient(VsphereClient):
             vm_folder=None,
             extra_config=None,
             enable_start_vm=True,
-            postpone_delete_networks=False,
-            ):
+            postpone_delete_networks=False):
         self._logger.debug(
             "Entering create_server with parameters %s"
             % prepare_for_log(locals()))
@@ -1869,10 +1858,9 @@ class ServerClient(VsphereClient):
                     windows_password = agent_config.get('password')
 
                 self._validate_windows_properties(
-                        custom_sysprep,
-                        windows_organization,
-                        windows_password,
-                        )
+                    custom_sysprep,
+                    windows_organization,
+                    windows_password)
 
                 if custom_sysprep is not None:
                     ident = vim.vm.customization.SysprepText()
@@ -2329,10 +2317,9 @@ class ServerClient(VsphereClient):
         if candidate_hosts:
             return candidate_hosts
         else:
-            message = (
-                "No healthy hosts could be found with resource pool {pool}, "
-                "and all required networks."
-            ).format(pool=resource_pool, memory=vm_memory)
+            message = "No healthy hosts could be found with resource pool " \
+                      "{pool}, and all required networks.".format(
+                          pool=resource_pool)
 
             if allowed_hosts:
                 message += " Only these hosts were allowed: {hosts}".format(
@@ -2423,9 +2410,7 @@ class ServerClient(VsphereClient):
                 if len(datastores) == 0:
                     self._logger.warn(
                         'Host {host} had no allowed datastores.'.format(
-                            host=host.name,
-                        )
-                    )
+                            host=host.name))
                     continue
 
             self._logger.debug(
@@ -2671,10 +2656,8 @@ class ServerClient(VsphereClient):
             Return the name of the cluster this host is part of,
             or None if it is not part of a cluster.
         """
-        if (
-            isinstance(host.parent, vim.ClusterComputeResource) or
-            isinstance(host.parent.obj, vim.ClusterComputeResource)
-        ):
+        if isinstance(host.parent, vim.ClusterComputeResource) or \
+                isinstance(host.parent.obj, vim.ClusterComputeResource):
             return host.parent.name
         else:
             return None
@@ -2767,12 +2750,9 @@ class ServerClient(VsphereClient):
                     )
                 )
                 continue
-            if (
-                network.network and
-                network_name.lower() == self._get_normalised_name(
-                    network.network) and
-                len(network.ipAddress) > 0
-            ):
+            if network.network and \
+                    network_name.lower() == self._get_normalised_name(
+                        network.network) and len(network.ipAddress) > 0:
                 ip_address = get_ip_from_vsphere_nic_ips(network, ignore_local)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
@@ -2895,7 +2875,7 @@ class NetworkClient(VsphereClient):
         self, port_group_name, vlan_id, vswitch_name, instance
     ):
         self._logger.debug("Entering create port procedure.")
-        if NETWORK_STATUS not in instance.runtime_properties.keys():
+        if NETWORK_STATUS not in instance.runtime_properties:
             instance.runtime_properties[NETWORK_STATUS] = 'preparing'
             instance.update()
 
@@ -3033,7 +3013,7 @@ class NetworkClient(VsphereClient):
                         "Port group(s) info: \n%s." % "".join(
                             "%s: %s" % item
                             for item in
-                            vars(port_group).items()))
+                            list(vars(port_group).items())))
                     result.append(port_group)
         return result
 
@@ -3114,10 +3094,8 @@ class NetworkClient(VsphereClient):
                     network_distributed = isinstance(
                         association.network,
                         vim.dvs.DistributedVirtualPortgroup)
-                    if (
-                        association.networkName == name and
-                        network_distributed == switch_distributed
-                    ):
+                    if association.networkName == name and \
+                            network_distributed == switch_distributed:
                         # convert network information to CIDR
                         return str(netaddr.IPNetwork(
                             '{network}/{netmask}'
@@ -3527,18 +3505,17 @@ class StorageClient(VsphereClient):
         disk_to_resize = None
         devices = vm.config.hardware.device
         for device in devices:
-            if (isinstance(device, vim.vm.device.VirtualDisk) and
-                    device.backing.fileName == storage_filename):
+            if isinstance(device, vim.vm.device.VirtualDisk) and \
+                    device.backing.fileName == storage_filename:
                 disk_to_resize = device
 
         if disk_to_resize is None:
             raise NonRecoverableError(
                 'Error during trying to resize storage: storage not found')
 
-        if (
-            disk_to_resize.capacityInKB == storage_size * 1024 * 1024 and
-            disk_to_resize.capacityInBytes == storage_size * 1024 * 1024 * 1024
-        ):
+        if disk_to_resize.capacityInKB == storage_size * 1024 * 1024 and \
+                disk_to_resize.capacityInBytes == \
+                storage_size * 1024 * 1024 * 1024:
             self._logger.debug("Storage size is {}".format(storage_size))
             return
         updated_devices = []
@@ -3795,10 +3772,8 @@ def _with_client(client_name, client):
                 result = f(*args, **kwargs)
                 # in delete action
                 current_action = ctx.operation.name
-                if (
-                    current_action == DELETE_NODE_ACTION and
-                    ctx.type == context.NODE_INSTANCE
-                ):
+                if current_action == DELETE_NODE_ACTION and \
+                        ctx.type == context.NODE_INSTANCE:
                     # no retry actions
                     if not ctx.instance.runtime_properties.get(ASYNC_TASK_ID):
                         ctx.logger.info('Cleanup resource.')

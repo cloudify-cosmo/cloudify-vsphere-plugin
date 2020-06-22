@@ -21,9 +21,15 @@ PY2 = sys.version_info[0] == 2
 
 if PY2:
     text_type = unicode
+    from urllib import unquote
+    from BaseHTTPServer import HTTPServer
+    from  SimpleHTTPServer import SimpleHTTPRequestHandler
 else:
     text_type = str
+    from urllib.parse import unquote
+    from http.server import SimpleHTTPRequestHandler
+    from http.server import HTTPServer
 
 __all__ = [
-    'PY2', 'text_type'
+    'PY2', 'text_type', 'unquote', 'HTTPServer', 'SimpleHTTPRequestHandler',
 ]

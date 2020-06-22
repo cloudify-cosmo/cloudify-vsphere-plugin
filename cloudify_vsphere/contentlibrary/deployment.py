@@ -69,9 +69,9 @@ def create(ctx, connection_config, library_name, template_name, target,
 
     ctx.logger.debug("Deploying {content_item_id} to {target} "
                      "with {deployment_spec}".format(
-                        content_item_id=content_item_id,
-                        target=repr(target),
-                        deployment_spec=repr(deployment_spec)))
+                         content_item_id=content_item_id,
+                         target=repr(target),
+                         deployment_spec=repr(deployment_spec)))
     deployment = content.content_item_deploy(content_item_id, target,
                                              deployment_spec)
     ctx.logger.info("VM template deployed with id: {vm_id} and name: {vm_name}"

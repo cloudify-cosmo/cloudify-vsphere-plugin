@@ -12,6 +12,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import os
 import unittest
 
@@ -24,6 +25,7 @@ import vsphere_plugin_common
 
 
 class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
+
     def setUp(self):
         super(VspherePluginCommonFSTests, self).setUp()
         self.setUpPyfakefs()
@@ -34,7 +36,7 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
     def _simple_deprecated_test(self, path, mock_ctx):
         evaled_path = os.getenv(path, path)
         expanded_path = os.path.expanduser(evaled_path)
-        self.fs.CreateFile(expanded_path)
+        self.fs.create_file(expanded_path)
 
         config = vsphere_plugin_common.Config()
         ret = config._find_config_file()
