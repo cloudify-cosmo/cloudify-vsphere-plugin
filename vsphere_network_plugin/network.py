@@ -44,18 +44,19 @@ def create(ctx, network_client, network, use_external_resource):
     port_group_name = network['name']
     switch_distributed = network['switch_distributed']
 
-    existing_id = _get_network_ids(
+    network_id = _get_network_ids(
         name=port_group_name,
         distributed=switch_distributed,
         client=network_client,
     )
 
-    runtime_properties = ctx.instance.runtime_properties
-
-    creating = runtime_properties.get(NETWORK_STATUS) == 'creating'
+    creating = \
+        ctx.instance.runtime_properties.get(NETWORK_STATUS) == 'creating'
+    created = \
+        ctx.instance.runtime_properties.get(NETWORK_STATUS) == 'created'
 
     if use_external_resource:
-        if not existing_id:
+        if not network_id:
             raise NonRecoverableError(
                 'Could not use existing {distributed}network "{name}" as no '
                 '{distributed}network by that name exists!'.format(
@@ -63,31 +64,28 @@ def create(ctx, network_client, network, use_external_resource):
                     distributed='distributed ' if switch_distributed else '',
                 )
             )
-        network_id = existing_id
     else:
-        if existing_id and runtime_properties.get(NETWORK_STATUS) == 'created':
+        if network_id and created:
             ctx.logger.info('Instance is already created.')
-        elif existing_id and creating and switch_distributed:
+        elif network_id and creating and switch_distributed:
             ctx.instance.runtime_properties[NETWORK_STATUS] = 'created'
             ctx.instance.update()
         else:
-            if existing_id and not creating:
+            if network_id and not creating:
                 raise NonRecoverableError(
-                    'Could not create new {distributed}network "{name}" as a '
-                    '{distributed}network by that name already exists!'
-                    .format(
+                    'Could not create new {distributed} network "{name}" as '
+                    'a {distributed} network by that name '
+                    'already exists.'.format(
                         name=port_group_name,
                         distributed=(
-                            'distributed ' if switch_distributed else ''),
-                    )
-                )
+                            'distributed ' if switch_distributed else '')))
             vlan_id = network['vlan_id']
             vswitch_name = network['vswitch_name']
 
             ctx.logger.info(
                 'Creating {type} called {name} and VLAN {vlan} on '
                 '{vswitch}'.format(
-                    type=get_network_type(ctx, network),
+                    type=get_network_type(network),
                     name=network['name'],
                     vlan=network['vlan_id'],
                     vswitch=network['vswitch_name'],
@@ -104,7 +102,7 @@ def create(ctx, network_client, network, use_external_resource):
                                                  vswitch_name,
                                                  instance=ctx.instance)
             ctx.logger.info('Successfully created {type}: {name}'.format(
-                            type=get_network_type(ctx, network),
+                            type=get_network_type(network),
                             name=network['name']))
         # update networks id's
         network_id = _get_network_ids(
@@ -136,13 +134,13 @@ def delete(ctx, network_client, network, use_external_resource):
     if use_external_resource:
         ctx.logger.info(
             'Not deleting existing {type}: {name}'.format(
-                type=get_network_type(ctx, network),
+                type=get_network_type(network),
                 name=network['name'],
             )
         )
     else:
         ctx.logger.info('Deleting {type}: {name}'.format(
-                        type=get_network_type(ctx, network),
+                        type=get_network_type(network),
                         name=network['name']))
         if switch_distributed:
             network_client.delete_dv_port_group(port_group_name,
@@ -150,11 +148,11 @@ def delete(ctx, network_client, network, use_external_resource):
         else:
             network_client.delete_port_group(port_group_name)
         ctx.logger.info('Successfully deleted {type}: {name}'.format(
-                        type=get_network_type(ctx, network),
+                        type=get_network_type(network),
                         name=network['name']))
 
 
-def get_network_type(ctx, network):
+def get_network_type(network):
     return ('distributed port group' if network['switch_distributed']
             else 'port group')
 

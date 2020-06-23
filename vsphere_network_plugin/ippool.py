@@ -15,33 +15,31 @@
 # Cloudify imports
 
 # This package imports
-from cloudify_vsphere.utils import op
 from vsphere_plugin_common import (
     with_network_client,
 )
 from vsphere_plugin_common.constants import IPPOOL_ID
+from cloudify_vsphere.utils import op, find_instances_by_type_from_rels
 
 
 @op
 @with_network_client
-def create(ctx, network_client, ippool, datacenter_name, **kwargs):
+def create(ctx, network_client, ippool, datacenter_name, **_):
     if ctx.instance.runtime_properties.get(IPPOOL_ID):
         ctx.logger.info('Instance is already created.')
         return
-
-    rels = [rel for rel in ctx.instance.relationships if
-            "cloudify.relationships.vsphere.ippool_connected_to_network" in
-            rel.type_hierarchy]
-    networks = [rel.target.instance for rel in rels if
-                "cloudify.vsphere.nodes.Network" in
-                rel.target.node.type_hierarchy]
+    networks = find_instances_by_type_from_rels(
+        ctx.instance,
+        "cloudify.relationships.vsphere.ippool_connected_to_network",
+        "cloudify.vsphere.nodes.Network"
+    )
     ctx.instance.runtime_properties[IPPOOL_ID] = network_client.create_ippool(
         datacenter_name, ippool, networks)
 
 
 @op
 @with_network_client
-def delete(ctx, network_client, datacenter_name, **kwargs):
+def delete(ctx, network_client, datacenter_name, **_):
     ippool = ctx.instance.runtime_properties.get(IPPOOL_ID)
     if not ippool:
         return

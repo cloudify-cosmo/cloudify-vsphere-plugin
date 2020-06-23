@@ -75,3 +75,11 @@ def find_rels_by_type(node_instance, rel_type):
     """
     return [x for x in node_instance.relationships
             if rel_type in x.type_hierarchy]
+
+
+def find_instances_by_type_from_rels(node_instance, rel_type, node_type):
+    instances = []
+    for relationship in find_rels_by_type(node_instance, rel_type):
+        if node_type in relationship.target.node.type_hierarchy:
+            instances.append(relationship.target.instance)
+    return instances

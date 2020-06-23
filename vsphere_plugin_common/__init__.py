@@ -42,27 +42,35 @@ from .constants import (
     DEFAULT_CONFIG_PATH,
     IP,
     NETWORK_ID,
+    ASYNC_TASK_ID,
+    NETWORK_STATUS,
     TASK_CHECK_SLEEP,
+    ASYNC_RESOURCE_ID,
+    VSPHERE_SERVER_ID,
+    NETWORK_CREATE_ON,
+    DELETE_NODE_ACTION,
+    VSPHERE_RESOURCE_NAME,
     VSPHERE_SERVER_CLUSTER_NAME,
     VSPHERE_SERVER_HYPERVISOR_HOSTNAME,
-    VSPHERE_RESOURCE_NAME,
-    NETWORK_CREATE_ON,
-    NETWORK_STATUS,
-    VSPHERE_SERVER_ID,
-    DELETE_NODE_ACTION,
-    ASYNC_TASK_ID,
-    ASYNC_RESOURCE_ID,
 )
 from ._compat import (
     unquote,
     text_type)
-from cloudify_vsphere.utils.feedback import logger, prepare_for_log
+from cloudify_vsphere.utils.feedback import (
+    logger,
+    prepare_for_log)
 
 
 def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
     for ip in nic.ipAddress:
-        if (ip.startswith('169.254.') or ip.lower().startswith('fe80::')) \
-                and ignore_local:
+
+        # Check if the IP is routable.
+        ipv4_unroutable = ip.startswith('169.254.')
+        ipv6_unroutable = ip.lower().startswith('fe80::')
+        unroutable = ipv4_unroutable or ipv6_unroutable
+        # If we want to ignore local,
+        # and the IP falls under one of the local unroutable IP classes.
+        if ignore_local and unroutable:
             # This is a locally assigned IPv4 or IPv6 address and thus we
             # will assume it is not routable
             logger().debug(
@@ -70,15 +78,14 @@ def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
             continue
         else:
             return ip
-    # No valid IP was found
-    return None
+    return
 
 
 def remove_runtime_properties(instance):
     # cleanup runtime properties
     # need to convert generaton to list, python 3
-    for key in list(instance.runtime_properties.keys()):
-        del instance.runtime_properties[key]
+    for prop_key in instance.runtime_properties.keys():
+        del instance.runtime_properties[prop_key]
     # save flag as current state before external call
     instance.update()
 
@@ -114,7 +121,7 @@ class Config(object):
 
         if warnings:
             logger().warn(
-                "Deprecated configuration options were found: {}".format(
+                "Deprecated configuration options were found: {0}".format(
                     "; ".join(warnings)),
             )
 
@@ -128,12 +135,14 @@ class Config(object):
                 cfg = yaml.load(f.read())
         except IOError:
             logger().warn(
-                "Unable to read configuration file %s." % (config_path))
+                "Unable to read configuration file {config_path}.".format(
+                    config_path=config_path))
 
         return cfg
 
 
 class _ContainerView(object):
+
     def __init__(self, obj_type, service_instance):
         self.si = service_instance
         self.obj_type = obj_type
@@ -175,7 +184,7 @@ class CustomValues(MutableMapping):
         return self.thing.obj.setCustomValue(key, value)
 
     def __delitem__(self, key):
-        raise NonRecoverableError("Unable to unset custom values")
+        raise NonRecoverableError("Unable to unset custom values.")
 
     def __iter__(self):
         for value in self.thing.obj.customValue:
@@ -250,7 +259,7 @@ class VsphereClient(object):
 
             if not os.path.exists(certificate_path):
                 raise NonRecoverableError(
-                    'Certificate was not found in {path}'.format(
+                    'Certificate was not found in {path}.'.format(
                         path=certificate_path,
                     )
                 )
@@ -315,8 +324,8 @@ class VsphereClient(object):
             return self
         except vim.fault.InvalidLogin:
             raise NonRecoverableError(
-                "Could not login to vSphere on {host} with provided "
-                "credentials".format(host=host)
+                'Could not login to vSphere on {host} with provided '
+                'credentials'.format(host=host)
             )
         except vim.fault.HostConnectFault as err:
             if 'certificate verify failed' in err.msg:
@@ -391,8 +400,7 @@ class VsphereClient(object):
         return name.lower() if tolower else name
 
     def _make_cached_object(self, obj_name, props_dict, platform_results,
-                            root_object=True, other_entity_mappings=None,
-                            use_cache=True):
+                            root_object=True, other_entity_mappings=None):
         just_keys = props_dict.keys()
         # Discard the _values key if it is present
         if '_values' in just_keys:
@@ -495,7 +503,6 @@ class VsphereClient(object):
                         props_dict=props_dict,
                         platform_results=result,
                         other_entity_mappings=other_entity_mappings,
-                        use_cache=use_cache,
                     )
                 )
             except KeyError as err:
@@ -644,7 +651,6 @@ class VsphereClient(object):
         )
 
     def _get_connected_network_name(self, network, instance):
-        name = None
         if network.get('from_relationship'):
             net_id = None
             found = False
@@ -691,10 +697,9 @@ class VsphereClient(object):
                         id=net_id,
                     )
                 )
-            name = net.name
+            return net.name
         else:
-            name = network['name']
-        return name
+            return network['name']
 
     def _get_networks(self, use_cache=True):
         if 'network' in self._cache and use_cache:
@@ -957,17 +962,14 @@ class VsphereClient(object):
 
         return cloudify_port_group
 
-    def _get_tasks(self, use_cache=True):
+    def _get_tasks(self):
         task_object = namedtuple(
             'task',
             ['id', 'obj'],
         )
 
-        return [
-            task_object(
-                id=task._moId,
-                obj=task
-            ) for task in self.si.content.taskManager.recentTask]
+        return [task_object(id=task._moId, obj=task)
+                for task in self.si.content.taskManager.recentTask]
 
     def _get_getter_method(self, vimtype):
         getter_method = {
@@ -982,15 +984,11 @@ class VsphereClient(object):
             vim.HostSystem: self._get_hosts,
             vim.dvs.DistributedVirtualPortgroup: self._get_dv_networks,
             vim.Folder: self._get_vm_folders,
-            vim.Task: self._get_tasks,
-        }.get(vimtype)
-        if getter_method is None:
+            vim.Task: self._get_tasks}.get(vimtype)
+        if not getter_method:
             raise NonRecoverableError(
                 'Cannot retrieve objects for {vimtype}'.format(
-                    vimtype=vimtype,
-                )
-            )
-
+                    vimtype=vimtype))
         return getter_method
 
     def _collect_properties(self, obj_type, path_set=None):
@@ -1057,43 +1055,37 @@ class VsphereClient(object):
         return data
 
     def _get_obj_by_name(self, vimtype, name, use_cache=True):
-        obj = None
-
         entities = self._get_getter_method(vimtype)(use_cache)
-
         name = self._get_normalised_name(name)
-
         for entity in entities:
             if name == entity.name.lower():
-                obj = entity
-                break
-
-        return obj
+                return entity
 
     def _get_obj_by_id(self, vimtype, id, use_cache=True):
-        obj = None
-
         entities = self._get_getter_method(vimtype)(use_cache)
         for entity in entities:
             if entity.id == id:
-                obj = entity
-                break
-        return obj
+                return entity
 
-    def _wait_for_task(
-        self, task=None, instance=None, max_wait_time=300, resource_id=None
-    ):
+    def _wait_for_task(self,
+                       task=None,
+                       instance=None,
+                       max_wait_time=300,
+                       resource_id=None):
+
         if not task and instance:
             task_id = instance.runtime_properties.get(ASYNC_TASK_ID)
             resource_id = instance.runtime_properties.get(ASYNC_RESOURCE_ID)
-            self._logger.info("Check task_id {}".format(task_id))
+            self._logger.info('Check task_id {task_id}'.format(
+                task_id=task_id))
             # no saved tasks
             if not task_id:
                 return
         else:
             task_id = task._moId
             if instance:
-                self._logger.info("Save task_id {}".format(task_id))
+                self._logger.info('Save task_id {task_id}'.format(
+                    task_id=task_id))
                 instance.runtime_properties[ASYNC_TASK_ID] = task_id
                 instance.runtime_properties[ASYNC_RESOURCE_ID] = resource_id
                 # save flag as current state before external call
@@ -1102,7 +1094,8 @@ class VsphereClient(object):
         if not task:
             task_obj = self._get_obj_by_id(vim.Task, task_id)
             if not task_obj:
-                self._logger.info("No task_id? {}".format(task_id))
+                self._logger.info(
+                    'No task_id? {task_id}'.format(task_id=task_id))
                 if instance:
                     # no such tasks
                     del instance.runtime_properties[ASYNC_TASK_ID]
@@ -1113,24 +1106,25 @@ class VsphereClient(object):
 
         retry_count = max_wait_time // TASK_CHECK_SLEEP
 
-        while task.info.state in (
-            vim.TaskInfo.State.queued,
-            vim.TaskInfo.State.running,
-        ):
+        while task.info.state in (vim.TaskInfo.State.queued,
+                                  vim.TaskInfo.State.running):
             time.sleep(TASK_CHECK_SLEEP)
 
-            self._logger.debug('Task state {state} left {step} seconds'
-                               .format(state=task.info.state,
-                                       step=(retry_count * TASK_CHECK_SLEEP)))
+            self._logger.debug(
+                'Task state {state} left {step} seconds'.format(
+                    state=task.info.state,
+                    step=(retry_count * TASK_CHECK_SLEEP)))
             # check async
             if instance and retry_count <= 0:
-                raise OperationRetry('Task {task_id} is not finished yet.'
-                                     .format(task_id=task._moId))
+                raise OperationRetry(
+                    'Task {task_id} is not finished yet.'.format(
+                        task_id=task._moId))
             retry_count -= 1
 
         # we correctly finished, and need to cleanup
         if instance:
-            self._logger.info("Cleanup task_id {}".format(task_id))
+            self._logger.info('Cleanup task_id {task_id}'.format(
+                task_id=task_id))
             del instance.runtime_properties[ASYNC_TASK_ID]
             del instance.runtime_properties[ASYNC_RESOURCE_ID]
             # save flag as current state before external call
@@ -1138,11 +1132,11 @@ class VsphereClient(object):
 
         if task.info.state != vim.TaskInfo.State.success:
             raise NonRecoverableError(
-                "Error during executing task on vSphere: '{0}'"
-                .format(task.info.error))
+                "Error during executing task on vSphere: '{0}'".format(
+                    task.info.error))
         elif instance and resource_id:
-            self._logger.info("Save resource_id {}"
-                              .format(task.info.result._moId))
+            self._logger.info('Save resource_id {resource_id}'.format(
+                resource_id=task.info.result._moId))
             instance.runtime_properties[resource_id] = task.info.result._moId
             # save flag as current state before external call
             instance.update()
@@ -1163,7 +1157,7 @@ class VsphereClient(object):
             }
         """
         nics = []
-        self._logger.debug('Getting NIC list')
+        self._logger.debug('Getting NIC list.')
         for dev in vm.config.hardware.device:
             if hasattr(dev, 'macAddress'):
                 nics.append(dev)
@@ -2495,9 +2489,8 @@ class ServerClient(VsphereClient):
                                 candidate_datastore_weighting
                             )
 
-                if candidate_host == best_host and (
-                    candidate_datastore == best_datastore
-                ):
+                if candidate_host == best_host and \
+                        candidate_datastore == best_datastore:
                     self._logger.debug(
                         'Host {host} and datastore {datastore} are current '
                         'best candidate. Best datastore weighting '
@@ -2533,9 +2526,9 @@ class ServerClient(VsphereClient):
                     used_memory += int(vm.summary.config.memorySizeMB)
                 except Exception:
                     self._logger.warning(
-                        "Incorrect value for memorySizeMB. It is {0} but "
-                        "integer value is expected"
-                        .format(vm.summary.config.memorySizeMB))
+                        'Incorrect value for memorySizeMB. It is {0}, but '
+                        'integer value is expected'.format(
+                            vm.summary.config.memorySizeMB))
         return total_memory - used_memory
 
     def host_cpu_thread_usage_ratio(self, host, vm_cpus):
@@ -2558,9 +2551,10 @@ class ServerClient(VsphereClient):
             try:
                 total_assigned += int(vm.summary.config.numCpu)
             except Exception:
-                self._logger.warning("Incorrect value for numCpu. It is "
-                                     "{0} but integer value is expected"
-                                     .format(vm.summary.config.numCpu))
+                self._logger.warning(
+                    "Incorrect value for numCpu. "
+                    "It is {0} but integer value is expected".format(
+                        vm.summary.config.numCpu))
         return total_threads / total_assigned
 
     def host_memory_usage_ratio(self, host, new_mem):
@@ -2595,17 +2589,17 @@ class ServerClient(VsphereClient):
             where higher is better.
         """
         # We assign memory in MB, but free space is in B
-        vm_memory = vm_memory * 1024 * 1024
+        vm_memory_e2 = vm_memory * 1024 * 1024
 
         free_space = datastore.summary.freeSpace
         minimum_disk = template.summary.storage.committed
         maximum_disk = template.summary.storage.uncommitted
 
-        minimum_used = minimum_disk + vm_memory
+        minimum_used = minimum_disk + vm_memory_e2
         maximum_used = minimum_used + maximum_disk
 
         if free_space - minimum_used < 0:
-            return None
+            return
         else:
             return free_space - maximum_used
 
@@ -2629,14 +2623,12 @@ class ServerClient(VsphereClient):
                 'switch_distributed': <whether net is distributed>,
             }
         """
-        nets = [
+        return [
             {
                 'name': net.name,
                 'switch_distributed': self._port_group_is_distributed(net),
-            }
-            for net in host.network
+            } for net in host.network
         ]
-        return nets
 
     def get_host_resource_pools(self, host):
         """
@@ -2660,18 +2652,17 @@ class ServerClient(VsphereClient):
                 isinstance(host.parent.obj, vim.ClusterComputeResource):
             return host.parent.name
         else:
-            return None
+            return
 
-    def host_is_usable(self, host):
+    @staticmethod
+    def host_is_usable(host):
         """
             Return True if this host is usable for deployments,
             based on its health.
             Return False otherwise.
         """
-        healthy_state = host.overallStatus in (
-            vim.ManagedEntity.Status.green,
-            vim.ManagedEntity.Status.yellow,
-        )
+        healthy_state = host.overallStatus in [vim.ManagedEntity.Status.green,
+                                               vim.ManagedEntity.Status.yellow]
         connected = host.summary.runtime.connectionState == 'connected'
         maintenance = host.summary.runtime.inMaintenanceMode
 
@@ -2682,7 +2673,7 @@ class ServerClient(VsphereClient):
             return False
 
     def resize_server(self, server, instance, cpus=None, memory=None):
-        self._logger.debug("Entering resize reconfiguration.")
+        self._logger.debug('Entering resize reconfiguration.')
         config = vim.vm.ConfigSpec()
         update_required = False
         if cpus is not None:
@@ -2690,27 +2681,28 @@ class ServerClient(VsphereClient):
                 cpus = int(cpus)
             except (ValueError, TypeError) as e:
                 raise NonRecoverableError(
-                    "Invalid cpus value: {}".format(e))
+                    "Invalid cpus value: {err}".format(err=e))
             if cpus < 1:
                 raise NonRecoverableError(
-                    "cpus must be at least 1. Is {}".format(cpus))
+                    "cpus must be at least 1. Is {cpus}".format(cpus=cpus))
             if server.config.hardware.numCPU != cpus:
                 config.numCPUs = cpus
                 update_required = True
 
-        if memory is not None:
+        if memory:
             try:
                 memory = int(memory)
             except (ValueError, TypeError) as e:
                 raise NonRecoverableError(
-                    "Invalid memory value: {}".format(e))
+                    'Invalid memory value: {err}'.format(err=e))
             if memory < 512:
                 raise NonRecoverableError(
-                    "Memory must be at least 512MB. Is {}".format(memory))
+                    'Memory must be at least 512MB. Is {memory}'.format(
+                        memory=memory))
             if memory % 128:
                 raise NonRecoverableError(
-                    "Memory must be an integer multiple of 128. Is {}".format(
-                        memory))
+                    'Memory must be an integer multiple of 128. '
+                    'Is {memory}'.format(memory=memory))
             if server.config.hardware.memoryMB != memory:
                 config.memoryMB = memory
                 update_required = True
@@ -3276,8 +3268,14 @@ class RawVolumeClient(VsphereClient):
 
 class StorageClient(VsphereClient):
 
-    def create_storage(self, vm_id, storage_size, parent_key, mode,
-                       instance, thin_provision=False):
+    def create_storage(self,
+                       vm_id,
+                       storage_size,
+                       parent_key,
+                       mode,
+                       instance,
+                       thin_provision=False):
+
         self._logger.debug("Entering create storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         if not vm:
@@ -3487,11 +3485,10 @@ class StorageClient(VsphereClient):
             for device in vm.config.hardware.device:
                 if isinstance(device, vim.vm.device.VirtualDisk)\
                         and device.backing.fileName == storage_file_name:
-                    self._logger.debug(
-                        "Device info: \n%s." % prepare_for_log(vars(device))
-                    )
+                    self._logger.debug('Device info: \n{0}.'.format(
+                        prepare_for_log(vars(device))))
                     return device
-        return None
+        return
 
     def resize_storage(self, vm_id, storage_filename, storage_size, instance):
         self._logger.debug("Entering resize storage procedure.")
@@ -3509,24 +3506,27 @@ class StorageClient(VsphereClient):
                     device.backing.fileName == storage_filename:
                 disk_to_resize = device
 
-        if disk_to_resize is None:
+        if not disk_to_resize:
             raise NonRecoverableError(
-                'Error during trying to resize storage: storage not found')
+                'Error during trying to resize storage: storage not found.')
 
-        if disk_to_resize.capacityInKB == storage_size * 1024 * 1024 and \
-                disk_to_resize.capacityInBytes == \
-                storage_size * 1024 * 1024 * 1024:
-            self._logger.debug("Storage size is {}".format(storage_size))
+        storage_size_e2 = storage_size * 1024 * 1024
+        storage_size_e3 = storage_size * 1024 * 1024 * 1024
+
+        if disk_to_resize.capacityInKB == storage_size_e2 and \
+                disk_to_resize.capacityInBytes == storage_size_e3:
+            self._logger.debug(
+                'Storage size is {storage_size}'.format(
+                    storage_size=storage_size))
             return
         updated_devices = []
         virtual_device_spec = vim.vm.device.VirtualDeviceSpec()
-        virtual_device_spec.operation =\
+        virtual_device_spec.operation = \
             vim.vm.device.VirtualDeviceSpec.Operation.edit
 
         virtual_device_spec.device = disk_to_resize
-        virtual_device_spec.device.capacityInKB = storage_size * 1024 * 1024
-        virtual_device_spec.device.capacityInBytes =\
-            storage_size * 1024 * 1024 * 1024
+        virtual_device_spec.device.capacityInKB = storage_size_e2
+        virtual_device_spec.device.capacityInBytes = storage_size_e3
 
         updated_devices.append(virtual_device_spec)
 
@@ -3535,7 +3535,9 @@ class StorageClient(VsphereClient):
 
         task = vm.obj.Reconfigure(spec=config_spec)
         self._wait_for_task(task, instance=instance)
-        self._logger.debug("Storage resized to a new size %s." % storage_size)
+        self._logger.debug(
+            'Storage resized to a new size {storage_size}.'.format(
+                storage_size))
 
 
 class ControllerClient(VsphereClient):
@@ -3666,6 +3668,7 @@ class ControllerClient(VsphereClient):
         return scsi_spec, controller_type
 
     def generate_ethernet_card(self, ethernet_card_properties):
+
         network_name = ethernet_card_properties[VSPHERE_RESOURCE_NAME]
         switch_distributed = ethernet_card_properties.get('switch_distributed')
         adapter_type = ethernet_card_properties.get('adapter_type', "Vmxnet3")
@@ -3678,6 +3681,7 @@ class ControllerClient(VsphereClient):
             'wake_on_lan_enabled', True)
         address_type = ethernet_card_properties.get('address_type', 'assigned')
         mac_address = ethernet_card_properties.get('mac_address')
+
         if not network_connected and start_connected:
             self._logger.debug(
                 "Network created unconnected so disable start_connected")
@@ -3696,11 +3700,13 @@ class ControllerClient(VsphereClient):
         if network_obj is None:
             raise NonRecoverableError(
                 'Network {0} could not be found'.format(network_name))
+
         nicspec = vim.vm.device.VirtualDeviceSpec()
+
         # Info level as this is something that was requested in the
         # blueprint
-        self._logger.info('Adding network interface on {name}'
-                          .format(name=network_name))
+        self._logger.info('Adding network interface on {name}'.format(
+            name=network_name))
         nicspec.operation = \
             vim.vm.device.VirtualDeviceSpec.Operation.add
 
