@@ -57,6 +57,7 @@ def op(func):
             if key in kwargs:
                 processed_kwargs[key] = kwargs[key]
                 continue
+            # TODO: Update this to also support relationship operations.
             processed_kwargs[key] = ctx.node.properties.get(key)
 
         return func(**processed_kwargs)

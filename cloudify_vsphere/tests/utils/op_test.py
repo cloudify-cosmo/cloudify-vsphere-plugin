@@ -12,12 +12,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 from mock import Mock
 from pytest import fixture
 
 from cloudify.state import current_ctx
 
-from cloudify_vsphere.utils import get_args, op
+from ..utils import get_args, op
 
 
 def test_get_args_no_args():

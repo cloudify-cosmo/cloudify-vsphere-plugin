@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import unittest
 from mock import MagicMock, Mock, patch
 
@@ -85,17 +86,6 @@ class VsphereControllerTest(unittest.TestCase):
         current_ctx.set(_ctx)
         return _ctx
 
-    def test_create_controller(self):
-        _ctx = self._gen_ctx()
-        devices.create_controller(ctx=_ctx, a="b")
-        self.assertEqual(_ctx.instance.runtime_properties, {"a": "b"})
-
-    def test_delete_controller(self):
-        _ctx = self._gen_ctx()
-        _ctx.instance.runtime_properties["c"] = "d"
-        devices.delete_controller(ctx=_ctx)
-        self.assertEqual(_ctx.instance.runtime_properties, {})
-
     def _get_vm(self, new_adapter=None):
         vm = Mock()
         task = Mock()
@@ -115,6 +105,17 @@ class VsphereControllerTest(unittest.TestCase):
             devices.append(new_adapter)
         vm.config.hardware.device = devices
         return vm
+
+    def test_create_controller(self):
+        _ctx = self._gen_ctx()
+        devices.create_controller(ctx=_ctx, a="b")
+        self.assertEqual(_ctx.instance.runtime_properties, {"a": "b"})
+
+    def test_delete_controller(self):
+        _ctx = self._gen_ctx()
+        _ctx.instance.runtime_properties["c"] = "d"
+        devices.delete_controller(ctx=_ctx)
+        self.assertEqual(_ctx.instance.runtime_properties, {})
 
     def test_detach_controller(self):
         _ctx = self._gen_relation_ctx()

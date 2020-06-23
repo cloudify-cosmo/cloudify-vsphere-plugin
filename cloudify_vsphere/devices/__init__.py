@@ -14,56 +14,56 @@
 # limitations under the License.
 
 from copy import deepcopy
+
+from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
+
 from cloudify_vsphere.utils import find_rels_by_type
+from vsphere_plugin_common import (
+    ServerClient,
+    ControllerClient,
+    run_deferred_task,
+    remove_runtime_properties)
 from vsphere_plugin_common.constants import (
-    VSPHERE_SERVER_ID,
-    NETWORK_NAME,
     IP,
+    NETWORK_NAME,
+    VSPHERE_SERVER_ID,
     SWITCH_DISTRIBUTED,
     VSPHERE_SERVER_CONNECTED_NICS)
-from vsphere_plugin_common import (
-    ControllerClient,
-    ServerClient,
-    remove_runtime_properties,
-    run_deferred_task,
-)
 
 RELATIONSHIP_NIC_TO_NETWORK = \
     'cloudify.relationships.vsphere.nic_connected_to_network'
 
 
 def add_connected_network(node_instance, nic_properties=None):
-    connected_network = None
     nets_from_rels = find_rels_by_type(
         node_instance, RELATIONSHIP_NIC_TO_NETWORK)
     if len(nets_from_rels) > 1:
         raise NonRecoverableError(
             'Currently only one relationship of type {0} '
-            'is supported per node.'.format(
-                RELATIONSHIP_NIC_TO_NETWORK))
+            'is supported per node.'.format(RELATIONSHIP_NIC_TO_NETWORK))
     elif len(nets_from_rels) < 1:
+        ctx.logger.debug('No NIC to network relationships found.')
         return
     net_from_rel = nets_from_rels[0]
     network_name = \
         net_from_rel.target.instance.runtime_properties.get(
             NETWORK_NAME, nic_properties.get('name'))
-    switch_distributed = \
-        net_from_rel.target.instance.runtime_properties.get(
-            SWITCH_DISTRIBUTED)
     if network_name:
         connected_network = {
             'name': network_name,
-            'switch_distributed': switch_distributed
+            'switch_distributed':
+            net_from_rel.target.instance.runtime_properties.get(
+                SWITCH_DISTRIBUTED)
         }
-    if not connected_network:
+    else:
+        ctx.logger.error('The target network does not have an ID.')
         return
     nic_configuration = nic_properties.get('network_configuration')
     if nic_configuration:
         connected_network.update(nic_configuration)
-    node_instance.runtime_properties['connected_network'] = \
-        connected_network
+    node_instance.runtime_properties['connected_network'] = connected_network
 
 
 def controller_without_connected_networks(runtime_properties):
@@ -183,27 +183,28 @@ def detach_controller(ctx, **kwargs):
 
 @operation(resumable=True)
 def detach_server_from_controller(ctx, **kwargs):
-    if ctx.target.instance.id not in \
+    if ctx.target.instance.id in \
             ctx.source.instance.runtime_properties.get(
                 VSPHERE_SERVER_CONNECTED_NICS, []):
-        if 'busKey' not in ctx.target.instance.runtime_properties:
-            ctx.logger.info("Controller was not attached, skipping.")
-            return
-        _detach_controller(
-            ctx.target.node.properties.get("connection_config"),
-            ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
-            ctx.target.instance.runtime_properties.get('busKey'),
-            instance=ctx.target.instance)
-        del ctx.target.instance.runtime_properties['busKey']
+        return
+    if 'busKey' not in ctx.target.instance.runtime_properties:
+        ctx.logger.info("Controller was not attached, skipping.")
+        return
+    _detach_controller(
+        ctx.target.node.properties.get("connection_config"),
+        ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
+        ctx.target.instance.runtime_properties.get('busKey'),
+        instance=ctx.target.instance)
+    del ctx.target.instance.runtime_properties['busKey']
 
 
-def _attach_ethernet_card(client_config, server_id, ethernet_card_properties,
+def _attach_ethernet_card(client_config,
+                          server_id,
+                          ethernet_card_properties,
                           instance):
     cl = ControllerClient()
     cl.get(config=client_config)
-
     run_deferred_task(cl, instance)
-
     nicspec, controller_type = cl.generate_ethernet_card(
         ethernet_card_properties)
     return cl.attach_controller(server_id, nicspec, controller_type,
@@ -213,9 +214,7 @@ def _attach_ethernet_card(client_config, server_id, ethernet_card_properties,
 def _detach_controller(client_config, server_id, bus_key, instance):
     cl = ControllerClient()
     cl.get(config=client_config)
-
     run_deferred_task(cl, instance)
-
     cl.detach_controller(server_id, bus_key, instance)
 
 

@@ -13,8 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # Stdlib imports
+
 import logging
-import urllib
 
 # Third party imports
 
@@ -22,13 +22,15 @@ import urllib
 from cloudify import ctx
 
 # This package imports
+from vsphere_plugin_common._compat import unquote
 
 
 def check_name_for_special_characters(name):
+
     # See https://kb.vmware.com/kb/2046088
     bad_characters = '%&*$#@!\\/:*?"<>|;\''
 
-    name = urllib.unquote(name)
+    name = unquote(name)
 
     found = []
     for bad in bad_characters:
@@ -64,9 +66,7 @@ def prepare_for_log(inputs):
     for key, value in inputs.items():
         if isinstance(value, dict):
             value = prepare_for_log(value)
-
         if 'password' in key:
             value = '**********'
-
         result[key] = value
     return result
