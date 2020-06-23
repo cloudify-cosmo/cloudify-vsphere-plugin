@@ -22,10 +22,8 @@ from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
-from cloudify_vsphere.utils import op
-from vsphere_plugin_common import (
-    with_storage_client,
-)
+from vsphere_plugin_common import with_storage_client
+from vsphere_plugin_common.utils import op, prepare_for_log
 from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
     VSPHERE_STORAGE_SIZE,
@@ -34,7 +32,6 @@ from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_SCSI_ID,
     VSPHERE_STORAGE_FILE_NAME,
 )
-from cloudify_vsphere.utils.feedback import prepare_for_log
 
 
 @op

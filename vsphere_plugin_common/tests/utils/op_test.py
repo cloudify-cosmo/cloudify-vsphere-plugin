@@ -18,7 +18,7 @@ from pytest import fixture
 
 from cloudify.state import current_ctx
 
-from ..utils import get_args, op
+from ...utils import op, get_args
 
 
 def test_get_args_no_args():

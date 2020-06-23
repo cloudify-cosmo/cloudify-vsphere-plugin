@@ -31,7 +31,6 @@ setuptools.setup(
         'cloudify_vsphere.devices',
         'cloudify_vsphere.hypervisor_host',
         'cloudify_vsphere.resource_pool',
-        'cloudify_vsphere.utils',
         'cloudify_vsphere.vm_folder',
     ],
     license='LICENSE',

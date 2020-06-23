@@ -13,11 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import logging
 from functools import wraps
 from inspect import getargspec
 
 from cloudify import ctx
 from cloudify.decorators import operation
+
+from ._compat import unquote
 
 
 def get_args(func):
@@ -83,3 +86,50 @@ def find_instances_by_type_from_rels(node_instance, rel_type, node_type):
         if node_type in relationship.target.node.type_hierarchy:
             instances.append(relationship.target.instance)
     return instances
+
+
+def check_name_for_special_characters(name):
+
+    # See https://kb.vmware.com/kb/2046088
+    bad_characters = '%&*$#@!\\/:*?"<>|;\''
+
+    name = unquote(name)
+
+    found = []
+    for bad in bad_characters:
+        if bad in name:
+            found.append(bad)
+
+    if found:
+        ctx.logger.warn(
+            'Found characters that may cause problems in name. '
+            'It is recommended that "{chars}" be avoided. '
+            'In a future release such characters will be encoded when '
+            'creating new entities on vSphere. '
+            'Found: {found}'.format(
+                chars=bad_characters,
+                found=found,
+            )
+        )
+
+
+def logger():
+    try:
+        logger = ctx.logger
+    except RuntimeError as e:
+        if 'No context' in str(e):
+            logger = logging.getLogger()
+        else:
+            raise
+    return logger
+
+
+def prepare_for_log(inputs):
+    result = {}
+    for key, value in inputs.items():
+        if isinstance(value, dict):
+            value = prepare_for_log(value)
+        if 'password' in key:
+            value = '**********'
+        result[key] = value
+    return result

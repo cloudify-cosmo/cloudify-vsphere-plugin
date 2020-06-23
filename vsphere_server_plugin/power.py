@@ -14,9 +14,9 @@
 # limitations under the License.
 import cloudify.exceptions as cfy_exc
 
-from cloudify_vsphere.utils import op
-from vsphere_plugin_common import with_server_client
 from .server import get_server_by_context
+from vsphere_plugin_common.utils import op
+from vsphere_plugin_common import with_server_client
 
 
 @with_server_client

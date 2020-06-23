@@ -15,11 +15,11 @@
 # Cloudify imports
 
 # This package imports
-from vsphere_plugin_common import (
-    with_network_client,
-)
+from vsphere_plugin_common import with_network_client
 from vsphere_plugin_common.constants import IPPOOL_ID
-from cloudify_vsphere.utils import op, find_instances_by_type_from_rels
+from vsphere_plugin_common.utils import (
+    op,
+    find_instances_by_type_from_rels)
 
 
 @op

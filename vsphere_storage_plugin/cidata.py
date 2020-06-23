@@ -19,14 +19,12 @@ import cloudify_common_sdk.iso9660 as iso9660
 from cloudify import ctx
 
 # This package imports
-from cloudify_vsphere.utils import op
-from vsphere_plugin_common import (
-    with_rawvolume_client,
-)
+from vsphere_plugin_common.utils import op
+from vsphere_plugin_common import with_rawvolume_client
 from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_IMAGE,
     VSPHERE_STORAGE_FILE_NAME,
-    DATACENTER_ID,
+    DATACENTER_ID
 )
 
 

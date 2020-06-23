@@ -39,7 +39,6 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from .constants import (
-    DEFAULT_CONFIG_PATH,
     IP,
     NETWORK_ID,
     ASYNC_TASK_ID,
@@ -49,16 +48,19 @@ from .constants import (
     VSPHERE_SERVER_ID,
     NETWORK_CREATE_ON,
     DELETE_NODE_ACTION,
+    DEFAULT_CONFIG_PATH,
     VSPHERE_RESOURCE_NAME,
     VSPHERE_SERVER_CLUSTER_NAME,
-    VSPHERE_SERVER_HYPERVISOR_HOSTNAME,
+    VSPHERE_SERVER_HYPERVISOR_HOSTNAME
 )
 from ._compat import (
     unquote,
-    text_type)
-from cloudify_vsphere.utils.feedback import (
+    text_type
+)
+from .utils import (
     logger,
-    prepare_for_log)
+    prepare_for_log
+)
 
 
 def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
@@ -84,7 +86,7 @@ def get_ip_from_vsphere_nic_ips(nic, ignore_local=True):
 def remove_runtime_properties(instance):
     # cleanup runtime properties
     # need to convert generaton to list, python 3
-    for prop_key in instance.runtime_properties.keys():
+    for prop_key in list(instance.runtime_properties.keys()):
         del instance.runtime_properties[prop_key]
     # save flag as current state before external call
     instance.update()
@@ -3537,7 +3539,7 @@ class StorageClient(VsphereClient):
         self._wait_for_task(task, instance=instance)
         self._logger.debug(
             'Storage resized to a new size {storage_size}.'.format(
-                storage_size))
+                storage_size=storage_size))
 
 
 class ControllerClient(VsphereClient):

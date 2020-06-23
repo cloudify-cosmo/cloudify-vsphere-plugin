@@ -21,13 +21,9 @@ from pyVmomi import vim
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
-from cloudify_vsphere.utils import op
-from vsphere_plugin_common import (
-    with_server_client,
-)
-from vsphere_plugin_common.constants import (
-    DATACENTER_ID,
-)
+from vsphere_plugin_common.utils import op
+from vsphere_plugin_common import with_server_client
+from vsphere_plugin_common.constants import DATACENTER_ID
 
 
 @op

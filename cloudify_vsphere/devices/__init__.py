@@ -19,7 +19,7 @@ from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
-from cloudify_vsphere.utils import find_rels_by_type
+from vsphere_plugin_common.utils import find_rels_by_type
 from vsphere_plugin_common import (
     ServerClient,
     ControllerClient,

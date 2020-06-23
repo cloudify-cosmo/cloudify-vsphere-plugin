@@ -16,14 +16,14 @@ import unittest
 
 from mock import Mock, MagicMock, patch
 
-import vsphere_plugin_common
+from .. import ServerClient
 
 
 class PluginCommonUnitTests(unittest.TestCase):
 
     @patch('vsphere_plugin_common.get_ip_from_vsphere_nic_ips')
     def test_get_server_ip(self, get_ip_from_nic_mock):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         server = Mock()
         server.guest.net = [
             MagicMock(name='oobly'),
@@ -42,7 +42,7 @@ class PluginCommonUnitTests(unittest.TestCase):
 
     @patch('vsphere_plugin_common.get_ip_from_vsphere_nic_ips')
     def test_get_server_ip_with_slash(self, get_ip_from_nic_mock):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         server = Mock()
         server.guest.net = [
             MagicMock(name='oobly/hoobly'),

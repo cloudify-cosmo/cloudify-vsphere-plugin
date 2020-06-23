@@ -25,8 +25,11 @@ from mock import Mock, MagicMock, patch, call
 from cloudify.state import current_ctx
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 
-import vsphere_plugin_common
-from vsphere_plugin_common._compat import (
+from .. import (
+    ServerClient,
+    VsphereClient,
+    vim)
+from .._compat import (
     HTTPServer,
     SimpleHTTPRequestHandler)
 
@@ -253,7 +256,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         intended_cpus = 1
         mock_get_cpu_ratio.return_value = 1.0
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         expected_result = [
             (hosts[1], 1, 0),
@@ -347,7 +350,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             'testcluster',
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         expected_result = [(hosts[2], 1, 0)]
 
@@ -438,7 +441,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         intended_cpus = 1
         mock_get_cpu_ratio.return_value = 1.0
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         expected_result = [
             (hosts[1], 1, 1),
@@ -532,7 +535,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         intended_cpus = 1
         mock_get_cpu_ratio.return_value = 1.0
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         expected_result = [(hosts[3], 1, 0)]
 
@@ -623,7 +626,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         ]
         mock_get_hosts.return_value = hosts
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         # Using try/except pattern because some plugins are using testtool,
         # which doesn't support the context aware assertRaises so maintaining
@@ -702,7 +705,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         ]
         mock_get_hosts.return_value = hosts
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         # Using try/except pattern because some plugins are using testtool,
         # which doesn't support the context aware assertRaises so maintaining
@@ -773,7 +776,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         ]
         mock_get_hosts.return_value = hosts
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         allowed_clusters = ['hello', 'goodbye']
         mock_cluster_membership.return_value = allowed_clusters[0]
@@ -857,7 +860,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         ]
         mock_get_hosts.return_value = hosts
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         allowed_clusters = ['hello', 'goodbye']
         mock_cluster_membership.return_value = 'see_cluster'
@@ -921,7 +924,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         expected = host_pools[0]
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.get_resource_pool(host, pool_name)
 
@@ -941,7 +944,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         host = self._make_mock_host('myhost')
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         try:
             client.get_resource_pool(host, pool_name)
@@ -980,7 +983,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         template = self._make_mock_vm(name='mytemplate')
         allowed_datastores = ['none at all', 'except this one']
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         try:
             client.select_host_and_datastore(
@@ -1029,7 +1032,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         mock_datastore_is_usable.return_value = False
         template = self._make_mock_vm(name='mytemplate')
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         with self.assertRaises(NonRecoverableError) as err:
             client.select_host_and_datastore(
@@ -1092,7 +1095,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         mock_datastore_weighting.return_value = None
 
         memory = 1024
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         try:
             client.select_host_and_datastore(
@@ -1165,7 +1168,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         memory = 1024
         allowed_datastores = [right_datastore.name]
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         expected = right_host, right_datastore
 
@@ -1223,7 +1226,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         memory = 1024
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         expected = right_host, right_datastore
 
@@ -1303,7 +1306,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         memory = 1024
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         expected = right_host, right_datastore
 
@@ -1383,7 +1386,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         memory = 1024
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         expected = right_host, right_datastore
 
@@ -1429,7 +1432,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         expected = 12345
         host = self._make_mock_host(memory=expected)
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.get_host_free_memory(host)
 
@@ -1450,7 +1453,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             vms=vms,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.get_host_free_memory(host)
 
@@ -1465,7 +1468,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             cpus=host_cpus,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.host_cpu_thread_usage_ratio(
             host=host,
@@ -1494,7 +1497,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             vms=existing_vms,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.host_cpu_thread_usage_ratio(
             host=host,
@@ -1512,7 +1515,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             accessible=True,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertTrue(client.datastore_is_usable(datastore))
 
@@ -1525,7 +1528,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             accessible=True,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertTrue(client.datastore_is_usable(datastore))
 
@@ -1535,7 +1538,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             accessible=False,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertFalse(client.datastore_is_usable(datastore))
 
@@ -1546,7 +1549,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             accessible=True,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertFalse(client.datastore_is_usable(datastore))
 
@@ -1561,7 +1564,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             extra_space=10,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.calculate_datastore_weighting(
             datastore=datastore,
@@ -1591,7 +1594,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             extra_space=extra_space,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.calculate_datastore_weighting(
             datastore=datastore,
@@ -1619,7 +1622,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             extra_space=extra_space,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.calculate_datastore_weighting(
             datastore=datastore,
@@ -1636,7 +1639,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             name=pool_name,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.recurse_resource_pools(pool)
 
@@ -1676,7 +1679,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             pool.resourcePool[1].resourcePool[1],
         ]
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.recurse_resource_pools(pool)
 
@@ -1707,7 +1710,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         host = self._make_mock_host(networks=nets)
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.get_host_networks(host)
 
@@ -1723,7 +1726,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         host = self._make_mock_host(resource_pool=base_pool)
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.get_host_resource_pools(host)
 
@@ -1744,7 +1747,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         host = self._make_mock_host(resource_pool=base_pool)
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.get_host_resource_pools(host)
 
@@ -1761,7 +1764,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         mock_isinstance.return_value = True
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.get_host_cluster_membership(host)
 
@@ -1781,7 +1784,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         mock_isinstance.return_value = False
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client.get_host_cluster_membership(host)
 
@@ -1800,7 +1803,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             connected=True,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertTrue(client.host_is_usable(host))
 
@@ -1813,7 +1816,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             connected=True,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertTrue(client.host_is_usable(host))
 
@@ -1826,7 +1829,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             maintenance=True,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertFalse(client.host_is_usable(host))
 
@@ -1839,7 +1842,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             connected=False,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertFalse(client.host_is_usable(host))
 
@@ -1852,7 +1855,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             connected=False,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertFalse(client.host_is_usable(host))
 
@@ -1865,7 +1868,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             connected=True,
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         self.assertFalse(client.host_is_usable(host))
 
@@ -1875,7 +1878,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         port_group = Mock()
         port_group.id = 'dvportgroup-123'
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client._port_group_is_distributed(port_group)
 
@@ -1887,14 +1890,14 @@ class VspherePluginsCommonTests(unittest.TestCase):
         port_group = Mock()
         port_group.id = 'somethingelse-456'
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         result = client._port_group_is_distributed(port_group)
 
         self.assertFalse(result)
 
     def test_resize_server_fails_128(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
             client.resize_server(None, instance=None, memory=572)
@@ -1902,7 +1905,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         self.assertIn('must be an integer multiple of 128', str(e.exception))
 
     def test_resize_server_fails_512(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
             client.resize_server(None, instance=None, memory=128)
@@ -1910,7 +1913,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         self.assertIn('at least 512MB', str(e.exception))
 
     def test_resize_server_fails_memory_NaN(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
             client.resize_server(None, instance=None, memory='banana')
@@ -1918,7 +1921,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         self.assertIn('Invalid memory value', str(e.exception))
 
     def test_resize_server_fails_0_cpus(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
             client.resize_server(None, instance=None, cpus=0)
@@ -1926,7 +1929,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         self.assertIn('must be at least 1', str(e.exception))
 
     def test_resize_server_fails_cpu_NaN(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
 
         with self.assertRaises(NonRecoverableError) as e:
             client.resize_server(None, instance=None, cpus='apple')
@@ -1935,7 +1938,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
     @patch('pyVmomi.vim.vm.ConfigSpec')
     def test_resize_server(self, configSpec):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         server = Mock()
         server.obj.Reconfigure.return_value.info.state = 'success'
 
@@ -1948,10 +1951,10 @@ class VspherePluginsCommonTests(unittest.TestCase):
     @patch('pyVmomi.vim.vm.ConfigSpec')
     @patch('vsphere_plugin_common.VsphereClient._get_tasks')
     def test_wait_for_task(self, get_tasks, configSpec):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         # failed task
         task = Mock()
-        task.info.state = vsphere_plugin_common.vim.TaskInfo.State.error
+        task.info.state = vim.TaskInfo.State.error
         with self.assertRaises(NonRecoverableError):
             client._wait_for_task(task=task)
 
@@ -1971,7 +1974,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         # failed deffered task
         task = Mock()
-        task.info.state = vsphere_plugin_common.vim.TaskInfo.State.error
+        task.info.state = vim.TaskInfo.State.error
         task._moId = 42
         task_obj = Mock()
         task_obj.obj = task
@@ -1987,7 +1990,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         # succesful task
         task = Mock()
-        task.info.state = vsphere_plugin_common.vim.TaskInfo.State.success
+        task.info.state = vim.TaskInfo.State.success
         task.info.result._moId = 404
         task._moId = 42
         task_obj = Mock()
@@ -2004,7 +2007,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         # several retries
         task = Mock()
-        task.info.state = vsphere_plugin_common.vim.TaskInfo.State.queued
+        task.info.state = vim.TaskInfo.State.queued
         task.info.result._moId = 404
         task._moId = 42
         task_obj = Mock()
@@ -2021,7 +2024,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 client._wait_for_task(task=None, instance=instance)
 
     def test_add_new_custom_attr(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         client.si = MagicMock()
         (client.si.content.customFieldsManager
          .AddCustomFieldDef.return_value.key) = 3
@@ -2039,7 +2042,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         )
 
     def test_get_custom_attr(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         client.si = Mock()
         key = Mock()
         client.si.content.customFieldsManager.field = [key]
@@ -2057,7 +2060,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         self.assertEqual('something completely different', val)
 
     def test_get_custom_attr_keyerr(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         client.si = Mock()
         key = Mock()
         client.si.content.customFieldsManager.field = [key]
@@ -2071,7 +2074,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             vals['Yale']
 
     def test_get_custom_attr_global_keyerr(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         client.si = Mock()
         client.si.content.customFieldsManager.field = []
         server = Mock()
@@ -2081,7 +2084,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             vals['Yale']
 
     def test_delete_custom_attr(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         server = Mock()
         vals = client.custom_values(server)
 
@@ -2089,7 +2092,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             del vals['something']
 
     def test_iter_custom_attr(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         client.si = Mock()
         keys = client.si.content.customFieldsManager.field = [Mock(), Mock()]
         keys[0].key = 3001
@@ -2112,7 +2115,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             dict(vals.items()))
 
     def test_len_custom_attr(self):
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         client.si = Mock()
         client.si.content.customFieldsManager.field = []
         server = MagicMock()
@@ -2177,7 +2180,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
         if cert_path != 'unset':
             cfg['certificate_path'] = cert_path
 
-        client = vsphere_plugin_common.VsphereClient()
+        client = VsphereClient()
 
         try:
             client.connect(cfg)
@@ -2713,7 +2716,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             'happy',
         )
 
-        client = vsphere_plugin_common.ServerClient()
+        client = ServerClient()
         results = client._get_hosts()
 
         warnings = self._get_warning_messages(self.mock_ctx)

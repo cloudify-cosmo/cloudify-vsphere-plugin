@@ -21,7 +21,7 @@ from pyfakefs import fake_filesystem_unittest
 
 from cloudify.state import current_ctx
 
-import vsphere_plugin_common
+from .. import Config
 
 
 class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
@@ -32,13 +32,13 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
         self.mock_ctx = MagicMock()
         current_ctx.set(self.mock_ctx)
 
-    @patch('cloudify_vsphere.utils.feedback.ctx')
+    @patch('vsphere_plugin_common.utils.ctx')
     def _simple_deprecated_test(self, path, mock_ctx):
         evaled_path = os.getenv(path, path)
         expanded_path = os.path.expanduser(evaled_path)
         self.fs.create_file(expanded_path)
 
-        config = vsphere_plugin_common.Config()
+        config = Config()
         ret = config._find_config_file()
 
         self.assertEqual(expanded_path, ret)
@@ -58,13 +58,13 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
             self._simple_deprecated_test('CONNECTION_CONFIG_PATH')
 
     def test_choose_config_file(self):
-        self.fs.CreateFile(
+        self.fs.create_file(
             '/etc/cloudify/vsphere_plugin/connection_config.yaml')
         self.addCleanup(
             self.fs.RemoveFile,
             '/etc/cloudify/vsphere_plugin/connection_config.yaml')
 
-        config = vsphere_plugin_common.Config()
+        config = Config()
         ret = config._find_config_file()
 
         self.assertEqual(
@@ -72,7 +72,7 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
             '/etc/cloudify/vsphere_plugin/connection_config.yaml')
 
     def test_no_file(self):
-        config = vsphere_plugin_common.Config()
+        config = Config()
 
         ret = config.get()
 
@@ -83,12 +83,12 @@ class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):
         self.assertEqual(ret, {})
 
     def test_new_envvar(self):
-        self.fs.CreateFile(
+        self.fs.create_file(
             '/a/pth',
             contents="{'some': 'contents'}\n"
         )
         with patch.dict('os.environ', {'CFY_VSPHERE_CONFIG_PATH': '/a/pth'}):
-            config = vsphere_plugin_common.Config()
+            config = Config()
 
             ret = config.get()
 

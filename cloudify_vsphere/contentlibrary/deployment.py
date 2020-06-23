@@ -19,8 +19,9 @@
 # Cloudify imports
 
 # This package imports
-from ..utils import op
 from . import ContentLibrary
+
+from vsphere_plugin_common.utils import op
 from vsphere_plugin_common import (
     remove_runtime_properties,
 )
