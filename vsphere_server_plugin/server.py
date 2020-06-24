@@ -18,9 +18,9 @@
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
-from vsphere_plugin_common.utils import op, prepare_for_log, find_rels_by_type
 from vsphere_plugin_common import with_server_client
 from vsphere_plugin_common.clients.server import get_ip_from_vsphere_nic_ips
+from vsphere_plugin_common.utils import op, prepare_for_log, find_rels_by_type
 from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,
@@ -49,37 +49,27 @@ def get_connected_networks(node_instance, nics_from_props):
         defined under connect_networks in _networking.
     """
 
-    if VSPHERE_SERVER_CONNECTED_NICS not in \
-            node_instance.runtime_properties:
-        node_instance.runtime_properties[VSPHERE_SERVER_CONNECTED_NICS] = \
-            []
-
+    if VSPHERE_SERVER_CONNECTED_NICS not in node_instance.runtime_properties:
+        node_instance.runtime_properties[VSPHERE_SERVER_CONNECTED_NICS] = []
     # get all relationship contexts of related nics
-    nics_from_rels = find_rels_by_type(
-        node_instance, RELATIONSHIP_VM_TO_NIC)
-
+    nics_from_rels = find_rels_by_type(node_instance, RELATIONSHIP_VM_TO_NIC)
     for rel_nic in nics_from_rels:
-
         # try to get the connect_network property from the nic.
-        try:
-            _connect_network = \
-                rel_nic.target.instance.runtime_properties[
-                    'connected_network']
-        except KeyError:
-            # If it wasn't provided it's an invalid nic.
+        _connect_network = rel_nic.target.instance.runtime_properties.get(
+            'connected_network')
+        if not _connect_network:
             raise NonRecoverableError(
                 'No "connect_network" specification for nic {0}.'.format(
                     rel_nic.target.instance.id))
-
-        if not _connect_network.get('name'):
-            _connect_network['name'] = \
-                rel_nic.target.instance.runtime_properties.get('name')
-
+        connected_network_name = _connect_network.get(
+            'name',
+            rel_nic.target.instance.runtime_properties.get('name'))
         # If it wasn't provided it's not a valid nic.
-        if not _connect_network['name']:
+        if not connected_network_name:
             raise NonRecoverableError(
                 'No network name specified for nic {0}.'.format(
                     rel_nic.target.instance.id))
+        _connect_network['name'] = connected_network_name
 
         for prop_nic in nics_from_props:
             # If there is a nic from props that is supposed
@@ -88,14 +78,11 @@ def get_connected_networks(node_instance, nics_from_props):
                     prop_nic.get('from_relationship'):
                 # Merge them.
                 prop_nic.update(_connect_network)
-                # We can move on to the next nic in the list.
-                continue
-
+                # We can move on to the next nic in the nics_from_props list.
         # Otherwise go head and add it to the list.
         nics_from_props.append(_connect_network)
         node_instance.runtime_properties[VSPHERE_SERVER_CONNECTED_NICS].append(
             rel_nic.target.instance.id)
-
     return nics_from_props
 
 
@@ -133,7 +120,6 @@ def validate_connect_network(_network):
 
     # We review each charge as a distinct offense.
     for key, value in list(_network.items()):
-
         try:
             # We check if the defendant has an alibi.
             expected_type, default_value = network_validations.pop(key)
@@ -167,44 +153,53 @@ def validate_connect_network(_network):
     return _network
 
 
-def create_new_server(
-        ctx,
-        server_client,
-        server,
-        networking,
-        allowed_hosts,
-        allowed_clusters,
-        allowed_datastores,
-        windows_password,
-        windows_organization,
-        windows_timezone,
-        agent_config,
-        custom_sysprep,
-        # Backwards compatibility- only linux was really working
-        os_family='linux',
-        cdrom_image=None,
-        vm_folder=None,
-        extra_config=None,
-        enable_start_vm=True,
-        postpone_delete_networks=False,
-        instance=None):
+def validate_vm_name(vm_name):
+    if all(c.isdigit() for c in vm_name):
+        pass
+    elif [c for c in vm_name if not c.isdigit()]:
+        pass
+    elif [c for c in vm_name if not c.isalnum()] + '-' != '':
+        pass
+    else:
+        return
+    raise NonRecoverableError(
+        'Computer name must contain only A-Z, a-z, 0-9, '
+        'and hyphens ("-"), and must not consist entirely of '
+        'numbers. "{name}" was not valid.'.format(name=vm_name)
+    )
+
+
+def create_new_server(ctx,
+                      server_client,
+                      server,
+                      networking,
+                      allowed_hosts,
+                      allowed_clusters,
+                      allowed_datastores,
+                      windows_password,
+                      windows_organization,
+                      windows_timezone,
+                      agent_config,
+                      custom_sysprep,
+                      # Backwards compatibility- only linux was really working
+                      os_family='linux',
+                      cdrom_image=None,
+                      vm_folder=None,
+                      extra_config=None,
+                      enable_start_vm=True,
+                      postpone_delete_networks=False,
+                      instance=None):
     vm_name = get_vm_name(ctx, server, os_family)
-    ctx.logger.info(
-        'Creating new server with name: {name}'.format(name=vm_name))
+    ctx.logger.info('Creating new server with name: {name}'.format(
+        name=vm_name))
 
     # This should be debug, but left as info until CFY-4867 makes logs more
     # visible
-    ctx.logger.info(
+    ctx.logger.debug(
         'Server properties: {properties}'.format(
-            properties=prepare_for_log(server),
-        )
-    )
+            properties=prepare_for_log(server)))
 
-    ctx.logger.info(
-        'Cdrom path: {cdrom}'.format(
-            cdrom=cdrom_image,
-        )
-    )
+    ctx.logger.info('Cdrom path: {cdrom}'.format(cdrom=cdrom_image))
 
     if isinstance(allowed_hosts, text_type):
         allowed_hosts = [allowed_hosts]
@@ -230,11 +225,11 @@ def create_new_server(
 
     if connect_networks:
         err_msg = "No more than one %s network can be specified."
-        if len([network for network in connect_networks
-                if network.get('external', False)]) > 1:
+        if len([n for n in connect_networks if
+                n.get('external', False)]) > 1:
             raise NonRecoverableError(err_msg % 'external')
-        if len([network for network in connect_networks
-                if network.get('management', False)]) > 1:
+        if len([n for n in connect_networks if
+                n.get('management', False)]) > 1:
             raise NonRecoverableError(err_msg % 'management')
 
         reordered_networks = []
@@ -257,20 +252,7 @@ def create_new_server(
     cpus = server.get('cpus')
     memory = server.get('memory')
 
-    # Computer name may only contain A-Z, 0-9, and hyphens
-    # May not be entirely digits
-    valid_name = True
-    if [c for c in vm_name if not c.isdigit()]:
-        valid_name = False
-    elif [c for c in vm_name if not c.isalnum()] + '-' != '':
-        valid_name = False
-    if not valid_name:
-        raise NonRecoverableError(
-            'Computer name must contain only A-Z, a-z, 0-9, '
-            'and hyphens ("-"), and must not consist entirely of '
-            'numbers. "{name}" was not valid.'.format(name=vm_name)
-        )
-
+    validate_vm_name(vm_name)
     ctx.logger.info('Creating server called {name}'.format(name=vm_name))
     server_obj = server_client.create_server(
         auto_placement=auto_placement,
