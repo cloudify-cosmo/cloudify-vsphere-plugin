@@ -21,7 +21,7 @@ from .. import ServerClient
 
 class PluginCommonUnitTests(unittest.TestCase):
 
-    @patch('vsphere_plugin_common.get_ip_from_vsphere_nic_ips')
+    @patch('vsphere_plugin_common.clients.server.get_ip_from_vsphere_nic_ips')
     def test_get_server_ip(self, get_ip_from_nic_mock):
         client = ServerClient()
         server = Mock()
@@ -40,7 +40,7 @@ class PluginCommonUnitTests(unittest.TestCase):
             get_ip_from_nic_mock.return_value,
             res)
 
-    @patch('vsphere_plugin_common.get_ip_from_vsphere_nic_ips')
+    @patch('vsphere_plugin_common.clients.server.get_ip_from_vsphere_nic_ips')
     def test_get_server_ip_with_slash(self, get_ip_from_nic_mock):
         client = ServerClient()
         server = Mock()

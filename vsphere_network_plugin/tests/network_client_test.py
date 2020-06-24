@@ -41,7 +41,7 @@ class NetworkClientTest(unittest.TestCase):
         client.delete_ippool("datacenter", 123)
         # checks
         client._get_obj_by_name.assert_called_once_with(
-            vsphere_plugin_common.vim.Datacenter, "datacenter")
+            vsphere_plugin_common.clients.vim.Datacenter, "datacenter")
         client.si.content.ipPoolManager.DestroyIpPool.assert_called_once_with(
             dc=datacenter.obj, force=True, id=123)
 

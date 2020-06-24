@@ -19,10 +19,8 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from vsphere_plugin_common.utils import op, prepare_for_log, find_rels_by_type
-from vsphere_plugin_common import (
-    get_ip_from_vsphere_nic_ips,
-    with_server_client,
-)
+from vsphere_plugin_common import with_server_client
+from vsphere_plugin_common.clients.server import get_ip_from_vsphere_nic_ips
 from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,

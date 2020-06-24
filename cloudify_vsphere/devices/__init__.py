@@ -20,9 +20,9 @@ from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
 from vsphere_plugin_common.utils import find_rels_by_type
+from vsphere_plugin_common.clients.server import ServerClient
+from vsphere_plugin_common.clients.network import ControllerClient
 from vsphere_plugin_common import (
-    ServerClient,
-    ControllerClient,
     run_deferred_task,
     remove_runtime_properties)
 from vsphere_plugin_common.constants import (

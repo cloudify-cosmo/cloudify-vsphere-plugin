@@ -21,7 +21,7 @@ from pyfakefs import fake_filesystem_unittest
 
 from cloudify.state import current_ctx
 
-from .. import Config
+from ..clients import Config
 
 
 class VspherePluginCommonFSTests(fake_filesystem_unittest.TestCase):

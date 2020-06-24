@@ -121,8 +121,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # without vm-id
                 _ctx.source.instance.runtime_properties['busKey'] = 4010
                 with self.assertRaises(NonRecoverableError) as e:
@@ -171,8 +172,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # reinstall with empty properties
                 devices.detach_server_from_controller(ctx=_ctx)
 
@@ -192,8 +194,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # use unexisted network
                 _ctx.source.instance.runtime_properties.update(settings)
                 network = None
@@ -334,8 +337,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # without vm-id
                 with self.assertRaises(NonRecoverableError) as e:
                     devices.attach_scsi_controller(ctx=_ctx)
@@ -425,8 +429,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # use unexisted network
                 _ctx.target.instance.runtime_properties.update(settings)
                 network = None

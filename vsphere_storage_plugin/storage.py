@@ -23,6 +23,7 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from vsphere_plugin_common import with_storage_client
+from vsphere_plugin_common._compat import text_type
 from vsphere_plugin_common.utils import op, prepare_for_log
 from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
@@ -32,6 +33,10 @@ from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_SCSI_ID,
     VSPHERE_STORAGE_FILE_NAME,
 )
+
+RESIZE_ERROR = "The resize operation cannot be performed. " \
+               "The resource has not been correctly initialized. " \
+               "Reason: {reason}"
 
 
 @op
@@ -68,14 +73,14 @@ def create(storage_client, storage, use_external_resource=False):
     vm_name = connected_vms[0]['name']
     if use_external_resource:
         for fname in [
-            VSPHERE_STORAGE_SCSI_ID, VSPHERE_STORAGE_FILE_NAME,
+            VSPHERE_STORAGE_SCSI_ID,
+            VSPHERE_STORAGE_FILE_NAME,
             VSPHERE_STORAGE_SIZE
         ]:
             if fname not in storage:
                 raise NonRecoverableError(
-                    'You should provide {}'.format(fname))
-            else:
-                ctx.instance.runtime_properties[fname] = storage[fname]
+                    'You should provide {fname}'.format(fname=fname))
+            ctx.instance.runtime_properties[fname] = storage[fname]
         ctx.logger.info(
             "Reuse volume on VM '{vm}' with name '{name}'".format(
                 vm=vm_name,
@@ -120,7 +125,7 @@ def create(storage_client, storage, use_external_resource=False):
             # If more than one storage is attached to the same VM, there is
             # a race and they might try to use the same name. If that happens
             # the loser will retry.
-            if 'vim.fault.FileAlreadyExists' in str(e):
+            if 'vim.fault.FileAlreadyExists' in text_type(e):
                 raise OperationRetry(
                     'Name clash with another storage. Retrying')
             raise
@@ -146,7 +151,7 @@ def create(storage_client, storage, use_external_resource=False):
 
 @op
 @with_storage_client
-def delete(storage_client, **kwargs):
+def delete(storage_client, **_):
     if ctx.instance.runtime_properties.get('use_external_resource'):
         ctx.logger.info('Used existing resource.')
         return
@@ -178,12 +183,12 @@ def delete(storage_client, **kwargs):
 
 @op
 @with_storage_client
-def resize(storage_client, **kwargs):
+def resize(storage_client, **_):
     vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
     vm_name = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_NAME)
     if not vm_name or not vm_id:
-        ctx.logger.info(
-            'Storage resize not needed due to not being fully initialized.')
+        ctx.logger.info(RESIZE_ERROR.format(
+            reason='missing resource ID or name.'))
         return
 
     storage_file_name = \
@@ -191,8 +196,7 @@ def resize(storage_client, **kwargs):
     storage_size = ctx.instance.runtime_properties.get('storage_size')
     if not storage_size:
         raise NonRecoverableError(
-            'Error during trying to resize storage: new storage size wasn\'t'
-            ' specified.')
+            RESIZE_ERROR.format(reason='missing storage size.'))
     ctx.logger.info(
         "Resizing storage {file} on {vm} to {new_size}".format(
             file=storage_file_name,

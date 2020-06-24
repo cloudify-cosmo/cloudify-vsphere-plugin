@@ -25,10 +25,9 @@ from mock import Mock, MagicMock, patch, call
 from cloudify.state import current_ctx
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 
-from .. import (
-    ServerClient,
-    VsphereClient,
-    vim)
+from .. import (VsphereClient, ServerClient)
+
+from ..clients import vim
 from .._compat import (
     HTTPServer,
     SimpleHTTPRequestHandler)
@@ -1506,7 +1505,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertEqual(result, expected)
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_datastore_is_usable_good(self, mock_status):
         mock_status.green = 'green'
 
@@ -1519,7 +1518,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertTrue(client.datastore_is_usable(datastore))
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_datastore_is_usable_mostly_good(self, mock_status):
         mock_status.yellow = 'yellow'
 
@@ -1532,7 +1531,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertTrue(client.datastore_is_usable(datastore))
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_datastore_is_usable_good_but_disconnected(self, mock_status):
         datastore = self._make_mock_datastore(
             accessible=False,
@@ -1542,7 +1541,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertFalse(client.datastore_is_usable(datastore))
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_datastore_is_usable_not_good(self, mock_status):
         datastore = self._make_mock_datastore(
             status='something different',
@@ -1753,8 +1752,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertEqual(result, expected)
 
-    @patch('vsphere_plugin_common.vim.ClusterComputeResource')
-    @patch('vsphere_plugin_common.isinstance', create=True)
+    @patch('vsphere_plugin_common.clients.vim.ClusterComputeResource')
+    @patch('vsphere_plugin_common.clients.server.isinstance', create=True)
     def test_get_host_cluster_membership_member(self,
                                                 mock_isinstance,
                                                 mock_cluster_type):
@@ -1775,8 +1774,8 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertEqual(expected_name, result)
 
-    @patch('vsphere_plugin_common.vim.ClusterComputeResource')
-    @patch('vsphere_plugin_common.isinstance', create=True)
+    @patch('vsphere_plugin_common.clients.vim.ClusterComputeResource')
+    @patch('vsphere_plugin_common.clients.server.isinstance', create=True)
     def test_get_host_cluster_membership_non_member(self,
                                                     mock_isinstance,
                                                     mock_cluster_type):
@@ -1794,7 +1793,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_host_is_usable_good(self, mock_status):
         mock_status.green = 'green'
 
@@ -1807,7 +1806,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertTrue(client.host_is_usable(host))
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_host_is_usable_mostly_good(self, mock_status):
         mock_status.yellow = 'yellow'
 
@@ -1820,7 +1819,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertTrue(client.host_is_usable(host))
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_host_is_usable_good_but_maintenance(self, mock_status):
         mock_status.green = 'green'
 
@@ -1833,7 +1832,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertFalse(client.host_is_usable(host))
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_host_is_usable_good_but_disconnected(self, mock_status):
         mock_status.green = 'green'
 
@@ -1846,7 +1845,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertFalse(client.host_is_usable(host))
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_host_is_usable_mostly_good_but_disconnected(self, mock_status):
         mock_status.yellow = 'yellow'
 
@@ -1859,7 +1858,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertFalse(client.host_is_usable(host))
 
-    @patch('vsphere_plugin_common.vim.ManagedEntity.Status')
+    @patch('vsphere_plugin_common.clients.vim.ManagedEntity.Status')
     def test_host_is_usable_not_good(self, mock_status):
         mock_status.other = 'something'
 
@@ -1872,7 +1871,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertFalse(client.host_is_usable(host))
 
-    @patch('vsphere_plugin_common.vim.dvs.DistributedVirtualPortgroup')
+    @patch('vsphere_plugin_common.clients.vim.dvs.DistributedVirtualPortgroup')
     def test_port_group_is_distributed(self,
                                        mock_distributed_port_group_type):
         port_group = Mock()
@@ -1884,7 +1883,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
 
         self.assertTrue(result)
 
-    @patch('vsphere_plugin_common.vim.dvs.DistributedVirtualPortgroup')
+    @patch('vsphere_plugin_common.clients.vim.dvs.DistributedVirtualPortgroup')
     def test_port_group_is_not_distributed(self,
                                            mock_distributed_port_group_type):
         port_group = Mock()
@@ -2020,7 +2019,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
             '_resource_id': 'check_id'
         }
         with self.assertRaises(OperationRetry):
-            with patch("vsphere_plugin_common.time", Mock()):
+            with patch("vsphere_plugin_common.clients.server.time", Mock()):
                 client._wait_for_task(task=None, instance=instance)
 
     def test_add_new_custom_attr(self):
@@ -2383,7 +2382,7 @@ class VspherePluginsCommonTests(unittest.TestCase):
                 ctx=self.mock_ctx,
             )
 
-    @patch('vsphere_plugin_common.ssl')
+    @patch('vsphere_plugin_common.clients.ssl')
     def test_connect_with_bad_ssl_version_with_cert(self, mock_ssl):
         delattr(mock_ssl, '_create_default_https_context')
         with WebServer():

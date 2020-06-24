@@ -19,8 +19,9 @@
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
-from cloudify_vsphere.utils import op
 from vsphere_plugin_common import with_network_client
+from vsphere_plugin_common._compat import unquote
+from vsphere_plugin_common.utils import op, check_name_for_special_characters
 from vsphere_plugin_common.constants import (
     NETWORK_ID,
     NETWORK_MTU,
@@ -29,8 +30,6 @@ from vsphere_plugin_common.constants import (
     NETWORK_STATUS,
     SWITCH_DISTRIBUTED,
 )
-from vsphere_plugin_common._compat import unquote
-from vsphere_plugin_common.utils import check_name_for_special_characters
 
 
 @op
