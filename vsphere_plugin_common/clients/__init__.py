@@ -43,6 +43,7 @@ from pyVmomi import vim, vmodl
 from pyVim.connect import SmartConnect, SmartConnectNoSSL, Disconnect
 
 # Cloudify imports
+from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
@@ -454,8 +455,14 @@ class VsphereClient(object):
 
         return result
 
-    def _get_entity(self, entity_name, props, vimtype, use_cache=True,
-                    other_entity_mappings=None, skip_broken_objects=False):
+    def _get_entity(self,
+                    entity_name,
+                    props,
+                    vimtype,
+                    use_cache=True,
+                    other_entity_mappings=None,
+                    skip_broken_objects=False):
+
         if entity_name in self._cache and use_cache:
             return self._cache[entity_name]
 
@@ -619,14 +626,14 @@ class VsphereClient(object):
             entity_name='datastore',
             props=properties,
             vimtype=vim.Datastore,
-            use_cache=use_cache,
+            use_cache=use_cache
         )
 
-    def _get_connected_network_name(self, network, instance):
+    def _get_connected_network_name(self, network):
         if network.get('from_relationship'):
             net_id = None
             found = False
-            for relationship in instance.relationships:
+            for relationship in ctx.instance.relationships:
                 if relationship.target.node.name == network['name']:
                     props = relationship.target.instance.runtime_properties
                     net_id = props.get(NETWORK_ID)
@@ -1044,6 +1051,8 @@ class VsphereClient(object):
                        instance=None,
                        max_wait_time=300,
                        resource_id=None):
+
+        instance = instance or ctx.instance
 
         if not task and instance:
             task_id = instance.runtime_properties.get(ASYNC_TASK_ID)

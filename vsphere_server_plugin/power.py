@@ -27,7 +27,7 @@ def _power_operation(operation_name,
                      server_client,
                      kwargs=None):
     kwargs = kwargs or {}
-    server_obj = get_server_by_context(ctx, server_client, server)
+    server_obj = get_server_by_context(server_client, server)
     split = ' '.join(operation_name.split('_'))
     if not server_obj:
         raise cfy_exc.NonRecoverableError(
