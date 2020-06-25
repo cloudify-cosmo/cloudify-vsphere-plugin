@@ -1250,7 +1250,6 @@ class ServerClient(VsphereClient):
                         host=host.name,
                     )
                 )
-
             candidate_datastores = []
             for datastore in healthy_datastores:
                 weighting = self.calculate_datastore_weighting(
@@ -1258,13 +1257,13 @@ class ServerClient(VsphereClient):
                     vm_memory=vm_memory,
                     template=template,
                 )
-                if weighting is not None:
+                if weighting:
                     self._logger.debug(
                         'Datastore {ds} on host {host} has suitability '
                         '{weight}'.format(
                             ds=datastore.name,
                             weight=weighting,
-                            host=host.name,
+                            host=host.name
                         )
                     )
                     candidate_datastores.append((datastore, weighting))
@@ -1276,15 +1275,14 @@ class ServerClient(VsphereClient):
                             host=host.name,
                         )
                     )
-
             if candidate_datastores:
                 candidate_host = host
                 candidate_datastore, candidate_datastore_weighting = max(
                     candidate_datastores,
-                    key=lambda datastore: datastore[1],
+                    key=lambda datastore: datastore[1]
                 )
 
-                if best_datastore is None:
+                if not best_datastore:
                     best_host = candidate_host
                     best_datastore = candidate_datastore
                     best_datastore_weighting = candidate_datastore_weighting
@@ -1313,7 +1311,7 @@ class ServerClient(VsphereClient):
                         )
                     )
 
-        if not best_host:
+        if best_host:
             return best_host, best_datastore
         else:
             message = 'No datastores found with enough space.'

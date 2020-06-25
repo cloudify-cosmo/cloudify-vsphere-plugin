@@ -1163,6 +1163,9 @@ class VspherePluginsCommonTests(unittest.TestCase):
         mock_datastore_is_usable.return_value = True
         template = self._make_mock_vm(name='mytemplate')
         mock_datastore_weighting.return_value = 1
+        mock_get_datastores.return_value = [
+            right_datastore, wrong_datastore
+        ]
 
         memory = 1024
         allowed_datastores = [right_datastore.name]
