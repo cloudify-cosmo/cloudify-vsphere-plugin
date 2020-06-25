@@ -28,10 +28,10 @@ from .constants import (
     ASYNC_TASK_ID,
     DELETE_NODE_ACTION,
 )
-from clients import VsphereClient  # noqa
-from clients.server import ServerClient
-from clients.network import NetworkClient
-from clients.storage import StorageClient, RawVolumeClient
+from .clients import VsphereClient  # noqa
+from .clients.server import ServerClient
+from .clients.network import NetworkClient
+from .clients.storage import StorageClient, RawVolumeClient
 
 
 def remove_runtime_properties(instance):
