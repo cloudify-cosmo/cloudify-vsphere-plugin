@@ -118,9 +118,7 @@ def create(storage_client, storage, use_external_resource=False):
                 storage_size,
                 parent_key,
                 mode,
-                thin_provision=thin_provision,
-                instance=ctx.instance
-            )
+                thin_provision=thin_provision)
         except NonRecoverableError as e:
             # If more than one storage is attached to the same VM, there is
             # a race and they might try to use the same name. If that happens
@@ -155,30 +153,21 @@ def delete(storage_client, **_):
     if ctx.instance.runtime_properties.get('use_external_resource'):
         ctx.logger.info('Used existing resource.')
         return
-
     vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
     vm_name = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_NAME)
     if not vm_name or not vm_id:
         ctx.logger.info(
             'Storage deletion not needed due to not being fully initialized.')
         return
-
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
     ctx.logger.info(
         "Deleting storage {file} from {vm}".format(
-            file=storage_file_name,
-            vm=vm_name,
-        )
-    )
-    storage_client.delete_storage(vm_id, storage_file_name,
-                                  instance=ctx.instance)
+            file=storage_file_name, vm=vm_name))
+    storage_client.delete_storage(vm_id, storage_file_name)
     ctx.logger.info(
         "Successfully deleted storage {file} from {vm}".format(
-            file=storage_file_name,
-            vm=vm_name,
-        )
-    )
+            file=storage_file_name, vm=vm_name))
 
 
 @op
@@ -190,7 +179,6 @@ def resize(storage_client, **_):
         ctx.logger.info(RESIZE_ERROR.format(
             reason='missing resource ID or name.'))
         return
-
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
     storage_size = ctx.instance.runtime_properties.get('storage_size')
@@ -199,19 +187,8 @@ def resize(storage_client, **_):
             RESIZE_ERROR.format(reason='missing storage size.'))
     ctx.logger.info(
         "Resizing storage {file} on {vm} to {new_size}".format(
-            file=storage_file_name,
-            vm=vm_name,
-            new_size=storage_size,
-        )
-    )
-    storage_client.resize_storage(vm_id,
-                                  storage_file_name,
-                                  storage_size,
-                                  instance=ctx.instance)
+            file=storage_file_name, vm=vm_name, new_size=storage_size))
+    storage_client.resize_storage(vm_id, storage_file_name, storage_size)
     ctx.logger.info(
         "Successfully resized storage {file} on {vm} to {new_size}".format(
-            file=storage_file_name,
-            vm=vm_name,
-            new_size=storage_size,
-        )
-    )
+            file=storage_file_name, vm=vm_name, new_size=storage_size))

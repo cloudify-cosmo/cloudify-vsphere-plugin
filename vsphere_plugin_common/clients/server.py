@@ -790,11 +790,11 @@ class ServerClient(VsphereClient):
 
     def suspend_server(self, server, max_wait_time=30):
         if self.is_server_suspended(server.obj):
-            self._logger.info("Server '{}' already suspended."
-                              .format(server.name))
+            self._logger.info(
+                "Server '{0}' already suspended.".format(server.name))
             return
         if self.is_server_poweredoff(server):
-            self._logger.info("Server '{}' is powered off so will not be "
+            self._logger.info("Server '{0}' is powered off so will not be "
                               "suspended.".format(server.name))
             return
         self._logger.debug("Entering server suspend procedure.")
@@ -805,8 +805,8 @@ class ServerClient(VsphereClient):
 
     def start_server(self, server, max_wait_time=30):
         if self.is_server_poweredon(server):
-            self._logger.info("Server '{}' already running"
-                              .format(server.name))
+            self._logger.info(
+                "Server '{0}' already running".format(server.name))
             return
         self._logger.debug("Entering server start procedure.")
         task = server.obj.PowerOn()
@@ -816,8 +816,8 @@ class ServerClient(VsphereClient):
 
     def shutdown_server_guest(self, server, max_wait_time=30):
         if self.is_server_poweredoff(server):
-            self._logger.info("Server '{}' already stopped"
-                              .format(server.name))
+            self._logger.info(
+                "Server '{0}' already stopped".format(server.name))
             return
         self._logger.debug("Entering server shutdown procedure.")
         task = server.obj.ShutdownGuest()
@@ -827,8 +827,8 @@ class ServerClient(VsphereClient):
 
     def stop_server(self, server, max_wait_time=30):
         if self.is_server_poweredoff(server):
-            self._logger.info("Server '{}' already stopped"
-                              .format(server.name))
+            self._logger.info(
+                "Server '{0}' already stopped".format(server.name))
             return
         self._logger.debug("Entering stop server procedure.")
         task = server.obj.PowerOff()
@@ -844,8 +844,8 @@ class ServerClient(VsphereClient):
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
             if snapshot:
                 raise NonRecoverableError(
-                    "Snapshot {snapshot_name} already exists."
-                    .format(snapshot_name=snapshot_name,))
+                    "Snapshot {snapshot_name} already exists.".format(
+                        snapshot_name=snapshot_name))
 
         task = server.obj.CreateSnapshot(
             snapshot_name, description=description,
@@ -876,7 +876,7 @@ class ServerClient(VsphereClient):
         if not snapshot:
             raise NonRecoverableError(
                 "No snapshots found with name: {snapshot_name}."
-                .format(snapshot_name=snapshot_name,))
+                .format(snapshot_name=snapshot_name))
 
         task = snapshot.snapshot.RevertToSnapshot_Task()
         self._wait_for_task(task,
@@ -890,16 +890,16 @@ class ServerClient(VsphereClient):
             snapshot = None
         if not snapshot:
             raise NonRecoverableError(
-                "No snapshots found with name: {snapshot_name}."
-                .format(snapshot_name=snapshot_name,))
+                "No snapshots found with name: {snapshot_name}.".format(
+                    snapshot_name=snapshot_name))
 
         if snapshot.childSnapshotList:
             subsnapshots = [snap.name for snap in snapshot.childSnapshotList]
             raise NonRecoverableError(
                 "Sub snapshots {subsnapshots} found for {snapshot_name}. "
-                "You should remove subsnaphots before remove current."
-                .format(snapshot_name=snapshot_name,
-                        subsnapshots=text_type(subsnapshots)))
+                "You should remove subsnaphots before remove current.".format(
+                    snapshot_name=snapshot_name,
+                    subsnapshots=text_type(subsnapshots)))
 
         task = snapshot.snapshot.RemoveSnapshot_Task(True)
         self._wait_for_task(task,
@@ -908,7 +908,8 @@ class ServerClient(VsphereClient):
     def reset_server(self, server, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info(
-                "Server '{}' currently stopped, starting.".format(server.name))
+                "Server '{0}' currently stopped, starting.".format(
+                    server.name))
             return self.start_server(server,
                                      max_wait_time=max_wait_time)
         self._logger.debug("Entering stop server procedure.")
@@ -920,7 +921,8 @@ class ServerClient(VsphereClient):
     def reboot_server(self, server, max_wait_time=30):
         if self.is_server_poweredoff(server):
             self._logger.info(
-                "Server '{}' currently stopped, starting.".format(server.name))
+                "Server '{0}' currently stopped, starting.".format(
+                    server.name))
             return self.start_server(server,
                                      max_wait_time=max_wait_time)
         self._logger.debug("Entering reboot server procedure.")
@@ -970,18 +972,13 @@ class ServerClient(VsphereClient):
 
         host_names = [host.name for host in hosts]
         self._logger.debug(
-            'Found hosts: {hosts}'.format(
-                hosts=', '.join(host_names),
-            )
-        )
+            'Found hosts: {hosts}'.format(hosts=', '.join(host_names)))
 
         if allowed_hosts:
             hosts = [host for host in hosts if host.name in allowed_hosts]
             self._logger.debug(
                 'Filtered list of hosts to be considered: {hosts}'.format(
-                    hosts=', '.join([host.name for host in hosts]),
-                )
-            )
+                    hosts=', '.join([host.name for host in hosts])))
 
         if allowed_clusters:
             cluster_list = self._get_clusters()
@@ -990,18 +987,14 @@ class ServerClient(VsphereClient):
             self._logger.debug(
                 'Only hosts on the following clusters will be used: '
                 '{clusters}'.format(
-                    clusters=', '.join(valid_clusters),
-                )
-            )
+                    clusters=', '.join(valid_clusters)))
 
         candidate_hosts = []
         for host in hosts:
             if not self.host_is_usable(host):
                 self._logger.warn(
                     'Host {host} not usable due to health status.'.format(
-                        host=host.name,
-                    )
-                )
+                        host=host.name))
                 continue
 
             if allowed_clusters:
@@ -1012,16 +1005,12 @@ class ServerClient(VsphereClient):
                             'Host {host} is in cluster {cluster}, '
                             'which is not an allowed cluster.'.format(
                                 host=host.name,
-                                cluster=cluster,
-                            )
-                        )
+                                cluster=cluster))
                     else:
                         self._logger.warn(
                             'Host {host} is not in a cluster, '
                             'and allowed clusters have been set.'.format(
-                                host=host.name,
-                            )
-                        )
+                                host=host.name))
                     continue
 
             memory_weight = self.host_memory_usage_ratio(host, vm_memory)
@@ -1029,10 +1018,7 @@ class ServerClient(VsphereClient):
             if memory_weight < 0:
                 self._logger.warn(
                     'Host {host} will not have enough free memory if all VMs '
-                    'are powered on.'.format(
-                        host=host.name,
-                    )
-                )
+                    'are powered on.'.format(host=host.name))
 
             resource_pools = self.get_host_resource_pools(host)
             resource_pools = [pool.name for pool in resource_pools]
@@ -1040,9 +1026,7 @@ class ServerClient(VsphereClient):
                 self._logger.warn(
                     'Host {host} does not have resource pool {rp}.'.format(
                         host=host.name,
-                        rp=resource_pool,
-                    )
-                )
+                        rp=resource_pool))
                 continue
 
             host_nets = set([
@@ -1091,9 +1075,7 @@ class ServerClient(VsphereClient):
 
             self._logger.debug(
                 'Host {host} is a candidate for deployment.'.format(
-                    host=host.name,
-                )
-            )
+                    host=host.name))
             candidate_hosts.append((
                 host,
                 self.host_cpu_thread_usage_ratio(host, vm_cpus),
@@ -1108,18 +1090,13 @@ class ServerClient(VsphereClient):
                         '{hostname}: {ratio} {mem_ratio}'.format(
                             hostname=c[0].name,
                             ratio=c[1],
-                            mem_ratio=c[2],
-                        ) for c in candidate_hosts
-                    ])
-                )
-            )
+                            mem_ratio=c[2]) for c in candidate_hosts])))
         candidate_hosts.sort(
             reverse=True,
-            key=lambda host_rating: host_rating[1] * host_rating[2]
-            # If more ratios are added, take care that they are proper ratios
-            # (i.e. > 0), because memory ([2]) isn't, and 2 negatives would
-            # cause badly ordered candidates.
-        )
+            key=lambda host_rating: host_rating[1] * host_rating[2])
+        # If more ratios are added, take care that they are proper ratios
+        # (i.e. > 0), because memory ([2]) isn't, and 2 negatives would
+        # cause badly ordered candidates.
 
         if candidate_hosts:
             return candidate_hosts
@@ -1135,9 +1112,7 @@ class ServerClient(VsphereClient):
             if allowed_clusters:
                 message += (
                     " Only hosts in these clusters were allowed: {clusters}"
-                ).format(
-                    clusters=', '.join(allowed_clusters)
-                )
+                ).format(clusters=', '.join(allowed_clusters))
 
             raise NonRecoverableError(message)
 
@@ -1156,9 +1131,7 @@ class ServerClient(VsphereClient):
             'Pools found were: {pools}'.format(
                 rp=resource_pool_name,
                 host=host.name,
-                pools=', '.join([p.name for p in resource_pools]),
-            )
-        )
+                pools=', '.join([p.name for p in resource_pools])))
 
     def select_host_and_datastore(self,
                                   candidate_hosts,
@@ -1184,10 +1157,7 @@ class ServerClient(VsphereClient):
                 set(datastore_names))
             self._logger.debug(
                 'Only the following datastores will be used: '
-                '{datastores}'.format(
-                    datastores=', '.join(valid_datastores),
-                )
-            )
+                '{datastores}'.format(datastores=', '.join(valid_datastores)))
 
         for host in candidate_hosts:
             host = host[0]
@@ -1198,15 +1168,11 @@ class ServerClient(VsphereClient):
             self._logger.debug(
                 'Host {host} has datastores: {ds}'.format(
                     host=host.name,
-                    ds=', '.join([ds.name for ds in datastores]),
-                )
-            )
+                    ds=', '.join([ds.name for ds in datastores])))
             if allowed_datastores:
                 self._logger.debug(
                     'Checking only allowed datastores: {allow}'.format(
-                        allow=', '.join(allowed_datastores),
-                    )
-                )
+                        allow=', '.join(allowed_datastores)))
 
                 datastores = [
                     ds for ds in datastores
@@ -1221,9 +1187,7 @@ class ServerClient(VsphereClient):
 
             self._logger.debug(
                 'Filtering for healthy datastores on host {host}'.format(
-                    host=host.name,
-                )
-            )
+                    host=host.name))
 
             healthy_datastores = []
             for datastore in datastores:
@@ -1231,25 +1195,19 @@ class ServerClient(VsphereClient):
                     self._logger.debug(
                         'Datastore {ds} on host {host} is healthy.'.format(
                             ds=datastore.name,
-                            host=host.name,
-                        )
-                    )
+                            host=host.name))
                     healthy_datastores.append(datastore)
                 else:
                     self._logger.warn(
                         'Excluding datastore {ds} on host {host} as it is '
                         'not healthy.'.format(
                             ds=datastore.name,
-                            host=host.name,
-                        )
-                    )
+                            host=host.name))
 
             if len(healthy_datastores) == 0:
                 self._logger.warn(
                     'Host {host} has no usable datastores.'.format(
-                        host=host.name,
-                    )
-                )
+                        host=host.name))
             candidate_datastores = []
             for datastore in healthy_datastores:
                 weighting = self.calculate_datastore_weighting(
@@ -1263,24 +1221,18 @@ class ServerClient(VsphereClient):
                         '{weight}'.format(
                             ds=datastore.name,
                             weight=weighting,
-                            host=host.name
-                        )
-                    )
+                            host=host.name))
                     candidate_datastores.append((datastore, weighting))
                 else:
                     self._logger.warn(
                         'Datastore {ds} on host {host} does not have enough '
                         'free space.'.format(
                             ds=datastore.name,
-                            host=host.name,
-                        )
-                    )
+                            host=host.name))
             if candidate_datastores:
                 candidate_host = host
                 candidate_datastore, candidate_datastore_weighting = max(
-                    candidate_datastores,
-                    key=lambda datastore: datastore[1]
-                )
+                    candidate_datastores, key=lambda datastore: datastore[1])
 
                 if not best_datastore:
                     best_host = candidate_host
@@ -1295,9 +1247,8 @@ class ServerClient(VsphereClient):
                         if candidate_datastore_weighting >= 0:
                             best_host = candidate_host
                             best_datastore = candidate_datastore
-                            best_datastore_weighting = (
+                            best_datastore_weighting = \
                                 candidate_datastore_weighting
-                            )
 
                 if candidate_host == best_host and \
                         candidate_datastore == best_datastore:
@@ -1307,9 +1258,7 @@ class ServerClient(VsphereClient):
                         '{weight}.'.format(
                             host=best_host.name,
                             datastore=best_datastore.name,
-                            weight=best_datastore_weighting,
-                        )
-                    )
+                            weight=best_datastore_weighting))
 
         if best_host:
             return best_host, best_datastore
@@ -1320,8 +1269,7 @@ class ServerClient(VsphereClient):
                 message = message.format(ds=', '.join(allowed_datastores))
             message += ' Only the suitable candidate hosts were checked: '
             message += '{hosts}'.format(hosts=', '.join(
-                [candidate[0].name for candidate in candidate_hosts]
-            ))
+                [candidate[0].name for candidate in candidate_hosts]))
             raise NonRecoverableError(message)
 
     def get_host_free_memory(self, host):
@@ -1527,9 +1475,7 @@ class ServerClient(VsphereClient):
                     raise NonRecoverableError(
                         "Memory error resizing Server. May be caused by "
                         "https://kb.vmware.com/kb/2008405 . If so the Server "
-                        "may be resized while it is switched off.",
-                        e,
-                    )
+                        "may be resized while it is switched off.", e)
                 raise
 
         self._logger.debug(
@@ -1538,19 +1484,13 @@ class ServerClient(VsphereClient):
 
     def get_server_ip(self, vm, network_name, ignore_local=True):
         self._logger.debug(
-            'Getting server IP from {network}.'.format(
-                network=network_name,
-            )
-        )
+            'Getting server IP from {network}.'.format(network=network_name))
 
         for network in vm.guest.net:
             if not network.network:
                 self._logger.warn(
                     'Ignoring device with MAC {mac} as it is not on a '
-                    'vSphere network.'.format(
-                        mac=network.macAddress,
-                    )
-                )
+                    'vSphere network.'.format(mac=network.macAddress))
                 continue
             if network.network and \
                     network_name.lower() == self._get_normalised_name(
@@ -1560,10 +1500,7 @@ class ServerClient(VsphereClient):
                 # logs more visible
                 self._logger.info(
                     'Found {ip} from device with MAC {mac}'.format(
-                        ip=ip_address,
-                        mac=network.macAddress,
-                    )
-                )
+                        ip=ip_address, mac=network.macAddress))
                 return ip_address
 
     def _task_guest_state_is_running(self, vm):
@@ -1574,8 +1511,7 @@ class ServerClient(VsphereClient):
         except vmodl.fault.ManagedObjectNotFound:
             raise NonRecoverableError(
                 'Server failed to enter running state, task has been deleted '
-                'by vCenter after failing.'
-            )
+                'by vCenter after failing.')
 
     def _task_guest_has_networks(self, vm, adaptermaps):
         # We should possibly be checking that it has the number of networks

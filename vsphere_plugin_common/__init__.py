@@ -45,7 +45,7 @@ def remove_runtime_properties(instance):
 
 def run_deferred_task(client, instance):
     if instance.runtime_properties.get(ASYNC_TASK_ID):
-        client._wait_for_task(instance=instance)
+        client._wait_for_task()
 
 
 def _with_client(client_name, client):

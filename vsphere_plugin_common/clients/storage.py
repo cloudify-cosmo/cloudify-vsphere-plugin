@@ -23,6 +23,7 @@ import requests
 from pyVmomi import vim
 
 # Cloudify imports
+from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
@@ -121,7 +122,6 @@ class StorageClient(VsphereClient):
                        storage_size,
                        parent_key,
                        mode,
-                       instance,
                        thin_provision=False):
 
         self._logger.debug("Entering create storage procedure.")
@@ -136,7 +136,7 @@ class StorageClient(VsphereClient):
                 ' invalid VM state - \'suspended\''
             )
 
-        vm_disk_filename = instance.runtime_properties.get('vm_disk_name')
+        vm_disk_filename = ctx.instance.runtime_properties.get('vm_disk_name')
         # we don't have name for new disk
         if not vm_disk_filename:
             devices = []
@@ -243,15 +243,14 @@ class StorageClient(VsphereClient):
 
             task = vm.obj.Reconfigure(spec=config_spec)
 
-            instance.runtime_properties['vm_disk_name'] = vm_disk_filename
-            instance.runtime_properties.dirty = True
-            instance.update()
-            self._wait_for_task(task, instance=instance)
-
+            ctx.instance.runtime_properties['vm_disk_name'] = vm_disk_filename
+            ctx.instance.runtime_properties.dirty = True
+            ctx.instance.update()
+            self._wait_for_task(task)
         # remove old vm disk name
-        del instance.runtime_properties['vm_disk_name']
-        instance.runtime_properties.dirty = True
-        instance.update()
+        del ctx.instance.runtime_properties['vm_disk_name']
+        ctx.instance.runtime_properties.dirty = True
+        ctx.instance.update()
 
         # Get the SCSI bus and unit IDs
         scsi_controllers = []
@@ -285,7 +284,7 @@ class StorageClient(VsphereClient):
 
         return vm_disk_filename, scsi_id
 
-    def delete_storage(self, vm_id, storage_file_name, instance):
+    def delete_storage(self, vm_id, storage_file_name):
         self._logger.debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         self._logger.debug("VM info: \n{}".format(vm))
@@ -322,7 +321,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        self._wait_for_task(task, instance=instance)
+        self._wait_for_task(task)
 
     def get_storage(self, vm_id, storage_file_name):
         self._logger.debug("Entering get storage procedure.")
@@ -337,7 +336,7 @@ class StorageClient(VsphereClient):
                     return device
         return
 
-    def resize_storage(self, vm_id, storage_filename, storage_size, instance):
+    def resize_storage(self, vm_id, storage_filename, storage_size):
         self._logger.debug("Entering resize storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         self._logger.debug("VM info: \n{}".format(vm))
@@ -381,7 +380,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = updated_devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        self._wait_for_task(task, instance=instance)
+        self._wait_for_task(task)
         self._logger.debug(
             'Storage resized to a new size {storage_size}.'.format(
                 storage_size=storage_size))
