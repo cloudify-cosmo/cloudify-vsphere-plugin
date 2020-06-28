@@ -46,10 +46,10 @@ def create(rawvolume_client,
         ctx.logger.info('Instance is already created.')
         return
 
-    ctx.logger.info("Creating new iso image.")
+    ctx.logger.info('Creating new iso image.')
 
     if raw_files:
-        ctx.logger.warn("`raw_files` is deprecated, use `files_raw`.")
+        ctx.logger.warn('`raw_files` is deprecated, use `files_raw`.')
         files_raw = files_raw.update(raw_files) if files_raw else raw_files
 
     outiso = iso9660.create_iso(vol_ident=vol_ident, sys_ident=sys_ident,

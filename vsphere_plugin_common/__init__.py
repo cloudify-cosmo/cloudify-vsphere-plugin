@@ -34,18 +34,19 @@ from .clients.network import NetworkClient
 from .clients.storage import StorageClient, RawVolumeClient
 
 
-def remove_runtime_properties(instance):
+def remove_runtime_properties():
     # cleanup runtime properties
     # need to convert generaton to list, python 3
-    for prop_key in list(instance.runtime_properties.keys()):
-        del instance.runtime_properties[prop_key]
+    for prop_key in list(ctx.instance.runtime_properties.keys()):
+        del ctx.instance.runtime_properties[prop_key]
     # save flag as current state before external call
-    instance.update()
+    ctx.instance.update()
 
 
-def run_deferred_task(client, instance):
+def run_deferred_task(client, instance=None):
+    instance = instance or ctx.instance
     if instance.runtime_properties.get(ASYNC_TASK_ID):
-        client._wait_for_task()
+        client._wait_for_task(instance)
 
 
 def _with_client(client_name, client):
@@ -60,8 +61,7 @@ def _with_client(client_name, client):
             try:
                 # check unfinished tasks
                 if ctx.type == context.NODE_INSTANCE:
-                    run_deferred_task(client=kwargs[client_name],
-                                      instance=ctx.instance)
+                    run_deferred_task(client=kwargs[client_name])
                 elif ctx.type == context.RELATIONSHIP_INSTANCE:
                     run_deferred_task(client=kwargs[client_name],
                                       instance=ctx.source.instance)
@@ -78,7 +78,7 @@ def _with_client(client_name, client):
                     if not ctx.instance.runtime_properties.get(ASYNC_TASK_ID):
                         ctx.logger.info('Cleanup resource.')
                         # cleanup runtime
-                        remove_runtime_properties(ctx.instance)
+                        remove_runtime_properties()
                 # return result
                 return result
             except Exception:

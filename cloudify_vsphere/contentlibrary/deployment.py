@@ -83,5 +83,5 @@ def create(ctx, connection_config, library_name, template_name, target,
 
 
 @op
-def delete(ctx):
-    remove_runtime_properties(ctx.instance)
+def delete(**_):
+    remove_runtime_properties()
