@@ -47,7 +47,7 @@ commands:
           command: /home/circleci/.local/bin/tox -e flake8
       - run:
           name: run unitests with py27
-          command: /home/circleci/.local/bin/tox -e py27
+          command: /home/circleci/.local/bin/tox -e nosetest
 
   run_unittest_py36:
     steps:
@@ -64,7 +64,7 @@ commands:
           command: /home/circleci/.local/bin/tox -e flake8
       - run:
           name: run unitests with py36
-          command: /home/circleci/.local/bin/tox -e py36
+          command: /home/circleci/.local/bin/tox -e nosetest
 
   check_py3_compat:
     steps:
