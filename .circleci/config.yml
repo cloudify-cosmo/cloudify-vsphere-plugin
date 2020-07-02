@@ -9,12 +9,7 @@ checkout:
         git checkout -qf FETCH_HEAD
       fi
 
-
 executors:
-  py2715:
-    docker:
-      - image: circleci/python:2.7.15-stretch
-
   py27:
     docker:
       - image: circleci/python:2.7
@@ -31,9 +26,13 @@ executors:
     machine:
       image: ubuntu-1604:201903-01
 
+  cloudify-machine-510:
+    machine:
+      image: ubuntu-1604:201903-01
 
 commands:
-  run_unittest:
+
+  run_unittest_py27:
     steps:
       - run:
           name: "Pull Submodules"
@@ -41,17 +40,31 @@ commands:
             git submodule init
             git submodule update --remote --recursive
       - run:
-          name: update packages list
-          command: sudo apt-get update
+          name: install tox
+          command: pip install --user tox
+      - run:
+          name: Run Flake8
+          command: /home/circleci/.local/bin/tox -e flake8
+      - run:
+          name: run unitests with py27
+          command: /home/circleci/.local/bin/tox -e py27
+
+  run_unittest_py36:
+    steps:
+      - run:
+          name: "Pull Submodules"
+          command: |
+            git submodule init
+            git submodule update --remote --recursive
       - run:
           name: install tox
           command: pip install --user tox
       - run:
           name: Run Flake8
-          command: /home/circleci/.local/bin/tox -e pep8
+          command: /home/circleci/.local/bin/tox -e flake8
       - run:
-         name: Run nosetest
-         command: /home/circleci/.local/bin/tox -e nosetest
+          name: run unitests with py36
+          command: /home/circleci/.local/bin/tox -e py36
 
   check_py3_compat:
     steps:
@@ -59,7 +72,10 @@ commands:
           name: install futurize
           command: pip install future --user
       - run:
-          name: remove python3 incompatible modules
+          # those modules contain code that futurize would want to change,
+          # so let's just remove them so that it doesn't report on them
+          # (there's no "exclude" functionality in futurize)
+          name: remove compat modules
           command: |
             rm vsphere_plugin_common/_compat.py
       - run:
@@ -81,16 +97,16 @@ commands:
               exit 1
             fi
 
-  generate_py27_wagon:
+  generate_py27py36_wagon:
     steps:
       - run:
           name: Create Workspace Build directory.
           command: mkdir -p workspace/build
       - run:
-          name: Build py27 Wagon
+          name: Build py27py36 Wagon
           command: |
               git clone https://github.com/cloudify-cosmo/cloudify-wagon-build-containers.git
-              docker build -t cloudify-centos-7-wagon-builder cloudify-wagon-build-containers/centos_7
+              docker build -t cloudify-centos-7-wagon-builder cloudify-wagon-build-containers/centos_7_py2py3
               docker run -v ~/project/:/packaging cloudify-centos-7-wagon-builder
       - run:
           name: copy wagon to workspace
@@ -100,36 +116,16 @@ commands:
           paths:
             - build/*
 
-  generate_py3_wagon:
+  generate_rhel_py27py36_wagon:
     steps:
       - run:
           name: Create Workspace Build directory.
           command: mkdir -p workspace/build
       - run:
-          name: Build py3 Wagon
+          name: Build RHEL py27py36 Wagon
           command: |
               git clone https://github.com/cloudify-cosmo/cloudify-wagon-build-containers.git
-              docker build -t cloudify-centos-7-py3-wagon-builder cloudify-wagon-build-containers/centos_7_py3
-              docker run -v ~/project/:/packaging cloudify-centos-7-py3-wagon-builder
-      - run:
-          name: copy wagon to workspace
-          command: cp *.wgn workspace/build/
-      - persist_to_workspace:
-          root: workspace
-          paths:
-            - build/*
-
-
-  generate_rhel_py27_wagon:
-    steps:
-      - run:
-          name: Create Workspace Build directory.
-          command: mkdir -p workspace/build
-      - run:
-          name: Build RHEL 27 Wagon
-          command: |
-              git clone https://github.com/cloudify-cosmo/cloudify-wagon-build-containers.git
-              docker build -t cloudify-redhat-7-wagon-builder cloudify-wagon-build-containers/redhat_7 --build-arg USERNAME="$USERNAME" --build-arg PASSWORD="$PASSWORD"
+              docker build -t cloudify-redhat-7-wagon-builder cloudify-wagon-build-containers/redhat_7_py2py3 --build-arg USERNAME="$USERNAME" --build-arg PASSWORD="$PASSWORD"
               docker run -v ~/project/:/packaging cloudify-redhat-7-wagon-builder
       - run:
           name: copy wagon to workspace
@@ -138,41 +134,6 @@ commands:
           root: workspace
           paths:
             - build/*
-
-  run_integration_tests:
-    steps:
-      - run:
-          name: "Pull Submodules"
-          command: |
-            git submodule init
-            git submodule update --remote --recursive
-      - attach_workspace:
-          at: workspace
-      - run:
-          name: update pip
-          command: pip install -U pip
-      - run:
-          name: install cloudify
-          command: pip install -U cloudify==5.0.0 pytest==4.6.3 pyyaml==3.10
-      - run:
-          name: download manager docker image
-          command: wget http://repository.cloudifysource.org/cloudify/5.0.5/ga-release/cloudify-docker-manager-5.0.5.tar
-      - run:
-          name: load docker image
-          command: docker load -i cloudify-docker-manager-5.0.5.tar
-      - run:
-          name: retain space by dumping the tar
-          command: rm cloudify-docker-manager-5.0.5.tar
-      - run:
-          name: show images
-          command: docker images
-      - run:
-          name: start docker container
-          command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
-      - run:
-          name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
-      - run: pytest -s .circleci/test_examples.py
 
   release_plugin:
     steps:
@@ -206,19 +167,89 @@ commands:
           at: workspace
       - run: python .circleci/package_release.py
 
+  run_integration_tests_505:
+    steps:
+      - run:
+          name: "Pull Submodules"
+          command: |
+            git submodule update --init --recursive
+      - attach_workspace:
+          at: workspace
+      - run:
+          name: update pip
+          command: pip install -U pip
+      - run:
+          name: install cloudify
+          command: |
+            pip install -r test-requirements.txt
+      - run:
+          name: download manager docker image
+          command: wget http://repository.cloudifysource.org/cloudify/5.0.5/ga-release/cloudify-docker-manager-5.0.5.tar
+      - run:
+          name: load docker image
+          command: docker load -i cloudify-docker-manager-5.0.5.tar
+      - run:
+          name: retain space by dumping the tar
+          command: rm cloudify-docker-manager-5.0.5.tar
+      - run:
+          name: show images
+          command: docker images
+      - run:
+          name: start docker container
+          command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
+      - run:
+          name: install local project
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
+      - run: pytest -s .circleci/test_examples.py
+
+  run_integration_tests_510:
+    steps:
+      - run:
+          name: "Pull Submodules"
+          command: |
+            git submodule update --init --recursive --remote
+      - attach_workspace:
+          at: workspace
+      - run:
+          name: update pip
+          command: pip install -U pip
+      - run:
+          name: install cloudify
+          command: |
+            pip install -r test-requirements.txt
+      - run:
+          name: download manager docker image
+          command:  wget http://repository.cloudifysource.org/cloudify/5.1.0/.dev1-release/cloudify-docker-manager-5.1.0.dev1.tar
+      - run:
+          name: load docker image
+          command: docker load -i cloudify-docker-manager-5.1.0.dev1.tar
+      - run:
+          name: retain space by dumping the tar
+          command: rm cloudify-docker-manager-5.1.0.dev1.tar
+      - run:
+          name: show images
+          command: docker images
+      - run:
+          name: start docker container
+          command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
+      - run:
+          name: install local project
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
+      - run: pytest -s .circleci/test_examples.py
+
 jobs:
 
   unittests_py27:
-    executor: py2715
+    executor: py27
     steps:
       - checkout
-      - run_unittest
+      - run_unittest_py27
 
   unittests_py36:
     executor: py36
     steps:
       - checkout
-      - run_unittest
+      - run_unittest_py36
 
   py3_compat:
     executor: py27
@@ -230,24 +261,31 @@ jobs:
     executor: wagon_generator
     steps:
       - checkout
-      - generate_py27_wagon
-      # - generate_py3_wagon  # TODO: When we have Python3 Manager Integration Test.
+      - generate_py27py36_wagon
 
   rhel_wagon:
     executor: wagon_generator
     steps:
       - checkout
-      - generate_rhel_py27_wagon
+      - generate_rhel_py27py36_wagon
 
-
-  integration_tests:
+  integration_tests_505:
     executor: cloudify-machine
     environment:
       CLOUDIFY_SSL_TRUST_ALL: true
-      IAAS: gcp
+      IAAS: vsphere
     steps:
       - checkout
-      - run_integration_tests
+      - run_integration_tests_505
+
+  integration_tests_510:
+    executor: cloudify-machine-510
+    environment:
+      CLOUDIFY_SSL_TRUST_ALL: true
+      IAAS: vsphere
+    steps:
+      - checkout
+      - run_integration_tests_510
 
   release:
     executor: py27
@@ -256,7 +294,7 @@ jobs:
       - release_plugin
 
 workflows:
-  version: 2
+  version: 2.1
   tests:
     jobs:
       - py3_compat
@@ -265,26 +303,36 @@ workflows:
       - wagon:
           filters:
             branches:
-              only: /([0-9\.]*\-build|master)/
+              only: /([0-9\.]*\-build|master|dev)/
       - rhel_wagon:
           filters:
             branches:
-              only: /([0-9\.]*\-build|master)/
-      - integration_tests:
+              only: /([0-9\.]*\-build|master|dev)/
+      - integration_tests_505:
           requires:
             - wagon
             - rhel_wagon
           filters:
             branches:
-              only: /([0-9\.]*\-build|master)/
+              only: /([0-9\.]*\-build|master|dev)/
+      - integration_tests_510:
+          requires:
+            - wagon
+            - rhel_wagon
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master|dev)/
       - release:
           filters:
             branches:
               only: /master/
           requires:
+            - unittests_py27
+            - unittests_py36
             - wagon
             - rhel_wagon
-            - integration_tests
+            - integration_tests_505
+            - integration_tests_510
   nightly:
     triggers:
     - schedule:
@@ -300,15 +348,22 @@ workflows:
       - wagon:
           filters:
             branches:
-              only: /([0-9\.]*\-build|master)/
+              only: /([0-9\.]*\-build|master|dev)/
       - rhel_wagon:
           filters:
             branches:
-              only: /([0-9\.]*\-build|master)/
-      - integration_tests:
+              only: /([0-9\.]*\-build|master|dev)/
+      - integration_tests_505:
           requires:
             - wagon
             - rhel_wagon
           filters:
             branches:
-              only: /([0-9\.]*\-build|master)/
+              only: /([0-9\.]*\-build|master|dev)/
+      - integration_tests_510:
+          requires:
+            - wagon
+            - rhel_wagon
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master|dev)/
