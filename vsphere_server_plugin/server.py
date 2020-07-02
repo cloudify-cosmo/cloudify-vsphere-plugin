@@ -728,7 +728,7 @@ def get_state(server_client, server, networking, os_family, wait_ip, **_):
                 message += ' and'
             message += ' public IP {public}'
         else:
-            public_ip = None
+            public_ip = ctx.instance.runtime_properties[IP]
         message += '.'
 
         ctx.logger.info(

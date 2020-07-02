@@ -20,6 +20,7 @@ setuptools.setup(
     version='2.18.0',
     packages=[
         'vsphere_plugin_common',
+        'vsphere_plugin_common.clients',
         'vsphere_server_plugin',
         'vsphere_network_plugin',
         'vsphere_storage_plugin',

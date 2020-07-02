@@ -1,5 +1,6 @@
 2.18.0:
   - Add resumable support
+  - Add Python3 Support
 2.17.0:
   - Support postpone_delete_networks flag for removal of network interfaces after VM creation.
   - Upgrade vm version on start, supported only on stopped vm.

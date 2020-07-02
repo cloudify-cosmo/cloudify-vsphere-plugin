@@ -146,9 +146,6 @@ commands:
           command: |
             git submodule init
             git submodule update --remote --recursive
-            cd examples/service
-            git submodule init
-            git submodule update --remote --recursive
       - attach_workspace:
           at: workspace
       - run:
@@ -273,13 +270,13 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master)/
-#      - integration_tests:
-#          requires:
-#            - wagon
-#            - rhel_wagon
-#          filters:
-#            branches:
-#              only: /([0-9\.]*\-build|master)/
+      - integration_tests:
+          requires:
+            - wagon
+            - rhel_wagon
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master)/
       - release:
           filters:
             branches:
@@ -287,7 +284,7 @@ workflows:
           requires:
             - wagon
             - rhel_wagon
-#            - integration_tests
+            - integration_tests
   nightly:
     triggers:
     - schedule:
@@ -308,10 +305,10 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master)/
-#      - integration_tests:
-#          requires:
-#            - wagon
-#            - rhel_wagon
-#          filters:
-#            branches:
-#              only: /([0-9\.]*\-build|master)/
+      - integration_tests:
+          requires:
+            - wagon
+            - rhel_wagon
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master)/
