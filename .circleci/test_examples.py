@@ -36,7 +36,9 @@ SECRETS_TO_CREATE = {
     'vsphere_public_key': True
 }
 
-prepare_test(secrets=SECRETS_TO_CREATE, use_vpn=True)
+prepare_test(secrets=SECRETS_TO_CREATE,
+             execute_bundle_upload=False,
+             use_vpn=True)
 
 blueprint_list = ['examples/blueprint-examples/virtual-machine/vsphere.yaml']
 
