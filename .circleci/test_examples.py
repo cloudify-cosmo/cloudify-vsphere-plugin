@@ -64,7 +64,7 @@ def blueprint_examples(request):
         basic_blueprint_test(
             request.param,
             dirname_param,
-            inputs='resource_prefix=kube-{0}'.format(
+            inputs='resource_suffix={0}'.format(
                 os.environ['CIRCLE_BUILD_NUM']),
             use_vpn=True)
     except:
