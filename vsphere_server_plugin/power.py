@@ -12,28 +12,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import cloudify.exceptions as cfy_exc
 
-from cloudify_vsphere.utils import op
-from vsphere_plugin_common import with_server_client
 from .server import get_server_by_context
+from vsphere_plugin_common.utils import op
+from vsphere_plugin_common import with_server_client
 
 
 @with_server_client
-def _power_operation(
-        operation_name,
-        ctx,
-        server,
-        server_client,
-        kwargs=None):
-    if not kwargs:
-        kwargs = {}
-    server_obj = get_server_by_context(ctx, server_client, server)
+def _power_operation(operation_name,
+                     ctx,
+                     server,
+                     server_client,
+                     kwargs=None):
+    kwargs = kwargs or {}
+    server_obj = get_server_by_context(server_client, server)
     split = ' '.join(operation_name.split('_'))
-    if server_obj is None:
+    if not server_obj:
         raise cfy_exc.NonRecoverableError(
-            "Cannot {action} - server doesn't exist for node: {name}"
-            .format(name=ctx.node.id, action=split))
+            "Cannot {action} - server doesn't exist for node: {name}".format(
+                name=ctx.node.id, action=split))
 
     return getattr(server_client, operation_name)(server_obj,
                                                   instance=ctx.instance,
@@ -42,23 +41,29 @@ def _power_operation(
 
 @op
 def power_on(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config, 'start_server',
-                            ctx, server,
-                            kwargs={'max_wait_time': max_wait_time},)
+    return _power_operation(connection_config,
+                            'start_server',
+                            ctx,
+                            server,
+                            kwargs={'max_wait_time': max_wait_time})
 
 
 @op
 def power_off(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config, 'stop_server',
-                            ctx, server,
-                            kwargs={'max_wait_time': max_wait_time},)
+    return _power_operation(connection_config,
+                            'stop_server',
+                            ctx,
+                            server,
+                            kwargs={'max_wait_time': max_wait_time})
 
 
 @op
 def shut_down(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config, 'shutdown_server_guest',
-                            ctx, server,
-                            kwargs={'max_wait_time': max_wait_time},)
+    return _power_operation(connection_config,
+                            'shutdown_server_guest',
+                            ctx,
+                            server,
+                            kwargs={'max_wait_time': max_wait_time})
 
 
 @op
@@ -70,6 +75,8 @@ def reboot(max_wait_time, ctx, server, connection_config):
 
 @op
 def reset(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config, 'reset_server',
-                            ctx, server,
-                            kwargs={'max_wait_time': max_wait_time},)
+    return _power_operation(connection_config,
+                            'reset_server',
+                            ctx,
+                            server,
+                            kwargs={'max_wait_time': max_wait_time})

@@ -1,9 +1,0 @@
-version: 2
-ethernets:
-  ens192:
-    set-name: ens192
-    addresses:
-    - 172.16.168.156/255.255.255.0
-    gateway4: 172.16.168.1
-    nameservers:
-      addresses: [8.8.8.8]

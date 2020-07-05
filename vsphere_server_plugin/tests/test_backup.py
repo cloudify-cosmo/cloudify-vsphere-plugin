@@ -55,8 +55,8 @@ class BackupServerTest(unittest.TestCase):
         current_ctx.set(_ctx)
         return _ctx
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_snapshot_create(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -97,7 +97,7 @@ class BackupServerTest(unittest.TestCase):
 
         # nosuch vm
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -122,7 +122,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot.rootSnapshotList = []
         vm.obj.CreateSnapshot = mock.Mock(return_value=task)
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.snapshot_create(ctx=ctx,
@@ -139,7 +139,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot = None
         vm.obj.CreateSnapshot = mock.Mock(return_value=task)
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.snapshot_create(ctx=ctx,
@@ -161,7 +161,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot.rootSnapshotList = [snapshot]
         vm.obj.CreateSnapshot = mock.Mock(return_value=task)
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             with self.assertRaisesRegexp(
@@ -176,8 +176,8 @@ class BackupServerTest(unittest.TestCase):
                                        snapshot_incremental=True,
                                        snapshot_type=None)
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_snapshot_apply(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -215,7 +215,7 @@ class BackupServerTest(unittest.TestCase):
 
         # nosuch vm
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -236,7 +236,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot = None  # no snapshots
         vm.obj.CreateSnapshot = mock.Mock(return_value=task)
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             with self.assertRaisesRegexp(
@@ -259,7 +259,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot = mock.Mock()
         vm.obj.snapshot.rootSnapshotList = [snapshot]
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.snapshot_apply(ctx=ctx,
@@ -270,8 +270,8 @@ class BackupServerTest(unittest.TestCase):
                                   snapshot_incremental=True)
         snapshot.snapshot.RevertToSnapshot_Task.assert_called_with()
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_snapshot_delete(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -309,7 +309,7 @@ class BackupServerTest(unittest.TestCase):
 
         # nosuch vm
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -330,7 +330,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot = None  # no snapshots
         vm.obj.CreateSnapshot = mock.Mock(return_value=task)
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             with self.assertRaisesRegexp(
@@ -353,7 +353,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot = mock.Mock()
         vm.obj.snapshot.rootSnapshotList = [snapshot]
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.snapshot_delete(ctx=ctx,
@@ -375,7 +375,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot = mock.Mock()
         vm.obj.snapshot.rootSnapshotList = [snapshotparent]
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.snapshot_delete(ctx=ctx,
@@ -397,7 +397,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.snapshot = mock.Mock()
         vm.obj.snapshot.rootSnapshotList = [snapshotparent]
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             with self.assertRaisesRegexp(
@@ -412,8 +412,8 @@ class BackupServerTest(unittest.TestCase):
                                        snapshot_name="snapshotparent",
                                        snapshot_incremental=True)
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_get_state(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -424,7 +424,7 @@ class BackupServerTest(unittest.TestCase):
         ctx.instance.runtime_properties['vsphere_server_id'] = 'vm-unknow'
         ctx.instance.runtime_properties[server.NETWORKS] = []
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -442,7 +442,7 @@ class BackupServerTest(unittest.TestCase):
         # skip other vm
         vm = mock.Mock()
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             self.assertTrue(
@@ -457,7 +457,7 @@ class BackupServerTest(unittest.TestCase):
         vm = mock.Mock()
         vm.obj.guest.guestState = 'stopped'
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             self.assertFalse(
@@ -468,8 +468,8 @@ class BackupServerTest(unittest.TestCase):
                                  wait_ip=True,
                                  networking={}))
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_get_state_network(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -484,7 +484,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.guest.guestState = 'running'
         vm.guest.net = []
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             self.assertTrue(
@@ -500,7 +500,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.guest.guestState = 'running'
         vm.guest.net = []
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             self.assertFalse(
@@ -519,7 +519,7 @@ class BackupServerTest(unittest.TestCase):
         network.ipAddress = ["192.0.2.1"]
         vm.guest.net = [network]
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             self.assertTrue(
@@ -543,7 +543,7 @@ class BackupServerTest(unittest.TestCase):
         network2.ipAddress = ["192.0.2.2"]
         vm.guest.net = [network1, network2]
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             self.assertTrue(
@@ -553,9 +553,9 @@ class BackupServerTest(unittest.TestCase):
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={
-                                    'connect_networks': [{
-                                        'name': 'other_net',
-                                        'management': True
+                                     'connect_networks': [{
+                                         'name': 'other_net',
+                                         'management': True
                                      }]
                                  }))
         self.assertEqual(
@@ -563,7 +563,7 @@ class BackupServerTest(unittest.TestCase):
 
         # no network with management name
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             with self.assertRaisesRegexp(
@@ -576,9 +576,9 @@ class BackupServerTest(unittest.TestCase):
                                  os_family="solaris",
                                  wait_ip=True,
                                  networking={
-                                    'connect_networks': [{
-                                        'name': 'broken',
-                                        'management': True
+                                     'connect_networks': [{
+                                         'name': 'broken',
+                                         'management': True
                                      }]
                                  })
 
@@ -590,24 +590,27 @@ class BackupServerTest(unittest.TestCase):
         network2.ipAddress = ["169.254.1.1"]
         vm.guest.net = [network1, network2]
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             self.assertFalse(
-                server.get_state(ctx=ctx,
-                                 server_client=None,
-                                 server={"name": "server_name"},
-                                 os_family="solaris",
-                                 wait_ip=True,
-                                 networking={
-                                    'connect_networks': [{
-                                        'name': 'other_net',
-                                        'management': True
-                                     }]
-                                 }))
+                server.get_state(
+                    ctx=ctx,
+                    server_client=None,
+                    server={"name": "server_name"},
+                    os_family="solaris",
+                    wait_ip=True,
+                    networking={
+                        'connect_networks': [
+                            {
+                                'name': 'other_net',
+                                'management': True
+                            }
+                        ]
+                    }))
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_delete(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -626,7 +629,7 @@ class BackupServerTest(unittest.TestCase):
         ctx.instance.runtime_properties['use_external_resource'] = False
         ctx.instance.runtime_properties['vsphere_server_id'] = None
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
             server.delete(ctx=ctx,
@@ -639,7 +642,7 @@ class BackupServerTest(unittest.TestCase):
         ctx.instance.runtime_properties['use_external_resource'] = False
         ctx.instance.runtime_properties['vsphere_server_id'] = 'vm-unknow'
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
             server.delete(ctx=ctx,
@@ -659,7 +662,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.Destroy = mock.Mock(return_value=task)
         vm.obj.summary.runtime.powerState = "PoweredOFF"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             server.delete(ctx=ctx,
@@ -678,11 +681,11 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.Destroy = mock.Mock(return_value=task)
         vm.obj.summary.runtime.powerState = "PoweredOFF"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             with mock.patch(
-                "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+                "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
                 mock.Mock(return_value=vm)
             ):
                 server.delete(ctx=ctx,
@@ -692,8 +695,8 @@ class BackupServerTest(unittest.TestCase):
                               force_delete=True)
         vm.obj.Destroy.assert_called_with()
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_shutdown_guest(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -702,7 +705,7 @@ class BackupServerTest(unittest.TestCase):
         # shutdown_guest for external
         ctx.instance.runtime_properties['use_external_resource'] = True
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -718,7 +721,7 @@ class BackupServerTest(unittest.TestCase):
         # nosuch vm
         ctx.instance.runtime_properties['use_external_resource'] = False
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -735,7 +738,7 @@ class BackupServerTest(unittest.TestCase):
         vm = mock.Mock()
         vm.obj.summary.runtime.powerState = "PoweredOFF"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.shutdown_guest(ctx=ctx,
@@ -743,8 +746,8 @@ class BackupServerTest(unittest.TestCase):
                                   server={"name": "server_name"},
                                   os_family="other_os")
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_stop(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -761,7 +764,7 @@ class BackupServerTest(unittest.TestCase):
         ctx.instance.runtime_properties['use_external_resource'] = False
         ctx.instance.runtime_properties['vsphere_server_id'] = None
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
             server.stop(ctx=ctx,
@@ -773,7 +776,7 @@ class BackupServerTest(unittest.TestCase):
         ctx.instance.runtime_properties['use_external_resource'] = False
         ctx.instance.runtime_properties['vsphere_server_id'] = 'vm-unknow'
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -790,7 +793,7 @@ class BackupServerTest(unittest.TestCase):
         vm = mock.Mock()
         vm.obj.summary.runtime.powerState = "PoweredOFF"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             server.stop(ctx=ctx,
@@ -806,7 +809,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.PowerOff = mock.Mock(return_value=task)
         vm.obj.summary.runtime.powerState = "PoweredOn"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             server.stop(ctx=ctx,
@@ -824,7 +827,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.PowerOff = mock.Mock(return_value=task)
         vm.obj.summary.runtime.powerState = "PoweredOn"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
             server.stop(ctx=ctx,
@@ -834,8 +837,8 @@ class BackupServerTest(unittest.TestCase):
                         force_stop=True)
         vm.obj.PowerOff.assert_called_with()
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_freeze_suspend(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -851,7 +854,7 @@ class BackupServerTest(unittest.TestCase):
         # nosuch vm
         ctx.instance.runtime_properties['use_external_resource'] = False
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -868,7 +871,7 @@ class BackupServerTest(unittest.TestCase):
         vm = mock.Mock()
         vm.obj.summary.runtime.powerState = "Suspended"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.freeze_suspend(ctx=ctx,
@@ -880,7 +883,7 @@ class BackupServerTest(unittest.TestCase):
         vm = mock.Mock()
         vm.obj.summary.runtime.powerState = "PoweredOFF"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.freeze_suspend(ctx=ctx,
@@ -896,7 +899,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.Suspend = mock.Mock(return_value=task)
         vm.obj.summary.runtime.powerState = "PoweredOn"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.freeze_suspend(ctx=ctx,
@@ -905,8 +908,8 @@ class BackupServerTest(unittest.TestCase):
                                   os_family="other_os")
         vm.obj.Suspend.assert_called_with()
 
-    @mock.patch("vsphere_plugin_common.SmartConnectNoSSL")
-    @mock.patch('vsphere_plugin_common.Disconnect', mock.Mock())
+    @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
     def test_freeze_resume(self, smart_m):
         conn_mock = mock.Mock()
         smart_m.return_value = conn_mock
@@ -922,7 +925,7 @@ class BackupServerTest(unittest.TestCase):
         # nosuch vm
         ctx.instance.runtime_properties['use_external_resource'] = False
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=None)
         ):
             with self.assertRaisesRegexp(
@@ -939,7 +942,7 @@ class BackupServerTest(unittest.TestCase):
         vm = mock.Mock()
         vm.obj.summary.runtime.powerState = "Poweredon"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.freeze_resume(ctx=ctx,
@@ -955,7 +958,7 @@ class BackupServerTest(unittest.TestCase):
         vm.obj.PowerOn = mock.Mock(return_value=task)
         vm.obj.summary.runtime.powerState = "PoweredOff"
         with mock.patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_name",
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_name",
             mock.Mock(return_value=vm)
         ):
             server.freeze_resume(ctx=ctx,

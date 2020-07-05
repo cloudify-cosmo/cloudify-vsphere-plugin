@@ -20,6 +20,7 @@ setuptools.setup(
     version='2.18.0',
     packages=[
         'vsphere_plugin_common',
+        'vsphere_plugin_common.clients',
         'vsphere_server_plugin',
         'vsphere_network_plugin',
         'vsphere_storage_plugin',
@@ -31,7 +32,6 @@ setuptools.setup(
         'cloudify_vsphere.devices',
         'cloudify_vsphere.hypervisor_host',
         'cloudify_vsphere.resource_pool',
-        'cloudify_vsphere.utils',
         'cloudify_vsphere.vm_folder',
     ],
     license='LICENSE',
@@ -41,7 +41,7 @@ setuptools.setup(
         "pyvmomi>=6.7.3",
         "netaddr>=0.7.19",
         "pyyaml>=3.12",
-        "cloudify-utilities-plugins-sdk==0.0.13", # cdrom create code
-        "requests", # content library
+        "cloudify-utilities-plugins-sdk==0.0.26", # cdrom create code
+        "requests"
     ],
 )

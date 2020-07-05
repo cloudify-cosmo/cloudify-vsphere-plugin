@@ -41,7 +41,7 @@ class NetworkClientTest(unittest.TestCase):
         client.delete_ippool("datacenter", 123)
         # checks
         client._get_obj_by_name.assert_called_once_with(
-            vsphere_plugin_common.vim.Datacenter, "datacenter")
+            vsphere_plugin_common.clients.vim.Datacenter, "datacenter")
         client.si.content.ipPoolManager.DestroyIpPool.assert_called_once_with(
             dc=datacenter.obj, force=True, id=123)
 
@@ -170,8 +170,9 @@ class NetworkClientTest(unittest.TestCase):
         pool.ipv4Config = vim.vApp.IpPool.IpPoolConfigInfo()
         pool.ipv4Config.subnetAddress = "192.0.2.4"
         pool.ipv4Config.netmask = "255.255.255.0"
-        pool.networkAssociation.insert(0, vim.vApp.IpPool.Association(
-                    network=network, networkName="some"))
+        pool.networkAssociation.insert(
+            0,
+            vim.vApp.IpPool.Association(network=network, networkName="some"))
         client.si.content.ipPoolManager.QueryIpPools = Mock(
             return_value=[pool])
         self.assertEqual(client.get_network_cidr("some", True), "192.0.2.4/24")

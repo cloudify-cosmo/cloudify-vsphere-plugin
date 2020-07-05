@@ -11,15 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import unittest
 from mock import MagicMock, Mock, patch, call
+
 from pyVmomi import vim
 
 from cloudify.state import current_ctx
 from cloudify.mocks import MockCloudifyContext
 from cloudify.manager import DirtyTrackingDict
 
-from vsphere_plugin_common import ControllerClient
+from vsphere_plugin_common.clients.network import ControllerClient
 
 
 class VsphereDeviceTest(unittest.TestCase):
@@ -66,9 +68,8 @@ class VsphereDeviceTest(unittest.TestCase):
         vm_original = self._get_vm()
         vm_get_mock = MagicMock(return_value=vm_original)
         with patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
-            vm_get_mock
-        ):
+                "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
+                vm_get_mock):
             scsi_spec, controller_type = cl.generate_scsi_card(
                 {'label': "Cloudify"}, 10)
         vm_get_mock.assert_called_once_with(vim.VirtualMachine, 10)
@@ -81,9 +82,8 @@ class VsphereDeviceTest(unittest.TestCase):
         vm_get_mock = MagicMock(side_effect=[vm_original, vm_updated])
 
         with patch(
-            "vsphere_plugin_common.VsphereClient._get_obj_by_id",
-            vm_get_mock
-        ):
+                "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
+                vm_get_mock):
             self.assertEqual(
                 cl.attach_controller(10, scsi_spec, controller_type,
                                      instance=_ctx.instance),

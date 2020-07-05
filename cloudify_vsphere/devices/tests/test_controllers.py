@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import unittest
 from mock import MagicMock, Mock, patch
 
@@ -85,17 +86,6 @@ class VsphereControllerTest(unittest.TestCase):
         current_ctx.set(_ctx)
         return _ctx
 
-    def test_create_controller(self):
-        _ctx = self._gen_ctx()
-        devices.create_controller(ctx=_ctx, a="b")
-        self.assertEqual(_ctx.instance.runtime_properties, {"a": "b"})
-
-    def test_delete_controller(self):
-        _ctx = self._gen_ctx()
-        _ctx.instance.runtime_properties["c"] = "d"
-        devices.delete_controller(ctx=_ctx)
-        self.assertEqual(_ctx.instance.runtime_properties, {})
-
     def _get_vm(self, new_adapter=None):
         vm = Mock()
         task = Mock()
@@ -116,12 +106,24 @@ class VsphereControllerTest(unittest.TestCase):
         vm.config.hardware.device = devices
         return vm
 
+    def test_create_controller(self):
+        _ctx = self._gen_ctx()
+        devices.create_controller(ctx=_ctx, a="b")
+        self.assertEqual(_ctx.instance.runtime_properties, {"a": "b"})
+
+    def test_delete_controller(self):
+        _ctx = self._gen_ctx()
+        _ctx.instance.runtime_properties["c"] = "d"
+        devices.delete_controller(ctx=_ctx)
+        self.assertEqual(_ctx.instance.runtime_properties, {})
+
     def test_detach_controller(self):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # without vm-id
                 _ctx.source.instance.runtime_properties['busKey'] = 4010
                 with self.assertRaises(NonRecoverableError) as e:
@@ -170,8 +172,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # reinstall with empty properties
                 devices.detach_server_from_controller(ctx=_ctx)
 
@@ -191,8 +194,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # use unexisted network
                 _ctx.source.instance.runtime_properties.update(settings)
                 network = None
@@ -259,7 +263,7 @@ class VsphereControllerTest(unittest.TestCase):
                             "Have not found key for new added device")
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
                 self.assertEqual(args, ())
-                self.assertEqual(kwargs.keys(), ['spec'])
+                self.assertEqual(list(kwargs.keys()), ['spec'])
                 new_adapter = str(
                     type(kwargs['spec'].deviceChange[0].device))
                 runtime_properties = _ctx.target.instance.runtime_properties
@@ -333,8 +337,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # without vm-id
                 with self.assertRaises(NonRecoverableError) as e:
                     devices.attach_scsi_controller(ctx=_ctx)
@@ -356,7 +361,7 @@ class VsphereControllerTest(unittest.TestCase):
                                      "Have not found key for new added device")
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
                 self.assertEqual(args, ())
-                self.assertEqual(kwargs.keys(), ['spec'])
+                self.assertEqual(list(kwargs.keys()), ['spec'])
                 new_adapter = str(type(kwargs['spec'].deviceChange[0].device))
                 runtime_properties = _ctx.source.instance.runtime_properties
                 if settings.get('adapterType') == "lsilogic":
@@ -404,19 +409,19 @@ class VsphereControllerTest(unittest.TestCase):
 
     def test_attach_scsi_controller(self):
         for settings in [{
-           'adapterType': None,
-           'label': "Cloudify",
-           'hotAddRemove': False,
-           "sharedBus": "virtualSharing"
+            'adapterType': None,
+            'label': "Cloudify",
+            'hotAddRemove': False,
+            "sharedBus": "virtualSharing"
         }, {
-           'adapterType': "lsilogic",
-           'label': "Cloudify",
-           "scsiCtlrUnitNumber": 100,
-           "sharedBus": "physicalSharing"
+            'adapterType': "lsilogic",
+            'label': "Cloudify",
+            "scsiCtlrUnitNumber": 100,
+            "sharedBus": "physicalSharing"
         }, {
-           'adapterType': "lsilogic_sas",
-           'label': "Cloudify",
-           'hotAddRemove': True
+            'adapterType': "lsilogic_sas",
+            'label': "Cloudify",
+            'hotAddRemove': True
         }]:
             self.check_attach_scsi_controller(settings)
 
@@ -424,8 +429,9 @@ class VsphereControllerTest(unittest.TestCase):
         _ctx = self._gen_relation_ctx()
         conn_mock = Mock()
         smart_connect = MagicMock(return_value=conn_mock)
-        with patch("vsphere_plugin_common.SmartConnectNoSSL", smart_connect):
-            with patch("vsphere_plugin_common.Disconnect", Mock()):
+        with patch("vsphere_plugin_common.clients.SmartConnectNoSSL",
+                   smart_connect):
+            with patch("vsphere_plugin_common.clients.Disconnect", Mock()):
                 # use unexisted network
                 _ctx.target.instance.runtime_properties.update(settings)
                 network = None
@@ -493,7 +499,7 @@ class VsphereControllerTest(unittest.TestCase):
 
                 args, kwargs = vm.obj.ReconfigVM_Task.call_args
                 self.assertEqual(args, ())
-                self.assertEqual(kwargs.keys(), ['spec'])
+                self.assertEqual(list(kwargs.keys()), ['spec'])
 
                 # successful attach
                 runtime_properties = _ctx.target.instance.runtime_properties

@@ -19,33 +19,37 @@ import cloudify_common_sdk.iso9660 as iso9660
 from cloudify import ctx
 
 # This package imports
-from cloudify_vsphere.utils import op
-from vsphere_plugin_common import (
-    with_rawvolume_client,
-)
+from vsphere_plugin_common.utils import op
+from vsphere_plugin_common import with_rawvolume_client
 from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_IMAGE,
     VSPHERE_STORAGE_FILE_NAME,
-    DATACENTER_ID,
+    DATACENTER_ID
 )
 
 
 @op
 @with_rawvolume_client
-def create(rawvolume_client, files, files_raw, datacenter_name,
-           allowed_datastores, allowed_datastore_ids,
-           vol_ident, sys_ident, volume_prefix,
-           raw_files=None, **kwargs):
-    runtime_properties = ctx.instance.runtime_properties
+def create(rawvolume_client,
+           files,
+           files_raw,
+           datacenter_name,
+           allowed_datastores,
+           allowed_datastore_ids,
+           vol_ident,
+           sys_ident,
+           volume_prefix,
+           raw_files=None,
+           **_):
 
-    if runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
+    if ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
         ctx.logger.info('Instance is already created.')
         return
 
-    ctx.logger.info("Creating new iso image.")
+    ctx.logger.info('Creating new iso image.')
 
     if raw_files:
-        ctx.logger.warn("`raw_files` is deprecated, use `files_raw`.")
+        ctx.logger.warn('`raw_files` is deprecated, use `files_raw`.')
         files_raw = files_raw.update(raw_files) if files_raw else raw_files
 
     outiso = iso9660.create_iso(vol_ident=vol_ident, sys_ident=sys_ident,
@@ -60,25 +64,25 @@ def create(rawvolume_client, files, files_raw, datacenter_name,
 
     iso_disk = "{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)
-    datacenter_id, storage_file_name = rawvolume_client.upload_file(
-            datacenter_name=datacenter_name,
-            allowed_datastores=allowed_datastores,
-            allowed_datastore_ids=allowed_datastore_ids,
-            remote_file=iso_disk,
-            data=outiso,
-            host=ctx.node.properties['connection_config']['host'],
-            port=ctx.node.properties['connection_config']['port'])
-    runtime_properties[VSPHERE_STORAGE_IMAGE] = storage_file_name
-    runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_file_name
-    runtime_properties[DATACENTER_ID] = datacenter_id
+    datacenter_id, storage_path = rawvolume_client.upload_file(
+        datacenter_name=datacenter_name,
+        allowed_datastores=allowed_datastores,
+        allowed_datastore_ids=allowed_datastore_ids,
+        remote_file=iso_disk,
+        data=outiso,
+        host=ctx.node.properties['connection_config']['host'],
+        port=ctx.node.properties['connection_config']['port'])
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_IMAGE] = storage_path
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_path
+    ctx.instance.runtime_properties[DATACENTER_ID] = datacenter_id
 
 
 @op
 @with_rawvolume_client
 def delete(rawvolume_client, **kwargs):
-    storage_file_name = ctx.instance.runtime_properties.get(
+    storage_path = ctx.instance.runtime_properties.get(
         VSPHERE_STORAGE_FILE_NAME)
-    if not storage_file_name:
+    if not storage_path:
         return
     # backward compatibility with pre 2.16.1 version
     datacenter_name = kwargs.get('datacenter_name')
@@ -86,4 +90,4 @@ def delete(rawvolume_client, **kwargs):
     datacenter_id = ctx.instance.runtime_properties.get(DATACENTER_ID)
     rawvolume_client.delete_file(datacenter_id=datacenter_id,
                                  datacenter_name=datacenter_name,
-                                 datastorepath=storage_file_name)
+                                 datastorepath=storage_path)

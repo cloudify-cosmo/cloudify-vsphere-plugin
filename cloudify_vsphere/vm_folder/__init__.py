@@ -21,47 +21,38 @@ from pyVmomi import vim
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
-from cloudify_vsphere.utils import op
-from vsphere_plugin_common import (
-    with_server_client,
-)
-from vsphere_plugin_common.constants import (
-    VM_FOLDER_ID,
-)
+from vsphere_plugin_common.utils import op
+from vsphere_plugin_common import with_server_client
+from vsphere_plugin_common.constants import VM_FOLDER_ID
 
 
 @op
 @with_server_client
 def create(ctx, server_client, name, use_external_resource):
-    existing_id = server_client._get_obj_by_name(
+    vmware_resource = server_client._get_obj_by_name(
         vim.Folder,
         name,
     )
-    if existing_id is not None:
-        existing_id = existing_id.id
-
-    runtime_properties = ctx.instance.runtime_properties
 
     if use_external_resource:
-        if not existing_id:
+        if not vmware_resource:
             raise NonRecoverableError(
                 'Could not use existing vm_folder "{name}" as no '
                 'vm folder by that name exists!'.format(
                     name=name,
                 )
             )
-        vm_folder_id = existing_id
     else:
         raise NonRecoverableError(
             'vm folder cannot currently be created by this plugin.'
         )
 
-    runtime_properties[VM_FOLDER_ID] = vm_folder_id
+    ctx.instance.runtime_properties[VM_FOLDER_ID] = vmware_resource.id
 
 
 @op
 @with_server_client
-def delete(ctx, server_client, name, use_external_resource):
+def delete(ctx, name, use_external_resource, **_):
     if use_external_resource:
         ctx.logger.info(
             'Not deleting existing vm folder: {name}'.format(

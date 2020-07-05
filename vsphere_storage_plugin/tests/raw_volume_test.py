@@ -39,7 +39,7 @@ class RawVolumeTest(unittest.TestCase):
                            datastorepath="[datastore] filename")
         # checks
         client._get_obj_by_id.assert_called_once_with(
-            vsphere_plugin_common.vim.Datacenter, "datacenter")
+            vsphere_plugin_common.clients.vim.Datacenter, "datacenter")
         client.si.content.fileManager.DeleteFile.assert_called_once_with(
             '[datastore] filename', datacenter.obj)
         # no such datacenter
@@ -58,7 +58,7 @@ class RawVolumeTest(unittest.TestCase):
                            datastorepath="[datastore] filename")
         # checks
         client._get_obj_by_name.assert_called_once_with(
-            vsphere_plugin_common.vim.Datacenter, "datacenter")
+            vsphere_plugin_common.clients.vim.Datacenter, "datacenter")
         client.si.content.fileManager.DeleteFile.assert_called_once_with(
             '[datastore] filename', datacenter.obj)
         # no such datacenter
@@ -81,7 +81,8 @@ class RawVolumeTest(unittest.TestCase):
         client.si._stub.cookie = ('vmware_soap_session="'
                                   'abcd"; Path=/; HttpOnly; Secure;')
         put_mock = Mock()
-        with patch("vsphere_plugin_common.requests.put", put_mock):
+        with patch("vsphere_plugin_common.clients.storage.requests.put",
+                   put_mock):
             # check upload code
             self.assertEqual(
                 client.upload_file(datacenter_name="datacenter",
@@ -109,12 +110,13 @@ class RawVolumeTest(unittest.TestCase):
             },
             verify=False)
         client._get_obj_by_name.assert_called_once_with(
-            vsphere_plugin_common.vim.Datacenter, "datacenter")
+            vsphere_plugin_common.clients.vim.Datacenter, "datacenter")
         client._get_datastores.assert_called_once_with()
 
         # check by id
         put_mock = Mock()
-        with patch("vsphere_plugin_common.requests.put", put_mock):
+        with patch("vsphere_plugin_common.clients.storage.requests.put",
+                   put_mock):
             # check upload code
             self.assertEqual(
                 client.upload_file(datacenter_name="datacenter",
@@ -129,7 +131,8 @@ class RawVolumeTest(unittest.TestCase):
 
         # without specific datastore
         put_mock = Mock()
-        with patch("vsphere_plugin_common.requests.put", put_mock):
+        with patch("vsphere_plugin_common.clients.storage.requests.put",
+                   put_mock):
             # check upload code
             self.assertEqual(
                 client.upload_file(datacenter_name="datacenter",
