@@ -44,7 +44,7 @@ SECRETS_TO_CREATE = {
     'vsphere_datacenter_name': False,
     'vsphere_resource_pool_name': False,
     'vsphere_auto_placement': False,
-    'centos_template': False,
+    'vsphere_centos_template': False,
     'vsphere_private_key': True,
     'vsphere_public_key': True
 }
