@@ -43,5 +43,5 @@ setuptools.setup(
         "pyyaml>=3.12",
         "cloudify-utilities-plugins-sdk==0.0.26", # cdrom create code
         "requests"
-    ],
+    ]
 )
