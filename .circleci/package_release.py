@@ -1,6 +1,6 @@
 from os import path, pardir
 from ecosystem_cicd_tools.release import (
-    plugin_release, find_version)
+    plugin_release_with_latest, find_version)
 
 setup_py = path.join(
     path.abspath(path.join(path.dirname(__file__), pardir)),
@@ -8,5 +8,5 @@ setup_py = path.join(
 
 
 if __name__ == '__main__':
-    plugin_release(
+    plugin_release_with_latest(
         'cloudify-vsphere-plugin', find_version(setup_py))
