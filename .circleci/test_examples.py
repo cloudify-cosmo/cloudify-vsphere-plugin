@@ -23,6 +23,19 @@ from ecosystem_tests.dorkl import (
     prepare_test
 )
 
+UT_VERSION = '1.23.5'
+UT_WAGON = 'https://github.com/cloudify-incubator/cloudify-utilities-plugin/' \
+           'releases/download/{v}/cloudify_utilities_plugin-{v}-centos' \
+           '-Core-py27.py36-none-linux_x86_64.wgn'.format(v=UT_VERSION)
+UT_PLUGIN = 'https://github.com/cloudify-incubator/cloudify-utilities-' \
+            'plugin/releases/download/{v}/plugin.yaml'.format(v=UT_VERSION)
+K8S_VERSION = '2.8.1'
+K8S_WAGON = 'https://github.com/cloudify-cosmo/cloudify-kubernetes-plugin/' \
+            'releases/download/{v}/cloudify_kubernetes_plugin-{v}-' \
+            'centos-Core-py27.py36-none-linux_x86_64.wgn'.format(v=K8S_VERSION)
+K8S_PLUGIN = 'https://github.com/cloudify-cosmo/cloudify-kubernetes-plugin/' \
+             'releases/download/{v}/plugin.yaml'.format(v=K8S_VERSION)
+PLUGINS_TO_UPLOAD = [(UT_WAGON, UT_PLUGIN), (K8S_WAGON, K8S_PLUGIN)]
 SECRETS_TO_CREATE = {
     'vsphere_username': False,
     'vsphere_password': False,
@@ -37,6 +50,7 @@ SECRETS_TO_CREATE = {
 }
 
 prepare_test(secrets=SECRETS_TO_CREATE,
+             plugins=PLUGINS_TO_UPLOAD,
              execute_bundle_upload=False,
              use_vpn=True)
 
