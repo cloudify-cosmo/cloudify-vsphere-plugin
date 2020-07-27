@@ -36,7 +36,28 @@ SECRETS_TO_CREATE = {
     'vsphere_public_key': True
 }
 
-prepare_test(secrets=SECRETS_TO_CREATE, use_vpn=True)
+PLUGINS = [
+    ('http://repository.cloudifysource.org/cloudify/wagons/'
+     'cloudify-utilities-plugin/1.23.5/cloudify_utilities_plugin-1.23.5-'
+     'centos-Core-py27.py36-none-linux_x86_64.wgn',
+     'http://repository.cloudifysource.org/cloudify/wagons/'
+     'cloudify-utilities-plugin/1.23.5/plugin.yaml',
+     'http://repository.cloudifysource.org/cloudify/wagons/'
+     'cloudify-ansible-plugin/2.9.2/cloudify_ansible_plugin'
+     '-2.9.2-centos-Core-py27.py36-none-linux_x86_64.wgn',
+     'http://repository.cloudifysource.org/cloudify/wagons/'
+     'cloudify-ansible-plugin/2.9.2/plugin.yaml',
+     'http://repository.cloudifysource.org/cloudify/wagons/'
+     'cloudify-fabric-plugin/2.0.4/cloudify_fabric_plugin-'
+     '2.0.4-centos-Core-py27.py36-none-linux_x86_64.wgn',
+     'http://repository.cloudifysource.org/cloudify/wagons/'
+     'cloudify-fabric-plugin/2.0.4/plugin.yaml')
+]
+
+prepare_test(secrets=SECRETS_TO_CREATE,
+             plugins=PLUGINS,
+             use_vpn=True,
+             execute_bundle_upload=False)
 
 blueprint_list = ['examples/blueprint-examples/virtual-machine/vsphere.yaml']
 
