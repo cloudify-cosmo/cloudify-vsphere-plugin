@@ -1,3 +1,5 @@
+2.18.2: Allow the op decorator to support relationship and node instance ops.
+2.18.1: Some bug.
 2.18.0:
   - Add resumable support
   - Add Python3 Support
