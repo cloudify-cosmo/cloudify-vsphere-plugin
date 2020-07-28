@@ -20,7 +20,27 @@ from inspect import getargspec
 from cloudify import ctx
 from cloudify.decorators import operation
 
+try:
+    from cloudify.constants import RELATIONSHIP_INSTANCE, NODE_INSTANCE
+except ImportError:
+    NODE_INSTANCE = 'node-instance'
+    RELATIONSHIP_INSTANCE = 'relationship-instance'
+
 from ._compat import unquote
+
+
+def _get_instance(_ctx):
+    if _ctx.type == RELATIONSHIP_INSTANCE:
+        return _ctx.source.instance
+    else:  # _ctx.type == NODE_INSTANCE
+        return _ctx.instance
+
+
+def _get_node(_ctx):
+    if _ctx.type == RELATIONSHIP_INSTANCE:
+        return _ctx.source.node
+    else:  # _ctx.type == NODE_INSTANCE
+        return _ctx.node
 
 
 def get_args(func):
@@ -56,12 +76,15 @@ def op(func):
 
         processed_kwargs = {}
 
+        # Support both node instance and relationship node instance CTX.
+        ctx_node = _get_node(ctx)
+
         for key in requested_inputs:
             if key in kwargs:
                 processed_kwargs[key] = kwargs[key]
                 continue
             # TODO: Update this to also support relationship operations.
-            processed_kwargs[key] = ctx.node.properties.get(key)
+            processed_kwargs[key] = ctx_node.properties.get(key)
 
         return func(**processed_kwargs)
 
