@@ -162,7 +162,7 @@ commands:
           command: pip install --upgrade setuptools
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/2a50414ae5baf55b52dbce1fd12f211ceecc6130.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/26a41ba14feb9ae0dd12f3150458de331d078e79.zip
       - attach_workspace:
           at: workspace
       - run: python .circleci/package_release.py
@@ -199,7 +199,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/2a50414ae5baf55b52dbce1fd12f211ceecc6130.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/26a41ba14feb9ae0dd12f3150458de331d078e79.zip
       - run: pytest -s .circleci/test_examples.py
 
   run_integration_tests_510:
@@ -234,7 +234,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudify-manager-aio:latest
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/2a50414ae5baf55b52dbce1fd12f211ceecc6130.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/26a41ba14feb9ae0dd12f3150458de331d078e79.zip
       - run: pytest -s .circleci/test_examples.py
 
 jobs:
