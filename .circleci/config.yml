@@ -322,17 +322,17 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
-      - release:
-          filters:
-            branches:
-              only: /master/
-          requires:
-            - unittests_py27
-            - unittests_py36
-            - wagon
-            - rhel_wagon
-            - integration_tests_505
-            - integration_tests_510
+#      - release:
+#          filters:
+#            branches:
+#              only: /master/
+#          requires:
+#            - unittests_py27
+#            - unittests_py36
+#            - wagon
+#            - rhel_wagon
+#            - integration_tests_505
+#            - integration_tests_510
   nightly:
     triggers:
     - schedule:
