@@ -374,7 +374,7 @@ class VsphereClient(object):
 
     def _make_cached_object(self, obj_name, props_dict, platform_results,
                             root_object=True, other_entity_mappings=None):
-        just_keys = props_dict.keys()
+        just_keys = list(props_dict.keys())
         # Discard the _values key if it is present
         if '_values' in just_keys:
             just_keys.remove('_values')
