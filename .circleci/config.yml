@@ -162,7 +162,7 @@ commands:
           command: pip install --upgrade setuptools
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/d37276c3cacc1933c689ba378c6726b9e42c7c02.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/08cce0d7b8bd46cf5eac52392ae7ec121907900d.zip
       - attach_workspace:
           at: workspace
       - run: python .circleci/package_release.py
@@ -199,7 +199,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/d37276c3cacc1933c689ba378c6726b9e42c7c02.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/08cce0d7b8bd46cf5eac52392ae7ec121907900d.zip
       - run: pytest -s .circleci/test_examples.py
 
   run_integration_tests_510:
@@ -234,7 +234,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudify-manager-aio:latest
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/d37276c3cacc1933c689ba378c6726b9e42c7c02.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/08cce0d7b8bd46cf5eac52392ae7ec121907900d.zip
       - run: pytest -s .circleci/test_examples.py
 
 jobs:
@@ -322,15 +322,15 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
-#      - release:
-#          filters:
-#            branches:
-#              only: /master/
-#          requires:
-#            - unittests_py27
-#            - unittests_py36
-#            - wagon
-#            - rhel_wagon
+      - release:
+          filters:
+            branches:
+              only: /master/
+          requires:
+            - unittests_py27
+            - unittests_py36
+            - wagon
+            - rhel_wagon
 #            - integration_tests_505
 #            - integration_tests_510
   nightly:
