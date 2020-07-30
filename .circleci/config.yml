@@ -185,7 +185,7 @@ commands:
           command: pip install --upgrade setuptools
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/b481a20e60e05d917c7443af6614bf0528bceae5.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/abc4aa6b51b6048d2deb20e80b534997f22fe781.zip
       - attach_workspace:
           at: workspace
       - run: python .circleci/package_release.py
@@ -222,7 +222,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/b481a20e60e05d917c7443af6614bf0528bceae5.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/abc4aa6b51b6048d2deb20e80b534997f22fe781.zip
       - run: pytest -s .circleci/test_examples.py
 
   run_integration_tests_510:
@@ -257,7 +257,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --device /dev/net/tun --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudify-manager-aio:latest
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/b481a20e60e05d917c7443af6614bf0528bceae5.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/abc4aa6b51b6048d2deb20e80b534997f22fe781.zip
       - run: pytest -s .circleci/test_examples.py
 
 jobs:
@@ -337,6 +337,8 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
+          requires:
+            - py3_compat
       - build-bundle:
           filters:
             branches:
@@ -344,27 +346,24 @@ workflows:
           requires:
             - wagon
             - rhel_wagon
-#      - integration_tests_505:
-#          requires:
-#            - build-bundle
-#          filters:
-#            branches:
-#              only: /([0-9\.]*\-build|master|dev)/
-#      - integration_tests_510:
-#          requires:
-#            - build-bundle
-#          filters:
-#            branches:
-#              only: /([0-9\.]*\-build|master|dev)/
-#      - release:
-#          filters:
-#            branches:
-#              only: /master/
-#          requires:
-#            - unittests_py27
-#            - unittests_py36
-#            - wagon
-#            - rhel_wagon
+      - integration_tests_505:
+          requires:
+            - build-bundle
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master|dev)/
+      - integration_tests_510:
+          requires:
+            - build-bundle
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master|dev)/
+      - release:
+          filters:
+            branches:
+              only: /master/
+          requires:
+            - build-bundle
 #            - integration_tests_505
 #            - integration_tests_510
   nightly:
