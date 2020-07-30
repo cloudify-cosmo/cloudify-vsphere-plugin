@@ -149,6 +149,7 @@ commands:
               pushd cloudify-ecosystem-test
               git checkout CY-3233-Test-New-Bundle
               pip install -e .
+              popd
               python -c 'from ecosystem_cicd_tools import packaging; packaging.build_plugins_bundle_with_workspace()'
       - persist_to_workspace:
           root: workspace
