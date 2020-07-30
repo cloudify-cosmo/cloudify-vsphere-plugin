@@ -144,7 +144,9 @@ commands:
           name: Build Bundle
           command: |
               git clone https://github.com/cloudify-incubator/cloudify-ecosystem-test.git
+              pushd cloudify-ecosystem-test
               git checkout CY-3233-Test-New-Bundle
+              popd
               python -c 'import ecosystem_cicd_tools; ecosystem_cicd_tools.packaging.build_plugins_bundle_with_workspace()'
       - persist_to_workspace:
           root: workspace
