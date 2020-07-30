@@ -135,6 +135,22 @@ commands:
           paths:
             - build/*
 
+  build_archive:
+    steps:
+      - run:
+          name: Create Workspace Build directory.
+          command: mkdir -p workspace/build
+      - run:
+          name: Build Bundle
+          command: |
+              git clone https://github.com/cloudify-incubator/cloudify-ecosystem-test.git
+              git checkout CY-3233-Test-New-Bundle
+              python -c 'import ecosystem_cicd_tools; ecosystem_cicd_tools.packaging.build_plugins_bundle_with_workspace()'
+      - persist_to_workspace:
+          root: workspace
+          paths:
+            - build/*
+
   release_plugin:
     steps:
       - run:
@@ -162,7 +178,7 @@ commands:
           command: pip install --upgrade setuptools
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/f538cb2c4406f76d29a19c800f316285d50554b1.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/b481a20e60e05d917c7443af6614bf0528bceae5.zip
       - attach_workspace:
           at: workspace
       - run: python .circleci/package_release.py
@@ -199,7 +215,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/f538cb2c4406f76d29a19c800f316285d50554b1.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/b481a20e60e05d917c7443af6614bf0528bceae5.zip
       - run: pytest -s .circleci/test_examples.py
 
   run_integration_tests_510:
@@ -234,7 +250,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --device /dev/net/tun --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudify-manager-aio:latest
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/f538cb2c4406f76d29a19c800f316285d50554b1.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/b481a20e60e05d917c7443af6614bf0528bceae5.zip
       - run: pytest -s .circleci/test_examples.py
 
 jobs:
@@ -268,6 +284,12 @@ jobs:
     steps:
       - checkout
       - generate_rhel_py27py36_wagon
+
+  build-bundle:
+    executor: wagon_generator
+    steps:
+      - checkout
+      - build_archive
 
   integration_tests_505:
     executor: cloudify-machine
@@ -308,31 +330,36 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
-      - integration_tests_505:
-          requires:
-            - wagon
-            - rhel_wagon
-          filters:
-            branches:
-              only: /([0-9\.]*\-build|master|dev)/
-      - integration_tests_510:
-          requires:
-            - wagon
-            - rhel_wagon
-          filters:
-            branches:
-              only: /([0-9\.]*\-build|master|dev)/
-      - release:
+      - build-bundle:
           filters:
             branches:
               only: /master/
           requires:
-            - unittests_py27
-            - unittests_py36
             - wagon
             - rhel_wagon
-            - integration_tests_505
-            - integration_tests_510
+#      - integration_tests_505:
+#          requires:
+#            - build-bundle
+#          filters:
+#            branches:
+#              only: /([0-9\.]*\-build|master|dev)/
+#      - integration_tests_510:
+#          requires:
+#            - build-bundle
+#          filters:
+#            branches:
+#              only: /([0-9\.]*\-build|master|dev)/
+#      - release:
+#          filters:
+#            branches:
+#              only: /master/
+#          requires:
+#            - unittests_py27
+#            - unittests_py36
+#            - wagon
+#            - rhel_wagon
+#            - integration_tests_505
+#            - integration_tests_510
   nightly:
     triggers:
     - schedule:
