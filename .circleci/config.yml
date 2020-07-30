@@ -331,8 +331,8 @@ workflows:
             - unittests_py36
             - wagon
             - rhel_wagon
-#            - integration_tests_505
-#            - integration_tests_510
+            - integration_tests_505
+            - integration_tests_510
   nightly:
     triggers:
     - schedule:
