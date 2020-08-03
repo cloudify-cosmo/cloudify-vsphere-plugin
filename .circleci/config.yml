@@ -146,10 +146,7 @@ commands:
           name: Build Bundle
           command: |
               git clone https://github.com/cloudify-incubator/cloudify-ecosystem-test.git
-              pushd cloudify-ecosystem-test
-              git checkout CY-3233-Test-New-Bundle
-              pip install -e .
-              popd
+              pip install -e cloudify-ecosystem-test
               python -c 'from ecosystem_cicd_tools import packaging; packaging.build_plugins_bundle_with_workspace()'
       - persist_to_workspace:
           root: workspace
@@ -185,7 +182,7 @@ commands:
           command: pip install --upgrade setuptools
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/70c28603bebd6c68fc7b48072ccd2e93007bbf81.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
       - attach_workspace:
           at: workspace
       - run: python .circleci/package_release.py
@@ -222,7 +219,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudifyplatform/premium-cloudify-manager-aio
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/70c28603bebd6c68fc7b48072ccd2e93007bbf81.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
       - run: pytest -s .circleci/test_examples.py
 
   run_integration_tests_510:
@@ -257,7 +254,7 @@ commands:
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --device /dev/net/tun --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudify-manager-aio:latest
       - run:
           name: install local project
-          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/70c28603bebd6c68fc7b48072ccd2e93007bbf81.zip
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
       - run: pytest -s .circleci/test_examples.py
 
 jobs:
@@ -349,12 +346,15 @@ workflows:
       - integration_tests_505:
           requires:
             - build-bundle
+            - unittests_py27
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
       - integration_tests_510:
           requires:
             - build-bundle
+            - unittests_py27
+            - unittests_py36
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
@@ -363,9 +363,8 @@ workflows:
             branches:
               only: /master/
           requires:
-            - build-bundle
-#            - integration_tests_505
-#            - integration_tests_510
+            - integration_tests_505
+            - integration_tests_510
   nightly:
     triggers:
     - schedule:
