@@ -344,7 +344,7 @@ class VsphereClient(object):
 
     def _merge_props_dicts(self, dict1, dict2):
         new_dict = {}
-        keys = set(dict1.keys() + dict2.keys())
+        keys = set(list(dict1.keys()) + list(dict2.keys()))
         keys.remove('_values')
 
         new_dict['_values'] = dict1['_values'] | dict2['_values']
