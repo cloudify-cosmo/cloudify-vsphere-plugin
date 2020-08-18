@@ -7,8 +7,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.18.4'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.18.4.zip
+    package_version: '2.18.5'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.18.5.zip
 
 data_types:
 
@@ -129,6 +129,7 @@ data_types:
           management: true/false- determines if this is a management network interface (default false)
           external: true/false- determines if this is a external network interface (default false)
           switch_distributed: determines if this is connected to a distributed port group (default false)
+          nsx_t_switch: determines if this is connected to a NSX-T Logical Switch (default false)
           use_dhcp: whether to use DHCP for IP addressing (default true)
           network: network CIDR to use if use_dhcp is false
           gateway: default gateway to use if use_dhcp is false. You should only set this on one interface.

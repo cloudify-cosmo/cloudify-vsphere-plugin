@@ -277,6 +277,7 @@ class ServerClient(VsphereClient):
 
     def _add_network(self, network, datacenter):
         network_name = network['name']
+        nsx_t_switch = network['nsx_t_switch']
         normalised_network_name = self._get_normalised_name(network_name)
         switch_distributed = network['switch_distributed']
         mac_address = network.get('mac_address')
@@ -315,7 +316,14 @@ class ServerClient(VsphereClient):
         nicspec.operation = \
             vim.vm.device.VirtualDeviceSpec.Operation.add
         nicspec.device = vim.vm.device.VirtualVmxnet3()
-        if switch_distributed:
+        if nsx_t_switch:
+            nicspec.device.backing = \
+                vim.vm.device.VirtualEthernetCard.OpaqueNetworkBackingInfo()
+            network_id = network_obj.obj.summary.opaqueNetworkId
+            network_type = network_obj.obj.summary.opaqueNetworkType
+            nicspec.device.backing.opaqueNetworkType = network_type
+            nicspec.device.backing.opaqueNetworkId = network_id
+        elif switch_distributed:
             info = vim.vm.device.VirtualEthernetCard\
                 .DistributedVirtualPortBackingInfo()
             nicspec.device.backing = info

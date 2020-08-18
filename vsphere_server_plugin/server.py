@@ -103,6 +103,7 @@ def validate_connect_network(_network):
         'external': (bool, False),
         'management': (bool, False),
         'switch_distributed': (bool, False),
+        'nsx_t_switch': (bool, False),
         'use_dhcp': (bool, True),
         'network': (text_type, None),
         'gateway': (text_type, None),
@@ -114,6 +115,11 @@ def validate_connect_network(_network):
     # As proper bureaucrats, we always prepare lists.
     validation_error_messages = ['Network failed validation: ']
 
+    if _network.get('switch_distributed') and _network.get('nsx_t_switch'):
+        validation_error = True
+        validation_error_messages.append(
+            'Cannot specify both switch_distributed & nsx_t_switch at the '
+            'same time')
     if not _network.get('name'):
         # John/Jane Doe.
         validation_error = True

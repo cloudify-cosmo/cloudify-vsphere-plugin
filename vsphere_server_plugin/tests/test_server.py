@@ -31,6 +31,7 @@ class ServerTest(unittest.TestCase):
                 'name': 'Internal',
                 'ip': None,
                 'switch_distributed': False,
+                'nsx_t_switch': False,
                 'use_dhcp': True,
                 'gateway': None,
                 'network': None
@@ -40,6 +41,7 @@ class ServerTest(unittest.TestCase):
                 'name': 'Internal',
                 'ip': u'172.16.168.131',
                 'switch_distributed': False,
+                'nsx_t_switch': False,
                 'use_dhcp': False,
                 'gateway': '172.16.168.1',
                 'network': u'172.16.168.0/24'
@@ -50,6 +52,7 @@ class ServerTest(unittest.TestCase):
                 'name': 'Internal',
                 'ip': u'172.16.168.131',
                 'switch_distributed': False,
+                'nsx_t_switch': False,
                 'use_dhcp': False,
                 'gateway': '172.16.168.1',
                 'network': '172.16.168.0/24'

@@ -1152,9 +1152,17 @@ class VsphereClient(object):
                 nic.backing.port,
                 vim.dvs.PortConnection,
             )
+            nsxt_switch = hasattr(nic.backing, 'opaqueNetworkId')
 
             network_name = None
-            if distributed:
+            if nsxt_switch:
+                network_name = nic.backing.opaqueNetworkId
+                self._logger.debug(
+                    'Found NIC was on port group {network}'.format(
+                        network=network_name,
+                    )
+                )
+            elif distributed:
                 mapping_id = nic.backing.port.portgroupKey
                 self._logger.debug(
                     'Found NIC was on distributed port group with port group '
@@ -1194,6 +1202,7 @@ class VsphereClient(object):
                 'name': network_name,
                 'distributed': distributed,
                 'mac': nic.macAddress,
+                'nsxt_switch': nsxt_switch
             })
 
         return networks
