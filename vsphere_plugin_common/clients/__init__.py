@@ -1162,7 +1162,7 @@ class VsphereClient(object):
                         network=network_name,
                     )
                 )
-            if distributed:
+            elif distributed:
                 mapping_id = nic.backing.port.portgroupKey
                 self._logger.debug(
                     'Found NIC was on distributed port group with port group '
