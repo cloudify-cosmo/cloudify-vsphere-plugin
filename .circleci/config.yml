@@ -441,6 +441,8 @@ workflows:
             branches:
               only: /master/
           requires:
+            - validate_version
+            - validate_documentation
             - integration_tests_505
             - integration_tests_510
   nightly:
