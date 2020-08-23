@@ -1,3 +1,4 @@
+2.18.6: Fix issues in
 2.18.5: Add support for connecting opaque network to vm .
 2.18.4: Fix Python 3 Bug.
 2.18.3: Fix Python 3 Bug.
@@ -12,18 +13,18 @@
 2.16.2:
   - Fix debug log output for vm object
 2.16.1:
-  - Export datastore filename for cdrom to `datastore_file_name` field.
+  - Export datastore filename for cdrom to datastore_file_name field.
   - Cleanup storage runtime properties after delete.
   - Cleanup content library deployment node after delete.
 2.16.0:
   - Preserve ordering of networks when not external
   - Cleanup create vm error messages
   - Allow users not to specify num CPUs and RAM
-  - Fix typo: `contoller` -> `controller`
+  - Fix typo: contoller -> controller
   - Resubable workflows support
-  - Add `add_scale_suffix` for add suffix for instance name by default.
+  - Add add_scale_suffix for add suffix for instance name by default.
   - Filter network by datacenters before attach.
-  - Start vm on create only with `enable_start_vm` equal to True.
+  - Start vm on create only with enable_start_vm equal to True.
   - Cleanup runtime properties after delete ippool, cdrom and server instances.
 2.15.1:
   - Fix mistake with network adapters type. #138
@@ -39,11 +40,11 @@
   - Fix json keys order in deployments additional parameters for content
     library.
 2.13.0:
-  - Rename `raw_files` to `files_raw`
+  - Rename raw_files to files_raw
   - Fix start external VM without VMware tools
   - Put VM to prexisted folder
 2.12.0:
-  - Add `enable_start_vm flag` for external VM's
+  - Add enable_start_vm flag for external VM's
   - Add Content Library support
   - Support OVA deployments from Content Library
   - Export external id for Hypervisor Host, Resource Pool and VM Folder.
@@ -55,7 +56,7 @@
   - Initial CloudInit support
   - MTU export for new created networks
 2.9.3:
-  - Add `enable_start_vm flag`. Backport from 2.12.0.
+  - Add enable_start_vm flag. Backport from 2.12.0.
 2.9.2:
   - CFY-981: DHCP regression fix
 2.9.1:

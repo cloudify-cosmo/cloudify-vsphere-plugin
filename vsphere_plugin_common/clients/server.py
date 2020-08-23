@@ -471,7 +471,7 @@ class ServerClient(VsphereClient):
             devices.append(cdrom_device)
         return devices
 
-    def update_server(self, server, cdrom_image=None, extra_config=None):
+    def update_server(self, server, cdrom_image=None, extra_config=None, **_):
         # Attrach cdrom image to vm without change networks list
         devices_changes = self._update_vm(server, cdrom_image=cdrom_image,
                                           remove_networks=False)
@@ -520,7 +520,8 @@ class ServerClient(VsphereClient):
             vm_folder=None,
             extra_config=None,
             enable_start_vm=True,
-            postpone_delete_networks=False):
+            postpone_delete_networks=False,
+            **_):
 
         self._logger.debug(
             "Entering create_server with parameters %s"
@@ -781,7 +782,7 @@ class ServerClient(VsphereClient):
 
         return vm
 
-    def upgrade_server(self, server, minimal_vm_version):
+    def upgrade_server(self, server, minimal_vm_version, **_):
         self._logger.info('VM version: vmx-{old}/vmx-{new}'.format(
             old=self._get_virtual_hardware_version(server.obj),
             new=minimal_vm_version))
@@ -796,7 +797,7 @@ class ServerClient(VsphereClient):
                     "vmx-{version}".format(version=minimal_vm_version))
                 self._wait_for_task(task)
 
-    def suspend_server(self, server, max_wait_time=30):
+    def suspend_server(self, server, max_wait_time=30, **_):
         if self.is_server_suspended(server.obj):
             self._logger.info(
                 "Server '{0}' already suspended.".format(server.name))
@@ -811,7 +812,7 @@ class ServerClient(VsphereClient):
                             max_wait_time=max_wait_time)
         self._logger.debug("Server is suspended.")
 
-    def start_server(self, server, max_wait_time=30):
+    def start_server(self, server, max_wait_time=30, **_):
         if self.is_server_poweredon(server):
             self._logger.info(
                 "Server '{0}' already running".format(server.name))
@@ -822,7 +823,7 @@ class ServerClient(VsphereClient):
                             max_wait_time=max_wait_time)
         self._logger.debug("Server is now running.")
 
-    def shutdown_server_guest(self, server, max_wait_time=30):
+    def shutdown_server_guest(self, server, max_wait_time=30, **_):
         if self.is_server_poweredoff(server):
             self._logger.info(
                 "Server '{0}' already stopped".format(server.name))
@@ -833,7 +834,7 @@ class ServerClient(VsphereClient):
                             max_wait_time=max_wait_time)
         self._logger.debug("Server is now shut down.")
 
-    def stop_server(self, server, max_wait_time=30):
+    def stop_server(self, server, max_wait_time=30, **_):
         if self.is_server_poweredoff(server):
             self._logger.info(
                 "Server '{0}' already stopped".format(server.name))
@@ -844,9 +845,13 @@ class ServerClient(VsphereClient):
                             max_wait_time=max_wait_time)
         self._logger.debug("Server is now stopped.")
 
-    def backup_server(
-        self, server, snapshot_name, description, max_wait_time=30
-    ):
+    def backup_server(self,
+                      server,
+                      snapshot_name,
+                      description,
+                      max_wait_time=30,
+                      **_):
+
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -861,7 +866,7 @@ class ServerClient(VsphereClient):
         self._wait_for_task(task,
                             max_wait_time=max_wait_time)
 
-    def get_snapshot_by_name(self, snapshots, snapshot_name):
+    def get_snapshot_by_name(self, snapshots, snapshot_name, **_):
         for snapshot in snapshots:
             if snapshot.name == snapshot_name:
                 return snapshot
@@ -875,7 +880,8 @@ class ServerClient(VsphereClient):
     def restore_server(self,
                        server,
                        snapshot_name,
-                       max_wait_time=30):
+                       max_wait_time=30,
+                       **_):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -890,7 +896,7 @@ class ServerClient(VsphereClient):
         self._wait_for_task(task,
                             max_wait_time=max_wait_time)
 
-    def remove_backup(self, server, snapshot_name, max_wait_time=30):
+    def remove_backup(self, server, snapshot_name, max_wait_time=30, **_):
         if server.obj.snapshot:
             snapshot = self.get_snapshot_by_name(
                 server.obj.snapshot.rootSnapshotList, snapshot_name)
@@ -913,7 +919,7 @@ class ServerClient(VsphereClient):
         self._wait_for_task(task,
                             max_wait_time=max_wait_time)
 
-    def reset_server(self, server, max_wait_time=30):
+    def reset_server(self, server, max_wait_time=30, **_):
         if self.is_server_poweredoff(server):
             self._logger.info(
                 "Server '{0}' currently stopped, starting.".format(
@@ -926,7 +932,7 @@ class ServerClient(VsphereClient):
                             max_wait_time=max_wait_time)
         self._logger.debug("Server has been reset")
 
-    def reboot_server(self, server, max_wait_time=30):
+    def reboot_server(self, server, max_wait_time=30, **_):
         if self.is_server_poweredoff(server):
             self._logger.info(
                 "Server '{0}' currently stopped, starting.".format(
@@ -948,7 +954,7 @@ class ServerClient(VsphereClient):
     def is_server_guest_running(self, server):
         return server.obj.guest.guestState == "running"
 
-    def delete_server(self, server):
+    def delete_server(self, server, **_):
         self._logger.debug("Entering server delete procedure.")
         if self.is_server_poweredon(server):
             self.stop_server(server)
@@ -1438,7 +1444,7 @@ class ServerClient(VsphereClient):
         else:
             return False
 
-    def resize_server(self, server, cpus=None, memory=None):
+    def resize_server(self, server, cpus=None, memory=None, **_):
         self._logger.debug('Entering resize reconfiguration.')
         config = vim.vm.ConfigSpec()
         update_required = False
