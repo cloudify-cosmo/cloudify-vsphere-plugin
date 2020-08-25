@@ -7,8 +7,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.18.6'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.18.6.zip
+    package_version: '2.18.7'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.18.7.zip
 
 data_types:
 
@@ -215,6 +215,9 @@ node_types:
         default: 13
     interfaces:
       cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.vsphere_server_plugin.server.create
+          inputs: {}
         start:
           implementation: vsphere.vsphere_server_plugin.server.start
           inputs: {}
