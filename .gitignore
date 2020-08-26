@@ -72,3 +72,4 @@ cloudify_vsphere_plugin.egg-info/
 # vmware diskimages
 *.vmdk
 *.qcow2
+*.wgn
