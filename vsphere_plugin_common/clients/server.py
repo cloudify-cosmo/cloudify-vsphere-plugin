@@ -275,7 +275,7 @@ class ServerClient(VsphereClient):
             message = ' '.join(issues)
             raise NonRecoverableError(message)
 
-    def _add_network(self, network, datacenter):
+    def _add_network(self, network, datacenter, counter=0):
         network_name = network['name']
         nsx_t_switch = network['nsx_t_switch']
         normalised_network_name = self._get_normalised_name(network_name)
@@ -316,6 +316,7 @@ class ServerClient(VsphereClient):
         nicspec.operation = \
             vim.vm.device.VirtualDeviceSpec.Operation.add
         nicspec.device = vim.vm.device.VirtualVmxnet3()
+        nicspec.device.key = counter
         if nsx_t_switch:
             nicspec.device.backing = \
                 vim.vm.device.VirtualEthernetCard.OpaqueNetworkBackingInfo()
@@ -625,10 +626,12 @@ class ServerClient(VsphereClient):
 
         port_groups, distributed_port_groups = self._get_port_group_names()
 
+        netcnt = 0
         for network in networks:
-            nicspec, guest_map = self._add_network(network, datacenter)
+            nicspec, guest_map = self._add_network(network, datacenter, netcnt)
             devices.append(nicspec)
             adaptermaps.append(guest_map)
+            netcnt += 1
 
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
