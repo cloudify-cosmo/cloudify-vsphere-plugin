@@ -161,6 +161,38 @@ commands:
           at: workspace
       - run: python .circleci/validate_version.py
 
+  merge_documentation:
+    steps:
+      - run:
+          name: "Pull Submodules"
+          command: |
+            git submodule init
+            git submodule update --remote --recursive
+      - run:
+          name: Download pip
+          command: curl "https://bootstrap.pypa.io/get-pip.py" -o "get-pip.py"
+      - run:
+          name: Install pip
+          command: sudo python get-pip.py
+      - run:
+          name: Install virtualenv
+          command: pip install --user virtualenv
+      - run:
+          name: Init virtualenv
+          command: virtualenv env
+      - run:
+          name: install tox
+          command: pip install --user pygithub pyyaml==3.10
+      - run:
+          name: upgrade setuptools
+          command: pip install --upgrade setuptools
+      - run:
+          name: install local project
+          command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
+      - attach_workspace:
+          at: workspace
+      - run: python .circleci/merge_docs.py
+
   generate_py27py36_wagon:
     steps:
       - run:
@@ -353,6 +385,12 @@ jobs:
       - checkout
       - validate_documentation
 
+  merge_documentation:
+    executor: py27
+    steps:
+      - checkout
+      - merge_documentation
+
   wagon:
     executor: wagon_generator
     steps:
@@ -445,6 +483,12 @@ workflows:
             - validate_documentation
             - integration_tests_505
             - integration_tests_510
+      - merge_documentation:
+          filters:
+            branches:
+              only: /master/
+          requires:
+            - release
   nightly:
     triggers:
     - schedule:
