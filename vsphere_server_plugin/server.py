@@ -357,6 +357,10 @@ def create(server_client,
            extra_config=None,
            **_):
 
+    if enable_start_vm:
+        ctx.logger.debug('Create operation ignores enable_start_vm property.')
+        enable_start_vm = False
+
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))
