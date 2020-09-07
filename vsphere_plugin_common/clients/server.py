@@ -1232,7 +1232,7 @@ class ServerClient(VsphereClient):
                     vm_memory=vm_memory,
                     template=template,
                 )
-                if weighting:
+                if weighting is not None:
                     self._logger.debug(
                         'Datastore {ds} on host {host} has suitability '
                         '{weight}'.format(
@@ -1277,7 +1277,7 @@ class ServerClient(VsphereClient):
                             datastore=best_datastore.name,
                             weight=best_datastore_weighting))
 
-        if best_host:
+        if best_host is not None:
             return best_host, best_datastore
         else:
             message = 'No datastores found with enough space.'
@@ -1464,7 +1464,7 @@ class ServerClient(VsphereClient):
                 config.numCPUs = cpus
                 update_required = True
 
-        if memory:
+        if memory is not None:
             try:
                 memory = int(memory)
             except (ValueError, TypeError) as e:

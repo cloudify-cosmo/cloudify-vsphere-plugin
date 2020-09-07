@@ -273,7 +273,7 @@ class StorageClient(VsphereClient):
                         break
                 # We found the right disk, we can't do any better than this
                 break
-        if not bus_id:
+        if bus_id is None:
             raise NonRecoverableError(
                 'Could not find SCSI bus ID for disk with filename: '
                 '{file_name}'.format(file_name=vm_disk_filename)
@@ -309,7 +309,7 @@ class StorageClient(VsphereClient):
                     and device.backing.fileName == storage_file_name:
                 device_to_delete = device
 
-        if not device_to_delete:
+        if device_to_delete is None:
             self._logger.debug("Storage removed on previous step.")
             return
 
@@ -352,7 +352,7 @@ class StorageClient(VsphereClient):
                     device.backing.fileName == storage_filename:
                 disk_to_resize = device
 
-        if not disk_to_resize:
+        if disk_to_resize is None:
             raise NonRecoverableError(
                 'Error during trying to resize storage: storage not found.')
 
