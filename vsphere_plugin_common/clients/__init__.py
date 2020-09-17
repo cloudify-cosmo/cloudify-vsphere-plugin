@@ -775,7 +775,12 @@ class VsphereClient(object):
 
         extra_details = {}
         for item in results:
-            dvswitch_id = item['config.distributedVirtualSwitch']._moId
+            try:
+                dvswitch_id = item['config.distributedVirtualSwitch']._moId
+            except KeyError:
+                ctx.logger.info(
+                    'Get extra DV port group details. '
+                    'Ignoring item {item}'.format(item=item))
             dvswitch = None
             for dvs in dvswitches:
                 if dvswitch_id == dvs.id:
