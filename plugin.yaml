@@ -3,7 +3,6 @@
 ##################################################################################
 
 plugins:
-
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
