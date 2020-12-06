@@ -122,7 +122,9 @@ class StorageClient(VsphereClient):
                        storage_size,
                        parent_key,
                        mode,
-                       thin_provision=False):
+                       thin_provision=False,
+                       max_wait_time=300,
+                       **_):
 
         self._logger.debug("Entering create storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
@@ -246,7 +248,7 @@ class StorageClient(VsphereClient):
             ctx.instance.runtime_properties['vm_disk_name'] = vm_disk_filename
             ctx.instance.runtime_properties.dirty = True
             ctx.instance.update()
-            self._wait_for_task(task)
+            self._wait_for_task(task, max_wait_time=max_wait_time)
         # remove old vm disk name
         del ctx.instance.runtime_properties['vm_disk_name']
         ctx.instance.runtime_properties.dirty = True
@@ -284,7 +286,10 @@ class StorageClient(VsphereClient):
 
         return vm_disk_filename, scsi_id
 
-    def delete_storage(self, vm_id, storage_file_name):
+    def delete_storage(self,
+                       vm_id,
+                       storage_file_name,
+                       max_wait_time=300):
         self._logger.debug("Entering delete storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         self._logger.debug("VM info: \n{}".format(vm))
@@ -321,7 +326,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        self._wait_for_task(task)
+        self._wait_for_task(task, max_wait_time=max_wait_time)
 
     def get_storage(self, vm_id, storage_file_name):
         self._logger.debug("Entering get storage procedure.")
@@ -336,7 +341,11 @@ class StorageClient(VsphereClient):
                     return device
         return
 
-    def resize_storage(self, vm_id, storage_filename, storage_size):
+    def resize_storage(self,
+                       vm_id,
+                       storage_filename,
+                       storage_size,
+                       max_wait_time=300):
         self._logger.debug("Entering resize storage procedure.")
         vm = self._get_obj_by_id(vim.VirtualMachine, vm_id)
         self._logger.debug("VM info: \n{}".format(vm))
@@ -380,7 +389,7 @@ class StorageClient(VsphereClient):
         config_spec.deviceChange = updated_devices
 
         task = vm.obj.Reconfigure(spec=config_spec)
-        self._wait_for_task(task)
+        self._wait_for_task(task, max_wait_time=max_wait_time)
         self._logger.debug(
             'Storage resized to a new size {storage_size}.'.format(
                 storage_size=storage_size))

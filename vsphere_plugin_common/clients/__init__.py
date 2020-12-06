@@ -1054,10 +1054,15 @@ class VsphereClient(object):
     def _wait_for_task(self,
                        task=None,
                        instance=None,
-                       max_wait_time=300,
+                       max_wait_time=None,
                        resource_id=None):
 
         instance = instance or ctx.instance
+        if not isinstance(max_wait_time, int):
+            ctx.logger.warn(
+                'The provided max_wait_time {p} is not an integer. '
+                'Using default 300.'.format(p=max_wait_time))
+            max_wait_time = 300
 
         if not task and instance:
             task_id = instance.runtime_properties.get(ASYNC_TASK_ID)

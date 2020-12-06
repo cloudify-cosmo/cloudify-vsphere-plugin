@@ -41,7 +41,11 @@ RESIZE_ERROR = "The resize operation cannot be performed. " \
 
 @op
 @with_storage_client
-def create(storage_client, storage, use_external_resource=False):
+def create(storage_client,
+           storage,
+           use_external_resource=False,
+           max_wait_time=300,
+           **_):
     ctx.logger.debug("Entering create storage procedure.")
     storage.setdefault('name', ctx.node.id)
     # This should be debug, but left as info until CFY-4867 makes logs more
@@ -118,7 +122,8 @@ def create(storage_client, storage, use_external_resource=False):
                 storage_size,
                 parent_key,
                 mode,
-                thin_provision=thin_provision)
+                thin_provision=thin_provision,
+                max_wait_time=300)
         except NonRecoverableError as e:
             # If more than one storage is attached to the same VM, there is
             # a race and they might try to use the same name. If that happens
@@ -149,7 +154,7 @@ def create(storage_client, storage, use_external_resource=False):
 
 @op
 @with_storage_client
-def delete(storage_client, **_):
+def delete(storage_client, max_wait_time=300, **_):
     if ctx.instance.runtime_properties.get('use_external_resource'):
         ctx.logger.info('Used existing resource.')
         return
@@ -164,7 +169,9 @@ def delete(storage_client, **_):
     ctx.logger.info(
         "Deleting storage {file} from {vm}".format(
             file=storage_file_name, vm=vm_name))
-    storage_client.delete_storage(vm_id, storage_file_name)
+    storage_client.delete_storage(vm_id,
+                                  storage_file_name,
+                                  max_wait_time=max_wait_time)
     ctx.logger.info(
         "Successfully deleted storage {file} from {vm}".format(
             file=storage_file_name, vm=vm_name))
@@ -172,7 +179,7 @@ def delete(storage_client, **_):
 
 @op
 @with_storage_client
-def resize(storage_client, **_):
+def resize(storage_client, max_wait_time=300, **_):
     vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
     vm_name = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_NAME)
     if not vm_name or not vm_id:
@@ -188,7 +195,11 @@ def resize(storage_client, **_):
     ctx.logger.info(
         "Resizing storage {file} on {vm} to {new_size}".format(
             file=storage_file_name, vm=vm_name, new_size=storage_size))
-    storage_client.resize_storage(vm_id, storage_file_name, storage_size)
+    storage_client.resize_storage(
+        vm_id,
+        storage_file_name,
+        storage_size,
+        max_wait_time=max_wait_time)
     ctx.logger.info(
         "Successfully resized storage {file} on {vm} to {new_size}".format(
             file=storage_file_name, vm=vm_name, new_size=storage_size))

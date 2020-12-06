@@ -289,7 +289,9 @@ def create_new_server(server_client,
                       vm_folder=None,
                       extra_config=None,
                       enable_start_vm=True,
-                      postpone_delete_networks=False):
+                      postpone_delete_networks=False,
+                      max_wait_time=300,
+                      **_):
 
     vm_name = get_vm_name(server, os_family)
     ctx.logger.debug('Cdrom path: {cdrom}'.format(cdrom=cdrom_image))
@@ -328,7 +330,8 @@ def create_new_server(server_client,
         vm_folder=vm_folder,
         extra_config=extra_config,
         enable_start_vm=enable_start_vm,
-        postpone_delete_networks=postpone_delete_networks)
+        postpone_delete_networks=postpone_delete_networks,
+        max_wait_time=max_wait_time)
     ctx.logger.info('Created server called {name}'.format(name=vm_name))
     return server_obj
 
@@ -355,6 +358,7 @@ def create(server_client,
            cdrom_image=None,
            vm_folder=None,
            extra_config=None,
+           max_wait_time=300,
            **_):
 
     if enable_start_vm:
@@ -436,6 +440,7 @@ def start(server_client,
           cdrom_image=None,
           vm_folder=None,
           extra_config=None,
+          max_wait_time=300,
           **_):
 
     ctx.logger.debug("Checking whether server exists...")
@@ -470,14 +475,16 @@ def start(server_client,
             vm_folder=vm_folder,
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
-            postpone_delete_networks=postpone_delete_networks)
+            postpone_delete_networks=postpone_delete_networks,
+            max_wait_time=max_wait_time)
     else:
         server_client.update_server(server=server_obj,
                                     cdrom_image=cdrom_image,
                                     extra_config=extra_config)
         if enable_start_vm:
             ctx.logger.info("Server already exists, powering on.")
-            server_client.start_server(server=server_obj)
+            server_client.start_server(server=server_obj,
+                                       max_wait_time=max_wait_time)
             ctx.logger.info("Server powered on.")
         else:
             ctx.logger.info("Server already exists, but will not be powered"
@@ -487,7 +494,8 @@ def start(server_client,
 
     # update vm version
     server_client.upgrade_server(server_obj,
-                                 minimal_vm_version=minimal_vm_version)
+                                 minimal_vm_version=minimal_vm_version,
+                                 max_wait_time=max_wait_time)
 
     # remove nic's by mac
     keys_for_remove = ctx.instance.runtime_properties.get('_keys_for_remove')
@@ -504,7 +512,12 @@ def start(server_client,
 
 @op
 @with_server_client
-def shutdown_guest(server_client, server, os_family, **_):
+def shutdown_guest(server_client,
+                   server,
+                   os_family,
+                   max_wait_time=300,
+                   **_):
+
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
@@ -513,14 +526,20 @@ def shutdown_guest(server_client, server, os_family, **_):
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to shut down server {name}'.format(
                     name=vm_name))
-    server_client.shutdown_server_guest(server_obj)
+    server_client.shutdown_server_guest(server_obj,
+                                        max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully shut down server {name}'.format(
                     name=vm_name))
 
 
 @op
 @with_server_client
-def stop(server_client, server, os_family, force_stop=False, **_):
+def stop(server_client,
+         server,
+         os_family,
+         force_stop=False,
+         max_wait_time=300,
+         **_):
 
     existing_resource = ctx.instance.runtime_properties.get(
         VSPHERE_RESOURCE_EXTERNAL)
@@ -543,13 +562,17 @@ def stop(server_client, server, os_family, force_stop=False, **_):
 
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Stopping server {name}'.format(name=vm_name))
-    server_client.stop_server(server_obj)
+    server_client.stop_server(server_obj, max_wait_time=max_wait_time)
     ctx.logger.info('Sttopped server {name}'.format(name=vm_name))
 
 
 @op
 @with_server_client
-def freeze_suspend(server_client, server, os_family, **_):
+def freeze_suspend(server_client,
+                   server,
+                   os_family,
+                   max_wait_time=300,
+                   **_):
     if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
@@ -560,14 +583,18 @@ def freeze_suspend(server_client, server, os_family, **_):
             .format(ctx.instance.id))
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to suspend server {name}'.format(name=vm_name))
-    server_client.suspend_server(server_obj)
+    server_client.suspend_server(server_obj, max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully suspended server {name}'.format(
         name=vm_name))
 
 
 @op
 @with_server_client
-def freeze_resume(server_client, server, os_family, **_):
+def freeze_resume(server_client,
+                  server,
+                  os_family,
+                  max_wait_time=300,
+                  **_):
     if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
@@ -578,14 +605,20 @@ def freeze_resume(server_client, server, os_family, **_):
             .format(ctx.instance.id))
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to resume server {name}'.format(name=vm_name))
-    server_client.start_server(server_obj)
+    server_client.start_server(server_obj, max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully resumed server {name}'.format(name=vm_name))
 
 
 @op
 @with_server_client
-def snapshot_create(server_client, server, os_family, snapshot_name,
-                    snapshot_incremental, snapshot_type, **_):
+def snapshot_create(server_client,
+                    server,
+                    os_family,
+                    snapshot_name,
+                    snapshot_incremental,
+                    snapshot_type,
+                    max_wait_time=300,
+                    **_):
     if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
@@ -607,15 +640,24 @@ def snapshot_create(server_client, server, os_family, snapshot_name,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to backup {snapshot_name} for server {name}'
                     .format(snapshot_name=snapshot_name, name=vm_name))
-    server_client.backup_server(server_obj, snapshot_name, snapshot_type)
+    server_client.backup_server(
+        server_obj,
+        snapshot_name,
+        snapshot_type,
+        max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully backuped server {name}'
                     .format(name=vm_name))
 
 
 @op
 @with_server_client
-def snapshot_apply(server_client, server, os_family, snapshot_name,
-                   snapshot_incremental, **_):
+def snapshot_apply(server_client,
+                   server,
+                   os_family,
+                   snapshot_name,
+                   snapshot_incremental,
+                   max_wait_time=300,
+                   **_):
     if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
@@ -637,15 +679,22 @@ def snapshot_apply(server_client, server, os_family, snapshot_name,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to restore {snapshot_name} for server {name}'
                     .format(snapshot_name=snapshot_name, name=vm_name))
-    server_client.restore_server(server_obj, snapshot_name)
+    server_client.restore_server(server_obj,
+                                 snapshot_name,
+                                 max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully restored server {name}'
                     .format(name=vm_name))
 
 
 @op
 @with_server_client
-def snapshot_delete(server_client, server, os_family, snapshot_name,
-                    snapshot_incremental, **_):
+def snapshot_delete(server_client,
+                    server,
+                    os_family,
+                    snapshot_name,
+                    snapshot_incremental,
+                    max_wait_time=300,
+                    **_):
     if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
         return
@@ -667,14 +716,22 @@ def snapshot_delete(server_client, server, os_family, snapshot_name,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to remove backup {snapshot_name} for server '
                     '{name}'.format(snapshot_name=snapshot_name, name=vm_name))
-    server_client.remove_backup(server_obj, snapshot_name)
+    server_client.remove_backup(
+        server_obj,
+        snapshot_name,
+        max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully removed backup from server {name}'
                     .format(name=vm_name))
 
 
 @op
 @with_server_client
-def delete(server_client, server, os_family, force_delete, **_):
+def delete(server_client,
+           server,
+           os_family,
+           force_delete,
+           max_wait_time=300,
+           **_):
     if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL) \
             and not force_delete:
         ctx.logger.info('Used existing resource.')
@@ -691,14 +748,19 @@ def delete(server_client, server, os_family, force_delete, **_):
         return
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
-    server_client.delete_server(server_obj)
+    server_client.delete_server(server_obj, max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully deleted server {name}'.format(
                     name=vm_name))
 
 
 @op
 @with_server_client
-def get_state(server_client, server, networking, os_family, wait_ip, **_):
+def get_state(server_client,
+              server,
+              networking,
+              os_family,
+              wait_ip,
+              **_):
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
@@ -840,8 +902,8 @@ def resize_server(server_client,
                   os_family,
                   cpus=None,
                   memory=None,
+                  max_wait_time=300,
                   **_):
-
     if not any((
         cpus,
         memory,
@@ -856,7 +918,10 @@ def resize_server(server_client,
             "Cannot resize server - "
             "server doesn't exist for node: {0}".format(ctx.instance.id))
 
-    server_client.resize_server(server_obj, cpus=cpus, memory=memory)
+    server_client.resize_server(server_obj,
+                                cpus=cpus,
+                                memory=memory,
+                                max_wait_time=max_wait_time)
 
     for property in 'cpus', 'memory':
         value = locals()[property]

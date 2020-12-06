@@ -7,8 +7,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.18.11'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.18.11.zip
+    package_version: '2.18.12'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.18.12.zip
 
 data_types:
 
@@ -217,38 +217,43 @@ node_types:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_server_plugin.server.create
-          inputs: {}
+          inputs: &interfaces_power_inputs
+            max_wait_time:
+              type: integer
+              default: 300
+              description: >
+                How long to wait for the operation to complete before retry.
         start:
           implementation: vsphere.vsphere_server_plugin.server.start
-          inputs: {}
+          inputs: *interfaces_power_inputs
         stop:
           implementation: vsphere.vsphere_server_plugin.server.stop
-          inputs: {}
+          inputs: *interfaces_power_inputs
         shutdown_guest:
           implementation: vsphere.vsphere_server_plugin.server.shutdown_guest
-          inputs: {}
+          inputs: *interfaces_power_inputs
         delete:
           implementation: vsphere.vsphere_server_plugin.server.delete
-          inputs: {}
+          inputs: *interfaces_power_inputs
       # suspend/resume
       cloudify.interfaces.freeze:
         suspend:
           implementation: vsphere.vsphere_server_plugin.server.freeze_suspend
-          inputs: {}
+          inputs: *interfaces_power_inputs
         resume:
           implementation: vsphere.vsphere_server_plugin.server.freeze_resume
-          inputs: {}
+          inputs: *interfaces_power_inputs
       # backups related section
       cloudify.interfaces.snapshot:
         create:
           implementation: vsphere.vsphere_server_plugin.server.snapshot_create
-          inputs: {}
+          inputs: *interfaces_power_inputs
         apply:
           implementation: vsphere.vsphere_server_plugin.server.snapshot_apply
-          inputs: {}
+          inputs: *interfaces_power_inputs
         delete:
           implementation: vsphere.vsphere_server_plugin.server.snapshot_delete
-          inputs: {}
+          inputs: *interfaces_power_inputs
       cloudify.interfaces.host:
         get_state:
           implementation: vsphere.vsphere_server_plugin.server.get_state
@@ -256,15 +261,11 @@ node_types:
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_server_plugin.server.resize_server
+          inputs: *interfaces_power_inputs
       cloudify.interfaces.power:
         'on':
           implementation: vsphere.vsphere_server_plugin.power.power_on
-          inputs: &interfaces_power_inputs
-            max_wait_time:
-              type: integer
-              default: 300
-              description: >
-                How long to wait for the operation to complete before retry.
+          inputs: *interfaces_power_inputs
         'off':
           implementation: vsphere.vsphere_server_plugin.power.power_off
           inputs: *interfaces_power_inputs
@@ -388,13 +389,14 @@ node_types:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_storage_plugin.storage.create
-          inputs: {}
+          inputs: *interfaces_power_inputs
         delete:
           implementation: vsphere.vsphere_storage_plugin.storage.delete
-          inputs: {}
+          inputs: *interfaces_power_inputs
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_storage_plugin.storage.resize
+          inputs: *interfaces_power_inputs
 
   cloudify.vsphere.nodes.IPPool:
     derived_from: cloudify.nodes.Subnet
