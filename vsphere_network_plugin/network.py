@@ -34,7 +34,10 @@ from vsphere_plugin_common.constants import (
 
 @op
 @with_network_client
-def create(ctx, network_client, network, use_external_resource):
+def create(ctx,
+           network_client,
+           network,
+           use_external_resource):
     network.update(network)
     network['name'] = get_network_name(ctx, network)
     check_name_for_special_characters(network['name'])

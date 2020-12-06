@@ -472,7 +472,12 @@ class ServerClient(VsphereClient):
             devices.append(cdrom_device)
         return devices
 
-    def update_server(self, server, cdrom_image=None, extra_config=None, **_):
+    def update_server(self,
+                      server,
+                      cdrom_image=None,
+                      extra_config=None,
+                      max_wait_time=300,
+                      **_):
         # Attrach cdrom image to vm without change networks list
         devices_changes = self._update_vm(server, cdrom_image=cdrom_image,
                                           remove_networks=False)
@@ -489,7 +494,7 @@ class ServerClient(VsphereClient):
                     spec.extraConfig.append(
                         vim.option.OptionValue(key=k, value=extra_config[k]))
             task = server.obj.ReconfigVM_Task(spec=spec)
-            self._wait_for_task(task)
+            self._wait_for_task(task, max_wait_time=max_wait_time)
 
     def _get_virtual_hardware_version(self, vm):
         # See https://kb.vmware.com/s/article/1003746 for documentation on VM
@@ -522,6 +527,7 @@ class ServerClient(VsphereClient):
             extra_config=None,
             enable_start_vm=True,
             postpone_delete_networks=False,
+            max_wait_time=300,
             **_):
 
         self._logger.debug(
@@ -757,7 +763,9 @@ class ServerClient(VsphereClient):
             self._logger.debug(
                 "Task info: {task}".format(task=text_type(task)))
             # wait for task finish
-            self._wait_for_task(task, resource_id=VSPHERE_SERVER_ID)
+            self._wait_for_task(task,
+                                max_wait_time=max_wait_time,
+                                resource_id=VSPHERE_SERVER_ID)
 
             ctx.instance.runtime_properties['name'] = vm_name
             ctx.instance.runtime_properties.dirty = True
@@ -785,7 +793,11 @@ class ServerClient(VsphereClient):
 
         return vm
 
-    def upgrade_server(self, server, minimal_vm_version, **_):
+    def upgrade_server(self,
+                       server,
+                       minimal_vm_version,
+                       max_wait_time=300,
+                       **_):
         self._logger.info('VM version: vmx-{old}/vmx-{new}'.format(
             old=self._get_virtual_hardware_version(server.obj),
             new=minimal_vm_version))
@@ -798,7 +810,7 @@ class ServerClient(VsphereClient):
                 self._logger.info("Going to update VM hardware version.")
                 task = server.obj.UpgradeVM_Task(
                     "vmx-{version}".format(version=minimal_vm_version))
-                self._wait_for_task(task)
+                self._wait_for_task(task, max_wait_time=max_wait_time)
 
     def suspend_server(self, server, max_wait_time=30, **_):
         if self.is_server_suspended(server.obj):
@@ -957,12 +969,12 @@ class ServerClient(VsphereClient):
     def is_server_guest_running(self, server):
         return server.obj.guest.guestState == "running"
 
-    def delete_server(self, server, **_):
+    def delete_server(self, server, max_wait_time=300, **_):
         self._logger.debug("Entering server delete procedure.")
         if self.is_server_poweredon(server):
             self.stop_server(server)
         task = server.obj.Destroy()
-        self._wait_for_task(task)
+        self._wait_for_task(task, max_wait_time=max_wait_time)
         self._logger.debug("Server is now deleted.")
 
     def get_server_by_name(self, name):
@@ -1447,7 +1459,12 @@ class ServerClient(VsphereClient):
         else:
             return False
 
-    def resize_server(self, server, cpus=None, memory=None, **_):
+    def resize_server(self,
+                      server,
+                      cpus=None,
+                      memory=None,
+                      max_wait_time=300,
+                      **_):
         self._logger.debug('Entering resize reconfiguration.')
         config = vim.vm.ConfigSpec()
         update_required = False
@@ -1486,7 +1503,7 @@ class ServerClient(VsphereClient):
             task = server.obj.Reconfigure(spec=config)
 
             try:
-                self._wait_for_task(task)
+                self._wait_for_task(task, max_wait_time=max_wait_time)
             except NonRecoverableError as e:
                 if 'configSpec.memoryMB' in e.args[0]:
                     raise NonRecoverableError(

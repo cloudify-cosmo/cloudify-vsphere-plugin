@@ -1,3 +1,4 @@
+2.18.12: Paramaterize Max Wait Time where used
 2.18.11: Handle no access ports lookup
 2.18.10: Fix Regression bug.
 2.18.9: Fix regression bug 2.18.7.

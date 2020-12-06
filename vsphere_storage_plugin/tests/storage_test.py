@@ -230,7 +230,7 @@ class VsphereStorageTest(unittest.TestCase):
         storage.delete()
         self.assertFalse(self.mock_ctx.instance.runtime_properties)
         mock_client_get().delete_storage.assert_called_with(
-            'i', 'file name')
+            'i', 'file name', max_wait_time=None)
 
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_storage_resize(self, mock_client_get):
@@ -255,7 +255,7 @@ class VsphereStorageTest(unittest.TestCase):
             'attached_vm_name': 'Julie',
             'use_external_resource': True})
         mock_client_get().resize_storage.assert_called_with(
-            'i', 'file name', 7)
+            'i', 'file name', 7, max_wait_time=None)
 
         # resize real storage
         runtime_properties = self.mock_ctx.instance.runtime_properties
