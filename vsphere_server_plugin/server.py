@@ -397,7 +397,8 @@ def create(server_client,
             vm_folder=vm_folder,
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
-            postpone_delete_networks=postpone_delete_networks)
+            postpone_delete_networks=postpone_delete_networks,
+            max_wait_time=max_wait_time)
 
     server_client.add_custom_values(server_obj, custom_attributes or {})
 
