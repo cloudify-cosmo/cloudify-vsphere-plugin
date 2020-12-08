@@ -8,3 +8,4 @@ pep8
 nose-exclude
 nose
 
+networkx==1.9.1
