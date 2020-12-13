@@ -63,6 +63,5 @@ setup(
         "networkx==1.9.1",
         "cloudify-utilities-plugins-sdk==0.0.26", # cdrom create code
         "requests",
-        "cryptography==3.2.1"
     ]
 )
