@@ -1575,3 +1575,47 @@ class ServerClient(VsphereClient):
 
         # everything looks good
         return True
+
+    def create_resource_pool(self, pool_name, resource_name, resource_type,
+                             spec):
+        vmware_resource = self._get_obj_by_name(
+            resource_type,
+            resource_name,
+        )
+        if not vmware_resource:
+            self._logger.debug(
+                "Resource {0} of type {1} is not found.".format(resource_name,
+                                                                resource_type))
+        else:
+            pool_resource = \
+                vmware_resource.obj.resourcePool.CreateResourcePool(pool_name,
+                                                                    spec)
+            return pool_resource
+
+    def create_contained_resource_pool(self, pool_name, parent_pool_id, spec):
+        parent_pool = self._get_obj_by_id(
+            vim.ResourcePool,
+            parent_pool_id,
+        )
+        vmware_resource = \
+            parent_pool.obj.CreateResourcePool(pool_name, spec)
+        return vmware_resource
+
+    def get_resource_pool_by_name(self, pool_name):
+        vmware_resource = self._get_obj_by_name(
+            vim.ResourcePool,
+            pool_name,
+        )
+        return vmware_resource
+
+    def delete_resource_pool(self, pool_name, max_wait_time=300, **_):
+        vmware_resource = self._get_obj_by_name(
+            vim.ResourcePool,
+            pool_name,
+        )
+        if not vmware_resource:
+            self._logger.debug("Resource Pool is not found to delete.")
+        else:
+            task = vmware_resource.obj.Destroy()
+            self._wait_for_task(task, max_wait_time=max_wait_time)
+            self._logger.debug("Resource Pool is now deleted.")

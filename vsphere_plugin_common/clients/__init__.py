@@ -968,7 +968,8 @@ class VsphereClient(object):
             vim.HostSystem: self._get_hosts,
             vim.dvs.DistributedVirtualPortgroup: self._get_dv_networks,
             vim.Folder: self._get_vm_folders,
-            vim.Task: self._get_tasks}.get(vimtype)
+            vim.Task: self._get_tasks,
+            vim.ComputeResource: self._get_computes}.get(vimtype)
         if not getter_method:
             raise NonRecoverableError(
                 'Cannot retrieve objects for {vimtype}'.format(
