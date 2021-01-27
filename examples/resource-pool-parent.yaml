@@ -18,9 +18,13 @@ inputs:
     type: boolean
     default: false
 
+  parent_pool_name:
+    type: string
+    default: 'RP'
+
   pool_name:
     type: string
-    default: test_pool
+    default: 'test_pool'
 
 dsl_definitions:
 
@@ -41,7 +45,7 @@ node_templates:
     properties:
       use_external_resource: True
       connection_config: *connection_config
-      name: RP
+      name: { get_input: parent_pool_name }
 
   pool:
     type: cloudify.vsphere.nodes.ResourcePool

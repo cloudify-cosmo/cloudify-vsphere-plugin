@@ -52,7 +52,7 @@ def _get_pool_spec(pool_spec, old_config=None):
         spec.cpuAllocation.shares.shares = 4000
         spec.cpuAllocation.shares.level = 'normal'
 
-    # override valuues given the input
+    # override values given the input
     if 'memoryAllocation' in pool_spec:
         if 'limit' in pool_spec.get('memoryAllocation'):
             spec.memoryAllocation.limit = \
@@ -71,7 +71,6 @@ def _get_pool_spec(pool_spec, old_config=None):
                 spec.memoryAllocation.shares.level = shares.get('level')
 
     if 'cpuAllocation' in pool_spec:
-        # override valuues given the input
         if 'limit' in pool_spec.get('cpuAllocation'):
             spec.cpuAllocation.limit = \
                 pool_spec.get('cpuAllocation').get('limit')
@@ -108,6 +107,7 @@ def create(ctx, server_client, name, use_external_resource, host_name,
 
         ctx.instance.runtime_properties[RESOURCE_POOL_ID] = vmware_resource.id
     else:
+        vmware_resource = None
         spec = _get_pool_spec(pool_spec)
         resource_pools_from_rels = find_rels_by_type(
             ctx.instance, RESOURCE_POOL_CONTAINED_IN)
