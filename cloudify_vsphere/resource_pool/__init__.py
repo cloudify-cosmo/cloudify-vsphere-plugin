@@ -92,8 +92,8 @@ def _get_pool_spec(pool_spec, old_config=None):
 
 @op
 @with_server_client
-def create(ctx, server_client, name, use_external_resource, host_name,
-           cluster_name, pool_spec):
+def create(ctx, server_client, name, use_external_resource, host_name=None,
+           cluster_name=None, pool_spec=None):
     if use_external_resource:
         vmware_resource = server_client.get_resource_pool_by_name(name)
 
@@ -146,7 +146,7 @@ def create(ctx, server_client, name, use_external_resource, host_name,
 
 @op
 @with_server_client
-def delete(ctx, server_client, name, use_external_resource, **_):
+def delete(ctx, name, use_external_resource, server_client=None, **_):
     if use_external_resource:
         ctx.logger.info(
             'Not deleting existing resource_pool: {name}'.format(

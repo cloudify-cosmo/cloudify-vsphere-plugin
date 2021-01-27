@@ -6,8 +6,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.18.14'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.18.14.zip
+    package_version: '2.19.0'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.19.0.zip
 
 data_types:
 
@@ -587,7 +587,7 @@ node_types:
           Currently, resource pools cannot be created or deleted,
           and this node type exists only for compatibility with the NSX/Content
           Library plugin.
-        default: False
+        default: false
       use_external_resource:
         description: >
           Whether to use a resource pool that already exists on vSphere.
