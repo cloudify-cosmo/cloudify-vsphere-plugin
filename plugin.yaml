@@ -6,8 +6,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.18.13'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.18.13.zip
+    package_version: '2.19.0'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.19.0.zip
 
 data_types:
 
@@ -587,11 +587,47 @@ node_types:
           Currently, resource pools cannot be created or deleted,
           and this node type exists only for compatibility with the NSX/Content
           Library plugin.
-        default: True
+        default: false
       use_external_resource:
         description: >
           Whether to use a resource pool that already exists on vSphere.
         default: { get_property: [ SELF, use_existing_resource] }
+      host_name:
+        description: >
+          The name of the host to create the resource pool
+        default: ""
+      cluster_name:
+        description: >
+          The name of the cluster to create the resource pool
+        default: ""
+      pool_spec:
+        description: |
+          key-value resource pool configuration. ::
+          cpuAllocation:
+            expandableReservation: True or False
+            limit: max limit
+            reservation: Amount of resource that is guaranteed available
+            shares:
+              level: The allocation level. Valid levels are:
+                * custom
+                * high
+                * low
+                * normal
+              shares: The number of shares allocated. Used to determine resource allocation in case of resource contention,
+                      used with custom level only
+          memoryAllocation:
+            expandableReservation: True or False
+            limit: max limit
+            reservation: Amount of resource that is guaranteed available
+            shares:
+              level: The allocation level. Valid levels are:
+                * custom
+                * high
+                * low
+                * normal
+              shares: The number of shares allocated. Used to determine resource allocation in case of resource contention,
+                      used with custom level only
+        default: {}
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -602,6 +638,10 @@ node_types:
           inputs: {}
         delete:
           implementation: vsphere.cloudify_vsphere.resource_pool.delete
+          inputs: {}
+      cloudify.interfaces.operations:
+        update:
+          implementation: vsphere.cloudify_vsphere.resource_pool.update_resource_pool
           inputs: {}
 
   cloudify.vsphere.nodes.VMFolder:
@@ -916,3 +956,6 @@ relationships:
 
   cloudify.relationships.vsphere.ippool_connected_to_network:
     derived_from: cloudify.relationships.depends_on
+
+  cloudify.relationships.vsphere.resource_pool_contained_in:
+    derived_from: cloudify.relationships.contained_in
