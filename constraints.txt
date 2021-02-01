@@ -1,5 +1,5 @@
 netaddr==0.7.19
 pyvmomi==6.7.3
-pyyaml===3.12
+pyyaml>=3.10
 networkx==1.9.1
 cryptography==3.2.1
