@@ -321,6 +321,9 @@ commands:
           name: start docker container
           command: docker run --name cfy_manager -d --restart unless-stopped -v /sys/fs/cgroup:/sys/fs/cgroup:ro --device /dev/net/tun --tmpfs /run --tmpfs /run/lock --security-opt seccomp:unconfined --cap-add SYS_ADMIN --network host cloudify-manager-aio:latest
       - run:
+          name: wait for starter
+          command: docker exec -it cfy_manager cfy_manager wait-for-starter
+      - run:
           name: install local project
           command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
       - run: pytest -s .circleci/test_examples.py
