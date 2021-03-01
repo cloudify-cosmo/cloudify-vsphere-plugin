@@ -333,8 +333,6 @@ class NetworkClient(VsphereClient):
                                 '{network}/{netmask}'
                                 .format(network=subnet_address,
                                         netmask=netmask)))
-        # We dont have any ipppols related to network
-        return "0.0.0.0/0"
 
     def get_network_mtu(self, name, switch_distributed):
         if switch_distributed:
