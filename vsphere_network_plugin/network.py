@@ -122,8 +122,7 @@ def create(ctx,
     ctx.instance.runtime_properties[NETWORK_MTU] = mtu
     cidr = network_client.get_network_cidr(
         name=port_group_name, switch_distributed=switch_distributed)
-    if cidr:
-        ctx.instance.runtime_properties[NETWORK_CIDR] = cidr
+    ctx.instance.runtime_properties[NETWORK_CIDR] = cidr
     ctx.instance.update()
 
 
