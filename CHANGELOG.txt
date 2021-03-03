@@ -1,4 +1,5 @@
-2.19.1: Fix PyYaml constraint 
+2.19.2: Return None if cidr not found in ippools.
+2.19.1: Fix PyYaml constraint
 2.19.0: Add Resource Pool Support
 2.18.13: Paramaterize Max Wait Time where used
 2.18.12: Paramaterize Max Wait Time where used

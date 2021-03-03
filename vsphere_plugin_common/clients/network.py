@@ -326,12 +326,13 @@ class NetworkClient(VsphereClient):
                     if association.networkName == name and \
                             network_distributed == switch_distributed:
                         # convert network information to CIDR
-                        return text_type(netaddr.IPNetwork(
-                            '{network}/{netmask}'
-                            .format(network=pool.ipv4Config.subnetAddress,
-                                    netmask=pool.ipv4Config.netmask)))
-        # We dont have any ipppols related to network
-        return "0.0.0.0/0"
+                        subnet_address = pool.ipv4Config.subnetAddress
+                        netmask = pool.ipv4Config.netmask
+                        if subnet_address and netmask:
+                            return text_type(netaddr.IPNetwork(
+                                '{network}/{netmask}'
+                                .format(network=subnet_address,
+                                        netmask=netmask)))
 
     def get_network_mtu(self, name, switch_distributed):
         if switch_distributed:

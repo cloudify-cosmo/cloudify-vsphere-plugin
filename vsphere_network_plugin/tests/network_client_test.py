@@ -161,7 +161,7 @@ class NetworkClientTest(unittest.TestCase):
         client = vsphere_plugin_common.NetworkClient()
         client.si = Mock()
         client.si.content.rootFolder.childEntity = []
-        self.assertEqual(client.get_network_cidr("some", True), "0.0.0.0/0")
+        self.assertEqual(client.get_network_cidr("some", True), None)
         # datacenter/ippool
         network = vim.dvs.DistributedVirtualPortgroup("check")
         datacenter = Mock()
