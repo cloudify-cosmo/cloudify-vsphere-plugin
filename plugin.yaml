@@ -6,8 +6,8 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.19.2'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.19.2.zip
+    package_version: '2.19.3'
+    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.19.3.zip
 
 data_types:
 
@@ -381,6 +381,7 @@ node_types:
             * nonpersistent
             * undoable
             * append
+        default: {}
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -388,14 +389,20 @@ node_types:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_storage_plugin.storage.create
-          inputs: *interfaces_power_inputs
+          inputs:
+            <<: *interfaces_power_inputs
+            storage:
+              default: { get_property: [ SELF, storage ] }
         delete:
           implementation: vsphere.vsphere_storage_plugin.storage.delete
           inputs: *interfaces_power_inputs
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_storage_plugin.storage.resize
-          inputs: *interfaces_power_inputs
+          inputs:
+            <<: *interfaces_power_inputs
+            storage:
+              default: { get_property: [ SELF, storage ] }
 
   cloudify.vsphere.nodes.IPPool:
     derived_from: cloudify.nodes.Subnet
