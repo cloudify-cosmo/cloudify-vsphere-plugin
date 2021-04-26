@@ -1,3 +1,4 @@
+2.19.3: RD-1961 Use runtime properties and operation args in storage type operation.
 2.19.2: Return None if cidr not found in ippools.
 2.19.1: Fix PyYaml constraint
 2.19.0: Add Resource Pool Support
