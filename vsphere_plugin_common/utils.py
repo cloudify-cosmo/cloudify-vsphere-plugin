@@ -78,12 +78,17 @@ def op(func):
 
         # Support both node instance and relationship node instance CTX.
         ctx_node = _get_node(ctx)
+        ctx_instance = _get_instance(ctx)
 
         for key in requested_inputs:
-            if key in kwargs:
+            if key in ctx_instance.runtime_properties:
+                processed_kwargs[key] = \
+                    ctx_instance.runtime_properties.get(key)
+                continue
+            elif key in kwargs:
                 processed_kwargs[key] = kwargs[key]
                 continue
-            # TODO: Update this to also support relationship operations.
+
             processed_kwargs[key] = ctx_node.properties.get(key)
 
         return func(**processed_kwargs)
