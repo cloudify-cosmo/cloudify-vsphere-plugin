@@ -4,6 +4,6 @@ pyyaml>=3.10
 networkx==1.9.1
 rsa==4.5
 cryptography<=3.2.1
-smmap==3.0.5
-cffi==1.14.4
-decorator==4.4.2
+smmap<=3.0.5
+cffi<=1.14.4
+decorator<=4.4.2
