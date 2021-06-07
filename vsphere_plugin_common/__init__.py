@@ -46,14 +46,15 @@ def remove_runtime_properties():
 def run_deferred_task(client, instance=None):
     instance = instance or ctx.instance
     if instance.runtime_properties.get(ASYNC_TASK_ID):
-        client._wait_for_task(instance)
+        client._wait_for_task(instance=instance)
 
 
 def _with_client(client_name, client):
     def decorator(f):
         @wraps(f)
         def wrapper(connection_config, *args, **kwargs):
-            kwargs[client_name] = client().get(config=connection_config)
+            kwargs[client_name] = client(
+                ctx_logger=ctx.logger).get(config=connection_config)
             if not hasattr(f, '__wrapped__'):
                 # don't pass connection_config to the real operation
                 kwargs.pop('connection_config', None)

@@ -21,7 +21,9 @@ from pyVmomi import vim, vmodl
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import (
+    OperationRetry,
+    NonRecoverableError)
 
 # This package imports
 from . import VsphereClient
@@ -29,6 +31,7 @@ from ..constants import (
     IP,
     TASK_CHECK_SLEEP,
     VSPHERE_SERVER_ID,
+    ASYNC_RESOURCE_ID,
     VSPHERE_SERVER_CLUSTER_NAME,
     VSPHERE_SERVER_HYPERVISOR_HOSTNAME
 )
@@ -528,6 +531,7 @@ class ServerClient(VsphereClient):
             enable_start_vm=True,
             postpone_delete_networks=False,
             max_wait_time=300,
+            retry=False,
             **_):
 
         self._logger.debug(
@@ -756,22 +760,26 @@ class ServerClient(VsphereClient):
                 server=vm_name, template=template_name))
         self._logger.debug('Cloning with clonespec: {spec}'
                            .format(spec=text_type(clonespec)))
-        task = template_vm.obj.Clone(folder=destfolder,
-                                     name=vm_name,
-                                     spec=clonespec)
         try:
-            self._logger.debug(
-                "Task info: {task}".format(task=text_type(task)))
-            # wait for task finish
-            self._wait_for_task(task,
-                                max_wait_time=max_wait_time,
-                                resource_id=VSPHERE_SERVER_ID)
+            if not retry:
+                task = template_vm.obj.Clone(folder=destfolder,
+                                             name=vm_name,
+                                             spec=clonespec)
+                self._logger.debug(
+                    "Task info: {task}".format(task=text_type(task)))
+                # wait for task finish
+                self._wait_for_task(task,
+                                    max_wait_time=max_wait_time,
+                                    resource_id=VSPHERE_SERVER_ID)
+            else:
+                self._wait_for_task(max_wait_time=max_wait_time,
+                                    resource_id=VSPHERE_SERVER_ID)
 
             ctx.instance.runtime_properties['name'] = vm_name
             ctx.instance.runtime_properties.dirty = True
             ctx.instance.update()
 
-            if enable_start_vm:
+            if not retry and enable_start_vm:
                 self._logger.info('VM created in running state')
                 while not self._wait_vm_running(
                     task.info.result, adaptermaps, os_type == "other"
@@ -779,19 +787,26 @@ class ServerClient(VsphereClient):
                     time.sleep(TASK_CHECK_SLEEP)
             else:
                 self._logger.info('VM created in stopped state')
-        except task.info.error:
+        except OperationRetry:
+            raise
+        except Exception:
             raise NonRecoverableError(
                 "Error during executing VM creation task. "
                 "VM name: \'{0}\'.".format(vm_name))
 
-        # VM object created. Now perform final post-creation tasks
-        vm = self._get_obj_by_id(
-            vim.VirtualMachine,
-            task.info.result._moId,
-            use_cache=False,
-        )
-
-        return vm
+        if not retry:
+            # VM object created. Now perform final post-creation tasks
+            return self._get_obj_by_id(
+                vim.VirtualMachine,
+                task.info.result._moId,
+                use_cache=False,
+            )
+        else:
+            return self._get_obj_by_id(
+                vim.VirtualMachine,
+                ctx.instance.runtime_properties.get(ASYNC_RESOURCE_ID),
+                use_cache=False,
+            )
 
     def upgrade_server(self,
                        server,

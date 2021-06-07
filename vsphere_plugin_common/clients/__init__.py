@@ -190,10 +190,10 @@ class CustomValues(MutableMapping):
 
 class VsphereClient(object):
 
-    def __init__(self):
+    def __init__(self, ctx_logger=None):
         self.cfg = {}
         self._cache = {}
-        self._logger = logger()
+        self._logger = ctx_logger or logger()
 
     def get(self, config=None, *_, **__):
         static_config = Config().get()
@@ -946,7 +946,7 @@ class VsphereClient(object):
 
         return cloudify_port_group
 
-    def _get_tasks(self):
+    def _get_tasks(self, *_, **__):
         task_object = namedtuple(
             'task',
             ['id', 'obj'],
