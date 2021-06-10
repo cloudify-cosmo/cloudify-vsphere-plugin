@@ -331,7 +331,8 @@ def create_new_server(server_client,
         extra_config=extra_config,
         enable_start_vm=enable_start_vm,
         postpone_delete_networks=postpone_delete_networks,
-        max_wait_time=max_wait_time)
+        max_wait_time=max_wait_time,
+        retry=ctx.operation.retry_number > 0)
     ctx.logger.info('Created server called {name}'.format(name=vm_name))
     return server_obj
 
@@ -481,7 +482,8 @@ def start(server_client,
     else:
         server_client.update_server(server=server_obj,
                                     cdrom_image=cdrom_image,
-                                    extra_config=extra_config)
+                                    extra_config=extra_config,
+                                    max_wait_time=max_wait_time)
         if enable_start_vm:
             ctx.logger.info("Server already exists, powering on.")
             server_client.start_server(server=server_obj,
