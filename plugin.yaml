@@ -7,7 +7,6 @@ plugins:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
     package_version: '2.19.4'
-    source: https://github.com/cloudify-cosmo/cloudify-vsphere-plugin/archive/2.19.4.zip
 
 data_types:
 
