@@ -492,6 +492,18 @@ def start(server_client,
         else:
             ctx.logger.info("Server already exists, but will not be powered"
                             "on as enable_start_vm is set to false")
+    _start(server_client,
+           server_obj,
+           custom_attributes,
+           max_wait_time,
+           minimal_vm_version)
+
+
+def _start(server_client,
+           server_obj,
+           custom_attributes,
+           max_wait_time,
+           minimal_vm_version):
 
     server_client.add_custom_values(server_obj, custom_attributes or {})
 
@@ -553,6 +565,10 @@ def stop(server_client,
     elif force_stop:
         ctx.logger.warn('The parameter force_stop is True.')
 
+    _stop(server_client, server, os_family, max_wait_time)
+
+
+def _stop(server_client, server, os_family, max_wait_time):
     server_obj = get_server_by_context(server_client, server, os_family)
 
     if not server_obj:
@@ -903,9 +919,12 @@ def get_state(server_client,
 def resize_server(server_client,
                   server,
                   os_family,
+                  custom_attributes,
                   cpus=None,
                   memory=None,
+                  minimal_vm_version=13,
                   max_wait_time=300,
+                  hot_add=True,
                   **_):
     if not any((
         cpus,
@@ -914,6 +933,9 @@ def resize_server(server_client,
         ctx.logger.info(
             "Attempt to resize Server with no sizes specified")
         return
+
+    if hot_add:
+        _stop(server_client, server, os_family, max_wait_time)
 
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
@@ -930,6 +952,13 @@ def resize_server(server_client,
         value = locals()[property]
         if value:
             ctx.instance.runtime_properties[property] = value
+
+    if hot_add:
+        _start(server_client,
+               server_obj,
+               custom_attributes,
+               max_wait_time,
+               minimal_vm_version)
 
 
 @op

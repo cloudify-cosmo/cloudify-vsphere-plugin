@@ -259,7 +259,10 @@ node_types:
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_server_plugin.server.resize_server
-          inputs: *interfaces_power_inputs
+          inputs:
+            hot_add:
+              default: true
+            <<: *interfaces_power_inputs
       cloudify.interfaces.power:
         'on':
           implementation: vsphere.vsphere_server_plugin.power.power_on
