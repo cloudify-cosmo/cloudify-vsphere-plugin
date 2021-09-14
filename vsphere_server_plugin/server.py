@@ -934,7 +934,7 @@ def resize_server(server_client,
             "Attempt to resize Server with no sizes specified")
         return
 
-    if hot_add:
+    if not hot_add:
         _stop(server_client, server, os_family, max_wait_time)
 
     server_obj = get_server_by_context(server_client, server, os_family)
@@ -953,7 +953,7 @@ def resize_server(server_client,
         if value:
             ctx.instance.runtime_properties[property] = value
 
-    if hot_add:
+    if not hot_add:
         _start(server_client,
                server_obj,
                custom_attributes,
