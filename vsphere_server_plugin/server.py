@@ -920,6 +920,17 @@ def resize_server(server_client,
                   max_wait_time=300,
                   hot_add=True,
                   **_):
+    ctx.logger.info('{}'.format((server_client,
+                                 server,
+                                 os_family,
+                                 custom_attributes,
+                                 cpus,
+                                 memory,
+                                 minimal_vm_version,
+                                 max_wait_time,
+                                 hot_add,
+                                 _)))
+
     if not any((cpus, memory,)):
         ctx.logger.info("Attempt to resize Server with no sizes specified")
         return
