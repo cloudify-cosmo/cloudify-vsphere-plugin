@@ -931,6 +931,8 @@ def resize_server(server_client,
                                  hot_add,
                                  _)))
 
+    ctx.logger.info("hot_add: ".format(hot_add))
+
     if not any((cpus, memory,)):
         ctx.logger.info("Attempt to resize Server with no sizes specified")
         return
@@ -940,10 +942,10 @@ def resize_server(server_client,
             hot_add = True
         elif hot_add == 'false' or hot_add == 'False':
             hot_add = False
-    else:
-        raise NonRecoverableError(
-            "The value for parameter hot_add must be a boolean"
-            "and is {}".format(type(hot_add)))
+        else:
+            raise NonRecoverableError(
+                "The value for parameter hot_add must be a boolean"
+                "and is {}".format(type(hot_add)))
 
     if not hot_add:
         _stop(server_client, server, os_family, max_wait_time)
