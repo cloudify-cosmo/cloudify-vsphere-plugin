@@ -292,7 +292,6 @@ def create_new_server(server_client,
                       postpone_delete_networks=False,
                       max_wait_time=300,
                       **_):
-
     vm_name = get_vm_name(server, os_family)
     ctx.logger.debug('Cdrom path: {cdrom}'.format(cdrom=cdrom_image))
 
@@ -361,7 +360,6 @@ def create(server_client,
            extra_config=None,
            max_wait_time=300,
            **_):
-
     if enable_start_vm:
         ctx.logger.debug('Create operation ignores enable_start_vm property.')
         enable_start_vm = False
@@ -444,7 +442,6 @@ def start(server_client,
           extra_config=None,
           max_wait_time=300,
           **_):
-
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))
@@ -504,7 +501,6 @@ def _start(server_client,
            custom_attributes,
            max_wait_time,
            minimal_vm_version):
-
     server_client.add_custom_values(server_obj, custom_attributes or {})
 
     # update vm version
@@ -532,19 +528,18 @@ def shutdown_guest(server_client,
                    os_family,
                    max_wait_time=300,
                    **_):
-
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
             "Cannot shutdown server guest - server doesn't exist for node: {0}"
-            .format(ctx.instance.id))
+                .format(ctx.instance.id))
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to shut down server {name}'.format(
-                    name=vm_name))
+        name=vm_name))
     server_client.shutdown_server_guest(server_obj,
                                         max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully shut down server {name}'.format(
-                    name=vm_name))
+        name=vm_name))
 
 
 @op
@@ -555,7 +550,6 @@ def stop(server_client,
          force_stop=False,
          max_wait_time=300,
          **_):
-
     existing_resource = ctx.instance.runtime_properties.get(
         VSPHERE_RESOURCE_EXTERNAL)
     if existing_resource and not force_stop:
@@ -599,7 +593,7 @@ def freeze_suspend(server_client,
     if not server_obj:
         raise NonRecoverableError(
             "Cannot suspend server - server doesn't exist for node: {0}"
-            .format(ctx.instance.id))
+                .format(ctx.instance.id))
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to suspend server {name}'.format(name=vm_name))
     server_client.suspend_server(server_obj, max_wait_time=max_wait_time)
@@ -621,7 +615,7 @@ def freeze_resume(server_client,
     if server_obj is None:
         raise NonRecoverableError(
             "Cannot resume server - server doesn't exist for node: {0}"
-            .format(ctx.instance.id))
+                .format(ctx.instance.id))
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to resume server {name}'.format(name=vm_name))
     server_client.start_server(server_obj, max_wait_time=max_wait_time)
@@ -655,7 +649,7 @@ def snapshot_create(server_client,
     if server_obj is None:
         raise NonRecoverableError(
             "Cannot backup server - server doesn't exist for node: {0}"
-            .format(ctx.instance.id))
+                .format(ctx.instance.id))
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to backup {snapshot_name} for server {name}'
                     .format(snapshot_name=snapshot_name, name=vm_name))
@@ -694,7 +688,7 @@ def snapshot_apply(server_client,
     if server_obj is None:
         raise NonRecoverableError(
             "Cannot restore server - server doesn't exist for node: {0}"
-            .format(ctx.instance.id))
+                .format(ctx.instance.id))
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to restore {snapshot_name} for server {name}'
                     .format(snapshot_name=snapshot_name, name=vm_name))
@@ -763,13 +757,13 @@ def delete(server_client,
             # skip already deleted host
             ctx.logger.info(
                 "Cannot delete server - server doesn't exist for node: {0}"
-                .format(ctx.instance.id))
+                    .format(ctx.instance.id))
         return
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
     server_client.delete_server(server_obj, max_wait_time=max_wait_time)
     ctx.logger.info('Succeessfully deleted server {name}'.format(
-                    name=vm_name))
+        name=vm_name))
 
 
 @op
@@ -879,7 +873,7 @@ def get_state(server_client,
         # worth a great deal of attention
         if len(public_ips):
             ctx.logger.debug("Public IP address for {name}: {ip}".format(
-                             name=vm_name, ip=public_ips[0]))
+                name=vm_name, ip=public_ips[0]))
             ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
         else:
             ctx.logger.debug('Public IP check not required for {server}'
@@ -926,16 +920,22 @@ def resize_server(server_client,
                   max_wait_time=300,
                   hot_add=True,
                   **_):
-    if not any((
-        cpus,
-        memory,
-    )):
-        ctx.logger.info(
-            "Attempt to resize Server with no sizes specified")
+    if not any((cpus, memory,)):
+        ctx.logger.info("Attempt to resize Server with no sizes specified")
         return
 
+    if not isinstance(hot_add, bool):
+        if hot_add == 'true' or hot_add == 'True':
+            hot_add = True
+        elif hot_add == 'false' or hot_add == 'False':
+            hot_add = False
+    else:
+        raise NonRecoverableError(
+            "The value for parameter hot_add must be a boolean,"
+            " and is {}".format(type(hot_add)))
     if not hot_add:
         _stop(server_client, server, os_family, max_wait_time)
+        ctx.logger.info('Not hot add, so calling server stop.')
 
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
@@ -959,6 +959,7 @@ def resize_server(server_client,
                custom_attributes,
                max_wait_time,
                minimal_vm_version)
+        ctx.logger.info('Not hot add so calling server start.')
 
 
 @op
@@ -993,7 +994,7 @@ def resize(server_client, server, os_family, **_):
         )
         server_client.resize_server(server_obj, **update)
         ctx.logger.info('Succeeded resizing server {name}.'.format(
-                        name=vm_name))
+            name=vm_name))
     else:
         raise NonRecoverableError(
             "Server resize parameters should be specified.")

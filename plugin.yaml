@@ -262,7 +262,7 @@ node_types:
           inputs:
             <<: *interfaces_power_inputs
             hot_add:
-              default: True
+              default: true
       cloudify.interfaces.power:
         'on':
           implementation: vsphere.vsphere_server_plugin.power.power_on
