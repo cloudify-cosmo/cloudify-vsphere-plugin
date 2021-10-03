@@ -576,7 +576,7 @@ def _stop(server_client, server, os_family, max_wait_time):
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Stopping server {name}'.format(name=vm_name))
     server_client.stop_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Sttopped server {name}'.format(name=vm_name))
+    ctx.logger.info('Stopped server {name}'.format(name=vm_name))
 
 
 @op
@@ -597,7 +597,7 @@ def freeze_suspend(server_client,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to suspend server {name}'.format(name=vm_name))
     server_client.suspend_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully suspended server {name}'.format(
+    ctx.logger.info('Successfully suspended server {name}'.format(
         name=vm_name))
 
 
@@ -619,7 +619,7 @@ def freeze_resume(server_client,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to resume server {name}'.format(name=vm_name))
     server_client.start_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully resumed server {name}'.format(name=vm_name))
+    ctx.logger.info('Successfully resumed server {name}'.format(name=vm_name))
 
 
 @op
@@ -658,7 +658,7 @@ def snapshot_create(server_client,
         snapshot_name,
         snapshot_type,
         max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully backuped server {name}'
+    ctx.logger.info('Successfully backuped server {name}'
                     .format(name=vm_name))
 
 
@@ -695,7 +695,7 @@ def snapshot_apply(server_client,
     server_client.restore_server(server_obj,
                                  snapshot_name,
                                  max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully restored server {name}'
+    ctx.logger.info('Successfully restored server {name}'
                     .format(name=vm_name))
 
 
@@ -733,7 +733,7 @@ def snapshot_delete(server_client,
         server_obj,
         snapshot_name,
         max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully removed backup from server {name}'
+    ctx.logger.info('Successfully removed backup from server {name}'
                     .format(name=vm_name))
 
 
@@ -762,7 +762,7 @@ def delete(server_client,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
     server_client.delete_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully deleted server {name}'.format(
+    ctx.logger.info('Successfully deleted server {name}'.format(
         name=vm_name))
 
 
@@ -920,18 +920,6 @@ def resize_server(server_client,
                   max_wait_time=300,
                   hot_add=True,
                   **_):
-    ctx.logger.info('{}'.format((server_client,
-                                 server,
-                                 os_family,
-                                 custom_attributes,
-                                 cpus,
-                                 memory,
-                                 minimal_vm_version,
-                                 max_wait_time,
-                                 hot_add,
-                                 _)))
-
-    ctx.logger.info("hot_add: ".format(hot_add))
 
     if not any((cpus, memory,)):
         ctx.logger.info("Attempt to resize Server with no sizes specified")
@@ -948,8 +936,9 @@ def resize_server(server_client,
                 "and is {}".format(type(hot_add)))
 
     if not hot_add:
+        ctx.logger.info('Not hot add, calling server stop.')
         _stop(server_client, server, os_family, max_wait_time)
-        ctx.logger.info('Not hot add, so calling server stop.')
+        ctx.logger.info('Not hot add, server stop called.')
 
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
@@ -968,12 +957,13 @@ def resize_server(server_client,
             ctx.instance.runtime_properties[property] = value
 
     if not hot_add:
+        ctx.logger.info('Not hot add, calling server start.')
         _start(server_client,
                server_obj,
                custom_attributes,
                max_wait_time,
                minimal_vm_version)
-        ctx.logger.info('Not hot add so calling server start.')
+        ctx.logger.info('Not hot add, server start called.')
 
 
 @op
