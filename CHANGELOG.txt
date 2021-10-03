@@ -1,4 +1,3 @@
-2.19.6: RD-3158-VM-Resize, Add a “not hot add” functionality to the resize_server operation .
 2.19.5: RD-3096-Vsphere-VM-Resize.
 2.19.4: CYBL-1164 Make server start op retry properly.
 2.19.3: RD-1961 Use runtime properties and operation args in storage type operation.
