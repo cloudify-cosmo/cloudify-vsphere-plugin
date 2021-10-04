@@ -775,12 +775,13 @@ def get_state(server_client,
     ctx.logger.info('Getting state for server {name} ({os_family})'
                     .format(name=vm_name, os_family=os_family))
 
-    if os_family == "other":
+    nets = ctx.instance.runtime_properties.get(NETWORKS)
+
+    if not nets and os_family == "other":
         ctx.logger.info("Skip guest checks for other os: {info}"
                         .format(info=text_type(server_obj.guest)))
         return True
 
-    nets = ctx.instance.runtime_properties[NETWORKS]
     if server_client.is_server_guest_running(server_obj):
         ctx.logger.info("Server is running, getting network details.")
         ctx.logger.info("Guest info: {info}"
