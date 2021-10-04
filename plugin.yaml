@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.19.5'
+    package_version: '2.19.6'
 
 data_types:
 
@@ -259,7 +259,10 @@ node_types:
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_server_plugin.server.resize_server
-          inputs: *interfaces_power_inputs
+          inputs:
+            <<: *interfaces_power_inputs
+            hot_add:
+              default: true
       cloudify.interfaces.power:
         'on':
           implementation: vsphere.vsphere_server_plugin.power.power_on
