@@ -1,0 +1,58 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/5.0.5/types.yaml
+  - plugin:cloudify-vsphere-plugin
+  - plugin:cloudify-utilities-plugin
+
+
+dsl_definitions:
+  connection_config: &connection_config
+    username: { get_secret: vsphere_username }
+    password: { get_secret: vsphere_password }
+    host: { get_secret: vsphere_host }
+    port: { get_secret: vsphere_port }
+    datacenter_name: { get_secret: vsphere_datacenter_name }
+    resource_pool_name: { get_secret: vsphere_resource_pool_name }
+    auto_placement: { get_secret: vsphere_auto_placement }
+    allow_insecure: true
+
+inputs:
+
+  initial_storages:
+    type: string
+    default: 2
+
+  server_name:
+    type: string
+    default: scale-storage-test
+
+  template:
+    type: string
+    default: CentOS-7.8.2003-tmpl
+
+  network_name:
+    type: string
+    default: "Internal"
+
+node_templates:
+
+  vm:
+    type: cloudify.vsphere.nodes.Server
+    properties:
+      connection_config: *connection_config
+      agent_config:
+        install_method: none
+      server:
+        name: { get_input: server_name }
+        template: { get_input: template }
+        cpus: 1
+        memory: 1024
+      wait_ip: true
+      networking:
+        connect_networks:
+          - name: { get_input: network_name }
+            management: true
+            external: true
+            switch_distributed: False
+            use_dhcp: true

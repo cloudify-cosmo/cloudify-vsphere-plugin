@@ -1514,6 +1514,8 @@ class ServerClient(VsphereClient):
                 config.memoryMB = memory
                 update_required = True
 
+        ctx.logger.debug('New configuration: {}'.format(config))
+
         if update_required:
             task = server.obj.Reconfigure(spec=config)
 

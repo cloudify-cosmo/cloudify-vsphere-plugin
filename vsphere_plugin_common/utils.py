@@ -84,8 +84,7 @@ def op(func):
             if key in ctx_instance.runtime_properties:
                 processed_kwargs[key] = \
                     ctx_instance.runtime_properties.get(key)
-                continue
-            elif key in kwargs:
+            if key in kwargs:
                 processed_kwargs[key] = kwargs[key]
                 continue
 
