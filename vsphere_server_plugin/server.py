@@ -763,7 +763,20 @@ def get_state(server_client,
               networking,
               os_family,
               wait_ip,
+              min_wait_time=None,
               **_):
+
+    if arrived_at_min_wait_time(min_wait_time): # TODO: Write this function.
+        # This function should take the min_wait_time,
+        # Compare it to the interval between retries and the number of retries
+        # For example, if there are 30 retries and there is 1 sec between
+        # retries it will return 30
+        # min_wait_time should be in seconds.
+        raise OperationRetry(
+            'The paramter min_wait_time was provided {}. '
+            'Waiting for min_wait_time to elapse before performing get_state.'
+            .format(min_wait_time))
+
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
