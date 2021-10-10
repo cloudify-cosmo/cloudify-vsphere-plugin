@@ -772,6 +772,13 @@ def get_state(server_client,
         # For example, if there are 30 retries and there is 1 sec between
         # retries it will return 30
         # min_wait_time should be in seconds.
+        # if time_elapsed > ctx.operation.retry_number * retry_interval
+        # OTHER OPTION
+        # if retry_number == 0:
+        #     ctx.instance.runtime_properties['start_min_wait_count'] = \
+        #         time.time()
+        # elif time.time() - min_wait_time >= 0:
+        #     raise OperationRetry....)
         raise OperationRetry(
             'The paramter min_wait_time was provided {}. '
             'Waiting for min_wait_time to elapse before performing get_state.'
@@ -785,7 +792,7 @@ def get_state(server_client,
             )
         )
 
-    default_ip = None
+    default_ip = public_ip = None
     manager_network_ip = None
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Getting state for server {name} ({os_family})'
@@ -800,7 +807,7 @@ def get_state(server_client,
                         .format(info=text_type(server_obj.guest)))
         try:
             manager_network_ip = server_obj.summary.guest.ipAddress
-            default_ip = manager_network_ip
+            public_ip = default_ip = manager_network_ip
             ctx.logger.info("1**manager_network_ip and default_ip: {}"
                             .format(default_ip))
         except AttributeError:
@@ -881,6 +888,8 @@ def get_state(server_client,
             else:
                 ctx.logger.info("Server public IP addresses: {ips}.".format(
                     ips=text_type(public_ips)))
+        elif public_ip:
+            public_ips = [public_ip]
         else:
             public_ips = []
 
