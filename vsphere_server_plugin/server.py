@@ -771,24 +771,36 @@ def get_state(server_client,
                 ctx.instance.id,
             )
         )
+
+    default_ip = None
+    manager_network_ip = None
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Getting state for server {name} ({os_family})'
                     .format(name=vm_name, os_family=os_family))
 
     nets = ctx.instance.runtime_properties.get(NETWORKS)
+    ctx.logger.info('**server_obj.summary.guest.ipAddress: {}'
+                    .format(server_obj.summary.guest.ipAddress))
 
-    if not nets and os_family == "other":
+    if os_family == "other":
         ctx.logger.info("Skip guest checks for other os: {info}"
                         .format(info=text_type(server_obj.guest)))
-        return True
+        try:
+            manager_network_ip = server_obj.summary.guest.ipAddress
+            default_ip = manager_network_ip
+            ctx.logger.info("1**manager_network_ip and default_ip: {}"
+                            .format(default_ip))
+        except AttributeError:
+            return True
 
-    if server_client.is_server_guest_running(server_obj):
+    if default_ip and manager_network_ip or \
+            server_client.is_server_guest_running(server_obj):
+        ctx.logger.info("2**")
         ctx.logger.info("Server is running, getting network details.")
         ctx.logger.info("Guest info: {info}"
                         .format(info=text_type(server_obj.guest)))
 
         networks = networking.get('connect_networks', []) if networking else []
-        manager_network_ip = None
         management_networks = \
             [network['name'] for network
              in networking.get('connect_networks', [])
@@ -799,18 +811,18 @@ def get_state(server_client,
         ctx.logger.info("Server management networks: {networks}"
                         .format(networks=text_type(management_networks)))
 
-        # used for guest ip checks
-        default_ip = None
         # We must obtain IPs at this stage, as they are not populated until
         # after the VM is fully booted
         for network in server_obj.guest.net:
             network_name = network.network
             # save ip as default
             if not default_ip:
+                ctx.logger.info("3**")
                 default_ip = get_ip_from_vsphere_nic_ips(network)
             # check management
-            if management_network_name and \
+            if not manager_network_ip or management_network_name and \
                     (network_name == management_network_name):
+                ctx.logger.info("3**")
                 manager_network_ip = get_ip_from_vsphere_nic_ips(network)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
@@ -829,7 +841,7 @@ def get_state(server_client,
                 if net['name'] == network_name:
                     net[IP] = get_ip_from_vsphere_nic_ips(network)
 
-        # if we have some managment network but no ip in such by some reason
+        # if we have some management network but no ip in such by some reason
         # go and run one more time
         if management_network_name and not manager_network_ip:
             raise OperationRetry("Management IP addresses not yet assigned.")
