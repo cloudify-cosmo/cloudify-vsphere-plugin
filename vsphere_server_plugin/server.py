@@ -17,6 +17,8 @@ import re
 # Third party imports
 
 # Cloudify imports
+import time
+
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 
@@ -752,8 +754,32 @@ def delete(server_client,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
     server_client.delete_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully deleted server {name}'.format(
-                    name=vm_name))
+    ctx.logger.info('Successfully deleted server {name}'.format(name=vm_name))
+
+
+# min_wait_time should be in seconds.
+def arrived_at_min_wait_time(min_wait_time):
+    min_wait_time = 200
+    if '__min_wait_time_start' not in ctx.instance.runtime_properties:
+        ctx.instance.runtime_properties['__min_wait_time_start'] = time.time()
+        ctx.logger.info('**runtime_properties[__min_wait_time_start]: {}'
+                        .format(ctx.instance.
+                                runtime_properties['__min_wait_time_start']))
+        time.sleep(min_wait_time)
+    else:
+        try:
+            remainder = time.time() - ctx.instance.runtime_properties[
+                '__min_wait_time_start']
+
+            ctx.logger.info('**remainder: {}, min_wait_time: {}'
+                            .format(remainder, min_wait_time))
+
+            time.sleep(min_wait_time - remainder)
+
+            if remainder > min_wait_time:
+                del ctx.instance.runtime_properties['__min_wait_time_start']
+        except TypeError:
+            ctx.logger.info('** min_wait_time: not supported ')
 
 
 @op
@@ -766,23 +792,8 @@ def get_state(server_client,
               min_wait_time=None,
               **_):
 
-    if arrived_at_min_wait_time(min_wait_time): # TODO: Write this function.
-        # This function should take the min_wait_time,
-        # Compare it to the interval between retries and the number of retries
-        # For example, if there are 30 retries and there is 1 sec between
-        # retries it will return 30
-        # min_wait_time should be in seconds.
-        # if time_elapsed > ctx.operation.retry_number * retry_interval
-        # OTHER OPTION
-        # if retry_number == 0:
-        #     ctx.instance.runtime_properties['start_min_wait_count'] = \
-        #         time.time()
-        # elif time.time() - min_wait_time >= 0:
-        #     raise OperationRetry....)
-        raise OperationRetry(
-            'The paramter min_wait_time was provided {}. '
-            'Waiting for min_wait_time to elapse before performing get_state.'
-            .format(min_wait_time))
+    if os_family == "other":
+        arrived_at_min_wait_time(min_wait_time)
 
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
@@ -864,6 +875,7 @@ def get_state(server_client,
         # if we have some management network but no ip in such by some reason
         # go and run one more time
         if management_network_name and not manager_network_ip:
+            ctx.logger.info('*********delete ?. ')
             raise OperationRetry("Management IP addresses not yet assigned.")
 
         ctx.instance.runtime_properties[NETWORKS] = nets

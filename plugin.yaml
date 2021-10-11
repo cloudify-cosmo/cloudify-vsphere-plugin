@@ -255,7 +255,13 @@ node_types:
       cloudify.interfaces.host:
         get_state:
           implementation: vsphere.vsphere_server_plugin.server.get_state
-          inputs: {}
+          inputs:
+            wait_for_min:
+              type: integer
+              default: 0
+              description: |
+                The time it takes for the machine to up, should be in seconds.
+              <<: *interfaces_power_inputs
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_server_plugin.server.resize_server
