@@ -7,5 +7,5 @@ cryptography==3.2.1
 decorator>=4.4.2
 urllib3===1.24.3
 networkx==1.9.1
-smmap>=3.0.5
+smmap<5,>=3.0.1
 https://github.com/cloudify-incubator/cloudify-utilities-plugins-sdk/archive/refs/heads/without-paramiko.zip

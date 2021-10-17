@@ -759,27 +759,30 @@ def delete(server_client,
 
 # min_wait_time should be in seconds.
 def arrived_at_min_wait_time(min_wait_time):
-    min_wait_time = 200
     if '__min_wait_time_start' not in ctx.instance.runtime_properties:
         ctx.instance.runtime_properties['__min_wait_time_start'] = time.time()
-        ctx.logger.info('**runtime_properties[__min_wait_time_start]: {}'
-                        .format(ctx.instance.
-                                runtime_properties['__min_wait_time_start']))
-        time.sleep(min_wait_time)
+
+        ctx.logger.info('min_wait_time: {}'.format(min_wait_time))
+        count = 0
+        ten_sec_to_sleep = 10
+        while count < min_wait_time:
+            ctx.logger.info('Waiting for IP Addresses to be ready ..')
+            time.sleep(ten_sec_to_sleep)
+            count += ten_sec_to_sleep
     else:
         try:
             remainder = time.time() - ctx.instance.runtime_properties[
                 '__min_wait_time_start']
 
-            ctx.logger.info('**remainder: {}, min_wait_time: {}'
+            ctx.logger.info('The function arrived_at_min_wait_time'
+                            ' is called again. remainder:{}, min_wait_time:{}'
                             .format(remainder, min_wait_time))
+            # Interrupted sleep
+            if min_wait_time > remainder:
+                time.sleep(min_wait_time - remainder)
 
-            time.sleep(min_wait_time - remainder)
-
-            if remainder > min_wait_time:
-                del ctx.instance.runtime_properties['__min_wait_time_start']
         except TypeError:
-            ctx.logger.info('** min_wait_time: not supported ')
+            ctx.logger.info('min_wait_time: not supported ')
 
 
 @op
@@ -803,15 +806,17 @@ def get_state(server_client,
             )
         )
 
+    ctx.logger.info('**server_obj.summary.guest.ipAddress: {}'
+                    .format(server_obj.summary.guest.ipAddress))
+
     default_ip = public_ip = None
     manager_network_ip = None
     vm_name = get_vm_name(server, os_family)
+
     ctx.logger.info('Getting state for server {name} ({os_family})'
                     .format(name=vm_name, os_family=os_family))
 
     nets = ctx.instance.runtime_properties.get(NETWORKS)
-    ctx.logger.info('**server_obj.summary.guest.ipAddress: {}'
-                    .format(server_obj.summary.guest.ipAddress))
 
     if os_family == "other":
         ctx.logger.info("Skip guest checks for other os: {info}"
@@ -821,12 +826,13 @@ def get_state(server_client,
             public_ip = default_ip = manager_network_ip
             ctx.logger.info("1**manager_network_ip and default_ip: {}"
                             .format(default_ip))
+
         except AttributeError:
+            ctx.instance.runtime_properties.pop('__min_wait_time_start', None)
             return True
 
     if default_ip and manager_network_ip or \
             server_client.is_server_guest_running(server_obj):
-        ctx.logger.info("2**")
         ctx.logger.info("Server is running, getting network details.")
         ctx.logger.info("Guest info: {info}"
                         .format(info=text_type(server_obj.guest)))
@@ -848,12 +854,10 @@ def get_state(server_client,
             network_name = network.network
             # save ip as default
             if not default_ip:
-                ctx.logger.info("3**")
                 default_ip = get_ip_from_vsphere_nic_ips(network)
             # check management
             if not manager_network_ip or management_network_name and \
                     (network_name == management_network_name):
-                ctx.logger.info("3**")
                 manager_network_ip = get_ip_from_vsphere_nic_ips(network)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
@@ -875,7 +879,6 @@ def get_state(server_client,
         # if we have some management network but no ip in such by some reason
         # go and run one more time
         if management_network_name and not manager_network_ip:
-            ctx.logger.info('*********delete ?. ')
             raise OperationRetry("Management IP addresses not yet assigned.")
 
         ctx.instance.runtime_properties[NETWORKS] = nets
@@ -937,6 +940,7 @@ def get_state(server_client,
                 public=public_ip,
             )
         )
+        ctx.instance.runtime_properties.pop('__min_wait_time_start', None)
         return True
     ctx.logger.info('Server {server} is not started yet'.format(
         server=server_obj.name))
