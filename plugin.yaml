@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.19.5'
+    package_version: '2.19.7'
 
 data_types:
 
@@ -256,7 +256,7 @@ node_types:
         get_state:
           implementation: vsphere.vsphere_server_plugin.server.get_state
           inputs:
-            wait_for_min:
+            minimum_wait_time:
               type: integer
               default: 0
               description: |

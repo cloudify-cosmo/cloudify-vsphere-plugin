@@ -758,15 +758,16 @@ def delete(server_client,
 
 
 # min_wait_time should be in seconds.
-def arrived_at_min_wait_time(min_wait_time):
+def arrived_at_min_wait_time(minimum_wait_time):
     if '__min_wait_time_start' not in ctx.instance.runtime_properties:
         ctx.instance.runtime_properties['__min_wait_time_start'] = time.time()
 
-        ctx.logger.info('min_wait_time: {}'.format(min_wait_time))
+        ctx.logger.info('It will take {} seconds for IP Addresses to be ready'
+                        .format(minimum_wait_time))
         count = 0
         ten_sec_to_sleep = 10
-        while count < min_wait_time:
-            ctx.logger.info('Waiting for IP Addresses to be ready ..')
+        while count < minimum_wait_time:
+            ctx.logger.info('Waiting for IP Addresses to be ready ...')
             time.sleep(ten_sec_to_sleep)
             count += ten_sec_to_sleep
     else:
@@ -775,14 +776,16 @@ def arrived_at_min_wait_time(min_wait_time):
                 '__min_wait_time_start']
 
             ctx.logger.info('The function arrived_at_min_wait_time'
-                            ' is called again. remainder:{}, min_wait_time:{}'
-                            .format(remainder, min_wait_time))
+                            ' is called again. '
+                            'remainder: {}, '
+                            'minimum_wait_time: {}'
+                            .format(remainder, minimum_wait_time))
             # Interrupted sleep
-            if min_wait_time > remainder:
-                time.sleep(min_wait_time - remainder)
+            if minimum_wait_time > remainder:
+                time.sleep(minimum_wait_time - remainder)
 
         except TypeError:
-            ctx.logger.info('min_wait_time: not supported ')
+            ctx.logger.info('minimum_wait_time: not supported ')
 
 
 @op
@@ -792,11 +795,15 @@ def get_state(server_client,
               networking,
               os_family,
               wait_ip,
-              min_wait_time=None,
+              minimum_wait_time=None,
               **_):
 
     if os_family == "other":
-        arrived_at_min_wait_time(min_wait_time)
+        if minimum_wait_time is not None:
+            arrived_at_min_wait_time(minimum_wait_time)
+        else:
+            ctx.logger.info('minimum_wait_time: not supported ')
+            return False
 
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
@@ -805,9 +812,6 @@ def get_state(server_client,
                 ctx.instance.id,
             )
         )
-
-    ctx.logger.info('**server_obj.summary.guest.ipAddress: {}'
-                    .format(server_obj.summary.guest.ipAddress))
 
     default_ip = public_ip = None
     manager_network_ip = None
@@ -824,8 +828,6 @@ def get_state(server_client,
         try:
             manager_network_ip = server_obj.summary.guest.ipAddress
             public_ip = default_ip = manager_network_ip
-            ctx.logger.info("1**manager_network_ip and default_ip: {}"
-                            .format(default_ip))
 
         except AttributeError:
             ctx.instance.runtime_properties.pop('__min_wait_time_start', None)
