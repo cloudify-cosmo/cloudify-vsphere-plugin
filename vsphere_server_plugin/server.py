@@ -798,12 +798,8 @@ def get_state(server_client,
               minimum_wait_time=None,
               **_):
 
-    if os_family == "other":
-        if minimum_wait_time is not None:
-            arrived_at_min_wait_time(minimum_wait_time)
-        else:
-            ctx.logger.info('minimum_wait_time: not supported ')
-            return False
+    if minimum_wait_time is not None and minimum_wait_time > 0:
+        arrived_at_min_wait_time(minimum_wait_time)
 
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
