@@ -854,8 +854,8 @@ def get_state(server_client,
             if not default_ip:
                 default_ip = get_ip_from_vsphere_nic_ips(network)
             # check management
-            if not manager_network_ip or management_network_name and \
-                    (network_name == management_network_name):
+            if not manager_network_ip or (management_network_name and \
+                    (network_name == management_network_name)):
                 manager_network_ip = get_ip_from_vsphere_nic_ips(network)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
@@ -876,8 +876,10 @@ def get_state(server_client,
 
         # if we have some management network but no ip in such by some reason
         # go and run one more time
-        if management_network_name and not manager_network_ip:
-            raise OperationRetry("Management IP addresses not yet assigned.")
+        if not management_network_name or not manager_network_ip:
+            raise OperationRetry(
+                "Management IP addresses not yet assigned or "
+                "management network is not assigned.")
 
         ctx.instance.runtime_properties[NETWORKS] = nets
         ctx.instance.runtime_properties[IP] = manager_network_ip or default_ip
