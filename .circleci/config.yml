@@ -23,6 +23,11 @@ executors:
     machine:
       image: ubuntu-1604:201903-01
 
+  arm_wagon_generator:
+    machine:
+      image: ubuntu-2004:202101-01
+      resource_class: arm.medium
+
   cloudify-machine:
     machine:
       image: ubuntu-1604:201903-01
@@ -173,6 +178,25 @@ commands:
               git clone https://github.com/cloudify-cosmo/cloudify-wagon-build-containers.git
               docker build -t cloudify-centos-7-wagon-builder cloudify-wagon-build-containers/centos_7_py2py3
               docker run -v ~/project/:/packaging cloudify-centos-7-wagon-builder
+      - run:
+          name: copy wagon to workspace
+          command: cp *.wgn workspace/build/
+      - persist_to_workspace:
+          root: workspace
+          paths:
+            - build/*
+
+  generate_arch64_wagon:
+    steps:
+      - run:
+          name: Create Workspace Build directory.
+          command: mkdir -p workspace/build
+      - run:
+          name: Build py36 Wagon
+          command: |
+              git clone https://github.com/cloudify-cosmo/cloudify-wagon-build-containers.git
+              docker build -t centos_aarch64 cloudify-wagon-build-containers/aarch_64/centos_7_py3
+              docker run -v ~/project/:/packaging centos_aarch64
       - run:
           name: copy wagon to workspace
           command: cp *.wgn workspace/build/
@@ -360,7 +384,7 @@ commands:
           command: pip install https://github.com/cloudify-incubator/cloudify-ecosystem-test/archive/latest.zip
       - attach_workspace:
           at: workspace
-      - run: python .circleci/merge_docs.py
+      - run: ecosystem-tests merge-docs
 
 jobs:
 
@@ -399,6 +423,12 @@ jobs:
     steps:
       - checkout
       - generate_py27py36_wagon
+
+  arch64_wagon:
+    executor: arm_wagon_generator
+    steps:
+      - checkout
+      - generate_arch64_wagon
 
   rhel_wagon:
     executor: wagon_generator
@@ -455,6 +485,10 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master|dev)/
+      - arch64_wagon:
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master|dev)/
       - rhel_wagon:
           filters:
             branches:
@@ -467,6 +501,7 @@ workflows:
               only: /master/
           requires:
             - wagon
+            - arch64_wagon
             - rhel_wagon
       - integration_tests_505:
           requires:
@@ -502,7 +537,7 @@ workflows:
   nightly:
     triggers:
     - schedule:
-        cron: "0 1 * * *"
+        cron: "0 1 * * 0,2,4,6"
         filters:
           branches:
             only:
@@ -516,6 +551,10 @@ workflows:
           filters:
             branches:
               only: /([0-9\.]*\-build|master)/
+      - arch64_wagon:
+          filters:
+            branches:
+              only: /([0-9\.]*\-build|master|dev)/
       - rhel_wagon:
           filters:
             branches:
@@ -523,6 +562,7 @@ workflows:
       - integration_tests_505:
           requires:
             - wagon
+            - arch64_wagon
             - rhel_wagon
           filters:
             branches:
