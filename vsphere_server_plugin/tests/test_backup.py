@@ -441,6 +441,8 @@ class BackupServerTest(unittest.TestCase):
 
         # skip other vm
         vm = mock.Mock()
+        net_mock = [mock.Mock()]
+        vm.guest = mock.Mock(net=net_mock)
         with mock.patch(
             "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
