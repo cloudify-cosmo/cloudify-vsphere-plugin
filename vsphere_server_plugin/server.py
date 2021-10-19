@@ -854,9 +854,9 @@ def get_state(server_client,
             if not default_ip:
                 default_ip = get_ip_from_vsphere_nic_ips(network)
             # check management
+            same_net = network_name == management_network_name
             if not manager_network_ip or (
-                    management_network_name and
-                    (network_name == management_network_name)):
+                    management_network_name and same_net):
                 manager_network_ip = get_ip_from_vsphere_nic_ips(network)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
