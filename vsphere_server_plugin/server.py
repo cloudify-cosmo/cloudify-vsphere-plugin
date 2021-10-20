@@ -530,11 +530,11 @@ def shutdown_guest(server_client,
             .format(ctx.instance.id))
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to shut down server {name}'.format(
-                    name=vm_name))
+        name=vm_name))
     server_client.shutdown_server_guest(server_obj,
                                         max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully shut down server {name}'.format(
-                    name=vm_name))
+    ctx.logger.info('Successfully shut down server {name}'.format(
+        name=vm_name))
 
 
 @op
@@ -568,7 +568,7 @@ def stop(server_client,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Stopping server {name}'.format(name=vm_name))
     server_client.stop_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Sttopped server {name}'.format(name=vm_name))
+    ctx.logger.info('Stopped server {name}'.format(name=vm_name))
 
 
 @op
@@ -589,7 +589,7 @@ def freeze_suspend(server_client,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to suspend server {name}'.format(name=vm_name))
     server_client.suspend_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully suspended server {name}'.format(
+    ctx.logger.info('Successfully suspended server {name}'.format(
         name=vm_name))
 
 
@@ -611,7 +611,7 @@ def freeze_resume(server_client,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to resume server {name}'.format(name=vm_name))
     server_client.start_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully resumed server {name}'.format(name=vm_name))
+    ctx.logger.info('Successfully resumed server {name}'.format(name=vm_name))
 
 
 @op
@@ -650,7 +650,7 @@ def snapshot_create(server_client,
         snapshot_name,
         snapshot_type,
         max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully backuped server {name}'
+    ctx.logger.info('Successfully backuped server {name}'
                     .format(name=vm_name))
 
 
@@ -687,7 +687,7 @@ def snapshot_apply(server_client,
     server_client.restore_server(server_obj,
                                  snapshot_name,
                                  max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully restored server {name}'
+    ctx.logger.info('Successfully restored server {name}'
                     .format(name=vm_name))
 
 
@@ -725,7 +725,7 @@ def snapshot_delete(server_client,
         server_obj,
         snapshot_name,
         max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully removed backup from server {name}'
+    ctx.logger.info('Successfully removed backup from server {name}'
                     .format(name=vm_name))
 
 
@@ -912,8 +912,9 @@ def get_state(server_client,
         # refactored to use the more up to date retry logic it's likely not
         # worth a great deal of attention
         if len(public_ips):
-            ctx.logger.debug("Public IP address for {name}: {ip}".format(
-                             name=vm_name, ip=public_ips[0]))
+            ctx.logger.debug(
+                "Public IP address for {name}: {ip}".format(
+                    name=vm_name, ip=public_ips[0]))
             ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
         else:
             ctx.logger.debug('Public IP check not required for {server}'
@@ -958,12 +959,8 @@ def resize_server(server_client,
                   memory=None,
                   max_wait_time=300,
                   **_):
-    if not any((
-        cpus,
-        memory,
-    )):
-        ctx.logger.info(
-            "Attempt to resize Server with no sizes specified")
+    if not any((cpus, memory,)):
+        ctx.logger.info("Attempt to resize Server with no sizes specified")
         return
 
     server_obj = get_server_by_context(server_client, server, os_family)
@@ -1015,7 +1012,7 @@ def resize(server_client, server, os_family, **_):
         )
         server_client.resize_server(server_obj, **update)
         ctx.logger.info('Succeeded resizing server {name}.'.format(
-                        name=vm_name))
+            name=vm_name))
     else:
         raise NonRecoverableError(
             "Server resize parameters should be specified.")
