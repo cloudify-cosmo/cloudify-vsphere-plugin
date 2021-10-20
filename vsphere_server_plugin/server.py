@@ -17,6 +17,8 @@ import re
 # Third party imports
 
 # Cloudify imports
+import time
+
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 
@@ -292,6 +294,7 @@ def create_new_server(server_client,
                       postpone_delete_networks=False,
                       max_wait_time=300,
                       **_):
+
     vm_name = get_vm_name(server, os_family)
     ctx.logger.debug('Cdrom path: {cdrom}'.format(cdrom=cdrom_image))
 
@@ -360,6 +363,7 @@ def create(server_client,
            extra_config=None,
            max_wait_time=300,
            **_):
+
     if enable_start_vm:
         ctx.logger.debug('Create operation ignores enable_start_vm property.')
         enable_start_vm = False
@@ -442,6 +446,7 @@ def start(server_client,
           extra_config=None,
           max_wait_time=300,
           **_):
+
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))
@@ -489,18 +494,7 @@ def start(server_client,
         else:
             ctx.logger.info("Server already exists, but will not be powered"
                             "on as enable_start_vm is set to false")
-    _start(server_client,
-           server_obj,
-           custom_attributes,
-           max_wait_time,
-           minimal_vm_version)
 
-
-def _start(server_client,
-           server_obj,
-           custom_attributes,
-           max_wait_time,
-           minimal_vm_version):
     server_client.add_custom_values(server_obj, custom_attributes or {})
 
     # update vm version
@@ -528,6 +522,7 @@ def shutdown_guest(server_client,
                    os_family,
                    max_wait_time=300,
                    **_):
+
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
@@ -538,7 +533,7 @@ def shutdown_guest(server_client,
         name=vm_name))
     server_client.shutdown_server_guest(server_obj,
                                         max_wait_time=max_wait_time)
-    ctx.logger.info('Succeessfully shut down server {name}'.format(
+    ctx.logger.info('Successfully shut down server {name}'.format(
         name=vm_name))
 
 
@@ -550,6 +545,7 @@ def stop(server_client,
          force_stop=False,
          max_wait_time=300,
          **_):
+
     existing_resource = ctx.instance.runtime_properties.get(
         VSPHERE_RESOURCE_EXTERNAL)
     if existing_resource and not force_stop:
@@ -559,10 +555,6 @@ def stop(server_client,
     elif force_stop:
         ctx.logger.warn('The parameter force_stop is True.')
 
-    _stop(server_client, server, os_family, max_wait_time)
-
-
-def _stop(server_client, server, os_family, max_wait_time):
     server_obj = get_server_by_context(server_client, server, os_family)
 
     if not server_obj:
@@ -762,8 +754,38 @@ def delete(server_client,
     vm_name = get_vm_name(server, os_family)
     ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
     server_client.delete_server(server_obj, max_wait_time=max_wait_time)
-    ctx.logger.info('Successfully deleted server {name}'.format(
-        name=vm_name))
+    ctx.logger.info('Successfully deleted server {name}'.format(name=vm_name))
+
+
+# min_wait_time should be in seconds.
+def arrived_at_min_wait_time(minimum_wait_time):
+    if '__min_wait_time_start' not in ctx.instance.runtime_properties:
+        ctx.instance.runtime_properties['__min_wait_time_start'] = time.time()
+
+        ctx.logger.info('It will take {} seconds for IP Addresses to be ready'
+                        .format(minimum_wait_time))
+        count = 0
+        ten_sec_to_sleep = 10
+        while count < minimum_wait_time:
+            ctx.logger.info('Waiting for IP Addresses to be ready ...')
+            time.sleep(ten_sec_to_sleep)
+            count += ten_sec_to_sleep
+    else:
+        try:
+            remainder = time.time() - ctx.instance.runtime_properties[
+                '__min_wait_time_start']
+
+            ctx.logger.info('The function arrived_at_min_wait_time'
+                            ' is called again. '
+                            'remainder: {}, '
+                            'minimum_wait_time: {}'
+                            .format(remainder, minimum_wait_time))
+            # Interrupted sleep
+            if minimum_wait_time > remainder:
+                time.sleep(minimum_wait_time - remainder)
+
+        except TypeError:
+            ctx.logger.info('minimum_wait_time: not supported ')
 
 
 @op
@@ -773,7 +795,12 @@ def get_state(server_client,
               networking,
               os_family,
               wait_ip,
+              minimum_wait_time=None,
               **_):
+
+    if minimum_wait_time is not None and minimum_wait_time > 0:
+        arrived_at_min_wait_time(minimum_wait_time)
+
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
         raise NonRecoverableError(
@@ -781,23 +808,34 @@ def get_state(server_client,
                 ctx.instance.id,
             )
         )
+
+    default_ip = public_ip = None
+    manager_network_ip = None
     vm_name = get_vm_name(server, os_family)
+
     ctx.logger.info('Getting state for server {name} ({os_family})'
                     .format(name=vm_name, os_family=os_family))
+
+    nets = ctx.instance.runtime_properties.get(NETWORKS)
 
     if os_family == "other":
         ctx.logger.info("Skip guest checks for other os: {info}"
                         .format(info=text_type(server_obj.guest)))
-        return True
+        try:
+            manager_network_ip = server_obj.summary.guest.ipAddress
+            public_ip = default_ip = manager_network_ip
 
-    nets = ctx.instance.runtime_properties[NETWORKS]
-    if server_client.is_server_guest_running(server_obj):
+        except AttributeError:
+            ctx.instance.runtime_properties.pop('__min_wait_time_start', None)
+            return True
+
+    if default_ip and manager_network_ip or \
+            server_client.is_server_guest_running(server_obj):
         ctx.logger.info("Server is running, getting network details.")
         ctx.logger.info("Guest info: {info}"
                         .format(info=text_type(server_obj.guest)))
 
         networks = networking.get('connect_networks', []) if networking else []
-        manager_network_ip = None
         management_networks = \
             [network['name'] for network
              in networking.get('connect_networks', [])
@@ -808,8 +846,6 @@ def get_state(server_client,
         ctx.logger.info("Server management networks: {networks}"
                         .format(networks=text_type(management_networks)))
 
-        # used for guest ip checks
-        default_ip = None
         # We must obtain IPs at this stage, as they are not populated until
         # after the VM is fully booted
         for network in server_obj.guest.net:
@@ -818,8 +854,9 @@ def get_state(server_client,
             if not default_ip:
                 default_ip = get_ip_from_vsphere_nic_ips(network)
             # check management
-            if management_network_name and \
-                    (network_name == management_network_name):
+            same_net = network_name == management_network_name
+            if not manager_network_ip or (
+                    management_network_name and same_net):
                 manager_network_ip = get_ip_from_vsphere_nic_ips(network)
                 # This should be debug, but left as info until CFY-4867 makes
                 # logs more visible
@@ -838,10 +875,11 @@ def get_state(server_client,
                 if net['name'] == network_name:
                     net[IP] = get_ip_from_vsphere_nic_ips(network)
 
-        # if we have some managment network but no ip in such by some reason
+        # if we have some management network but no ip in such by some reason
         # go and run one more time
         if management_network_name and not manager_network_ip:
-            raise OperationRetry("Management IP addresses not yet assigned.")
+            raise OperationRetry(
+                "Management IP addresses not yet assigned.")
 
         ctx.instance.runtime_properties[NETWORKS] = nets
         ctx.instance.runtime_properties[IP] = manager_network_ip or default_ip
@@ -865,6 +903,8 @@ def get_state(server_client,
             else:
                 ctx.logger.info("Server public IP addresses: {ips}.".format(
                     ips=text_type(public_ips)))
+        elif public_ip:
+            public_ips = [public_ip]
         else:
             public_ips = []
 
@@ -872,8 +912,9 @@ def get_state(server_client,
         # refactored to use the more up to date retry logic it's likely not
         # worth a great deal of attention
         if len(public_ips):
-            ctx.logger.debug("Public IP address for {name}: {ip}"
-                             .format(name=vm_name, ip=public_ips[0]))
+            ctx.logger.debug(
+                "Public IP address for {name}: {ip}".format(
+                    name=vm_name, ip=public_ips[0]))
             ctx.instance.runtime_properties[PUBLIC_IP] = public_ips[0]
         else:
             ctx.logger.debug('Public IP check not required for {server}'
@@ -900,6 +941,7 @@ def get_state(server_client,
                 public=public_ip,
             )
         )
+        ctx.instance.runtime_properties.pop('__min_wait_time_start', None)
         return True
     ctx.logger.info('Server {server} is not started yet'.format(
         server=server_obj.name))
@@ -913,32 +955,13 @@ def get_state(server_client,
 def resize_server(server_client,
                   server,
                   os_family,
-                  custom_attributes,
                   cpus=None,
                   memory=None,
-                  minimal_vm_version=13,
                   max_wait_time=300,
-                  hot_add=True,
                   **_):
-
     if not any((cpus, memory,)):
         ctx.logger.info("Attempt to resize Server with no sizes specified")
         return
-
-    if not isinstance(hot_add, bool):
-        if hot_add == 'true' or hot_add == 'True':
-            hot_add = True
-        elif hot_add == 'false' or hot_add == 'False':
-            hot_add = False
-        else:
-            raise NonRecoverableError(
-                "The value for parameter hot_add must be a boolean"
-                "and is {}".format(type(hot_add)))
-
-    if not hot_add:
-        ctx.logger.info('Not hot add, calling server stop.')
-        _stop(server_client, server, os_family, max_wait_time)
-        ctx.logger.info('Not hot add, server stop called.')
 
     server_obj = get_server_by_context(server_client, server, os_family)
     if server_obj is None:
@@ -955,15 +978,6 @@ def resize_server(server_client,
         value = locals()[property]
         if value:
             ctx.instance.runtime_properties[property] = value
-
-    if not hot_add:
-        ctx.logger.info('Not hot add, calling server start.')
-        _start(server_client,
-               server_obj,
-               custom_attributes,
-               max_wait_time,
-               minimal_vm_version)
-        ctx.logger.info('Not hot add, server start called.')
 
 
 @op
@@ -997,8 +1011,8 @@ def resize(server_client, server, os_family, **_):
             )
         )
         server_client.resize_server(server_obj, **update)
-        ctx.logger.info('Succeeded resizing server {name}.'
-                        .format(name=vm_name))
+        ctx.logger.info('Succeeded resizing server {name}.'.format(
+            name=vm_name))
     else:
         raise NonRecoverableError(
             "Server resize parameters should be specified.")

@@ -59,10 +59,10 @@ setup(
         "cloudify-common>=4.5",
         "pyvmomi>=6.7.3",
         "netaddr>=0.7.19",
-        "pyyaml>=3.10",
+        "pyyaml>=3.10,<6.0",
         "networkx==1.9.1",
-        # "cloudify-utilities-plugins-sdk>=0.0.26", # cdrom create code
-        # "cloudify-utilities-plugins-sdk",
+        "cloudify-utilities-plugins-sdk>=0.0.26",
+        "cloudify-utilities-plugins-sdk",
         "requests",
     ]
 )
