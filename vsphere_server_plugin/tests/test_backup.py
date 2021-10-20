@@ -563,6 +563,9 @@ class BackupServerTest(unittest.TestCase):
         self.assertEqual(
             ctx.instance.runtime_properties[server.IP], "192.0.2.2")
 
+        vm = mock.Mock()
+        vm.obj.guest.guestState = 'running'
+        vm.guest.net = []
         # no network with management name
         with mock.patch(
             "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",

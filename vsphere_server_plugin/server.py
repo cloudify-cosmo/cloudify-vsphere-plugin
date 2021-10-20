@@ -877,10 +877,9 @@ def get_state(server_client,
 
         # if we have some management network but no ip in such by some reason
         # go and run one more time
-        if not management_network_name or not manager_network_ip:
+        if management_network_name and not manager_network_ip:
             raise OperationRetry(
-                "Management IP addresses not yet assigned or "
-                "management network is not assigned.")
+                "Management IP addresses not yet assigned.")
 
         ctx.instance.runtime_properties[NETWORKS] = nets
         ctx.instance.runtime_properties[IP] = manager_network_ip or default_ip
