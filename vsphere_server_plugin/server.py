@@ -408,6 +408,20 @@ def create(server_client,
     # update vm version
     server_client.upgrade_server(server_obj,
                                  minimal_vm_version=minimal_vm_version)
+    nics_from_rels = find_rels_by_type(ctx.instance, RELATIONSHIP_VM_TO_NIC)
+
+    for nic in nics_from_rels:
+        ctx.logger.info("*** nic target:** {}".format(nic.target.instance.runtime_properties))
+
+    for dev in server_obj.config.hardware.device:
+        ctx.logger.info("*** dev:** {}".format(dev))
+
+        if hasattr(dev, "macAddress"):
+            ctx.logger.info("*** dev:** {}".format(dev))
+            ctx.instance.runtime_properties['busKey'] = dev.key
+
+    ctx.logger.info("*** ctx.instance.runtime_properties *** {}"
+                    .format(ctx.instance.runtime_properties))
 
     # remove nic's by mac
     keys_for_remove = ctx.instance.runtime_properties.get('_keys_for_remove')
