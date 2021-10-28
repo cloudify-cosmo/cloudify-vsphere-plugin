@@ -153,31 +153,30 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
         ctx.logger.info("Controller attached with {buskey} key.".format(
             buskey=ctx.target.instance.runtime_properties['busKey']))
         return
-    if ctx.target.instance.id in ctx.source.instance.runtime_properties.get(
-            VSPHERE_SERVER_CONNECTED_NICS, []):
-        ctx.logger.info("**** go to do - _detach_controller")
-        _detach_controller(
+
+    ctx.logger.info("*** ctx.target.instance.id: {}"
+                    .format(ctx.target.instance.id))
+    ctx.logger.info("*** ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_CONNECTED_NICS, []: {}"
+                    .format(ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_CONNECTED_NICS, [])))
+
+    if ctx.target.instance.id not in \
+            ctx.source.instance.runtime_properties.get(
+                VSPHERE_SERVER_CONNECTED_NICS, []):
+        attachment = _attach_ethernet_card(
             ctx.target.node.properties.get("connection_config"),
             ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
             controller_without_connected_networks(
                 ctx.target.instance.runtime_properties),
             instance=ctx.target.instance)
+        ctx.target.instance.runtime_properties.update(attachment)
+        ctx.target.instance.runtime_properties.dirty = True
+        ctx.target.instance.update()
 
-    ctx.logger.info("**** go to do - _attach_ethernet_card")
-    attachment = _attach_ethernet_card(
-        ctx.target.node.properties.get("connection_config"),
-        ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
-        controller_without_connected_networks(
-            ctx.target.instance.runtime_properties),
-        instance=ctx.target.instance)
-
-    ctx.target.instance.runtime_properties.update(attachment)
-    ctx.target.instance.runtime_properties.dirty = True
-    ctx.target.instance.update()
     ip = _get_card_ip(
         ctx.source.node.properties.get("connection_config"),
         ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
         ctx.target.instance.runtime_properties.get('name'))
+    ctx.logger.info("*** ip: {}".format(ip))
     ctx.source.instance.runtime_properties[IP] = ip
     ctx.source.instance.runtime_properties.dirty = True
     ctx.source.instance.update()

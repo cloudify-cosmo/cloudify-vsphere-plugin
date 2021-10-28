@@ -408,17 +408,41 @@ def create(server_client,
     # update vm version
     server_client.upgrade_server(server_obj,
                                  minimal_vm_version=minimal_vm_version)
-    nics_from_rels = find_rels_by_type(ctx.instance, RELATIONSHIP_VM_TO_NIC)
 
-    for nic in nics_from_rels:
-        ctx.logger.info("*** nic target:** {}".format(nic.target.instance.runtime_properties))
+    # make list of all nics
+    ctx.logger.info("*** server_obj.config.hardware.device: {}"
+                    .format(server_obj.config.hardware.device))
 
-    for dev in server_obj.config.hardware.device:
-        ctx.logger.info("*** dev:** {}".format(dev))
+    ctx.instance.runtime_properties['server_obj_nics'] = []
+    count = 0
+    for nic in get_server_nics(server_obj.config.hardware.device):
+        ctx.logger.info("*** {} nic: {}".format(count, nic))
+        try:
+            ctx.instance.runtime_properties['server_obj_nics'].append({
+                'label': nic.deviceInfo.label,
+                'summary': nic.deviceInfo.summary,
+                'mac_address': nic.macAddress,
+                'busKey': nic.key
+            })
+        except IndexError:
+            ctx.logger.info("*** except IndexError ***")
+        count += 1
 
-        if hasattr(dev, "macAddress"):
-            ctx.logger.info("*** dev:** {}".format(dev))
-            ctx.instance.runtime_properties['busKey'] = dev.key
+    unmatched_nics = []
+    matched_nics = []
+
+    for rel_nic in find_rels_by_type(ctx.instance, RELATIONSHIP_VM_TO_NIC):
+        for server_obj_nic in ctx.instance.runtime_properties['server_obj_nics']:
+            if rel_nic.target.instance.runtime_properties['name'] == \
+                    server_obj_nic['summary']:
+                if rel_nic.target.instance.runtime_properties['name'] == \
+                        server_obj_nic['mac_address']:
+                    matched_nics.append(server_obj_nic)
+                    continue
+            unmatched_nics.append(server_obj_nic)
+
+    ctx.instance.runtime_properties['default_nics'] = unmatched_nics
+    ctx.instance.runtime_properties['configured_nics'] = matched_nics
 
     ctx.logger.info("*** ctx.instance.runtime_properties *** {}"
                     .format(ctx.instance.runtime_properties))
@@ -436,6 +460,12 @@ def create(server_client,
     ctx.instance.update()
 
 
+def get_server_nics(devices):
+    nics_from_server_obj = []
+    for device in devices:
+        if 'vim.vm.device.VirtualVmxnet3' in str(type(device)):
+            nics_from_server_obj.append(device)
+    return nics_from_server_obj
 @op
 @with_server_client
 def start(server_client,
@@ -703,6 +733,7 @@ def snapshot_apply(server_client,
                                  max_wait_time=max_wait_time)
     ctx.logger.info('Successfully restored server {name}'
                     .format(name=vm_name))
+
 
 
 @op
