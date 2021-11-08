@@ -1,3 +1,4 @@
+2.19.8: Rerelease with Aarch64 Wagon.
 2.19.7: RD-3253 vsphere plugin does no fetch IP address for os_family "other"
 2.19.6: RD-3158-VM-Resize, Add a "not hot add" functionality to the resize_server operation .
 2.19.5: RD-3096-Vsphere-VM-Resize.
