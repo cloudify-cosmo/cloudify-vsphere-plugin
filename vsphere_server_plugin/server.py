@@ -368,6 +368,14 @@ def create(server_client,
         ctx.logger.debug('Create operation ignores enable_start_vm property.')
         enable_start_vm = False
 
+    default_props = False
+    if server:
+        default_props = len(server.keys()) == 1 \
+            and 'add_scale_suffix' in server
+    if (not server or default_props) and not networking:
+        ctx.logger.debug('Create ignored because of empty properties')
+        return
+
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))
@@ -945,6 +953,10 @@ def get_state(server_client,
         return True
     ctx.logger.info('Server {server} is not started yet'.format(
         server=server_obj.name))
+    # check if enable_start_vm is set to false ,
+    # no need for retrying hence return true
+    if not ctx.node.properties.get('enable_start_vm', True):
+        return True
     # This should all be handled in the create server logic and use operation
     # retries, but until that is implemented this will have to remain.
     return False
