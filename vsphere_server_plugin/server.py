@@ -368,6 +368,14 @@ def create(server_client,
         ctx.logger.debug('Create operation ignores enable_start_vm property.')
         enable_start_vm = False
 
+    default_props = False
+    if server:
+        default_props = len(server.keys()) == 1 \
+            and 'add_scale_suffix' in server
+    if (not server or default_props) and not networking:
+        ctx.logger.debug('Create ignored because of empty properties')
+        return
+
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))
@@ -870,7 +878,8 @@ def get_state(server_client,
                     # This should all be handled in the create server logic
                     # and use operation retries, but until that is implemented
                     # this will have to remain.
-                    return False
+                    raise OperationRetry(
+                        "Management IP addresses not yet assigned.")
             for net in nets:
                 if net['name'] == network_name:
                     net[IP] = get_ip_from_vsphere_nic_ips(network)
@@ -888,7 +897,7 @@ def get_state(server_client,
             # wait for any ip before next steps
             if wait_ip:
                 ctx.logger.info("Waiting ip export from guest.")
-                return False
+                raise OperationRetry("IP address not yet exported.")
 
         if len(server_obj.guest.net):
             public_ips = [
@@ -945,9 +954,13 @@ def get_state(server_client,
         return True
     ctx.logger.info('Server {server} is not started yet'.format(
         server=server_obj.name))
+    # check if enable_start_vm is set to false ,
+    # no need for retrying hence return true
+    if not ctx.node.properties.get('enable_start_vm', True):
+        return True
     # This should all be handled in the create server logic and use operation
     # retries, but until that is implemented this will have to remain.
-    return False
+    raise OperationRetry("Server not yet started.")
 
 
 @op
