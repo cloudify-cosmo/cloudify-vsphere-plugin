@@ -71,10 +71,10 @@ def example_operation(ctx, has, some, args):
 @fixture
 def ctx():
     ctx = Mock()
+    ctx.instance = Mock()
+    ctx.instance.runtime_properties = {}
     current_ctx.set(ctx)
-
     yield ctx
-
     current_ctx.clear()
 
 

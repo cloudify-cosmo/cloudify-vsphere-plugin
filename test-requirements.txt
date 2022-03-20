@@ -9,4 +9,3 @@ nose-exclude
 nose
 
 networkx==1.9.1
-pyyaml>=3.10,<6.0
