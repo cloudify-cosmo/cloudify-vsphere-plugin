@@ -81,7 +81,7 @@ def op(func):
         ctx_instance = _get_instance(ctx)
 
         for key in requested_inputs:
-            if key in ctx_instance.runtime_properties:
+            if key in ctx_instance.runtime_properties.keys():
                 processed_kwargs[key] = \
                     ctx_instance.runtime_properties.get(key)
             if key in kwargs:
