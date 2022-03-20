@@ -60,7 +60,7 @@ def test_get_args_multiple_levels():
     def func(three):
         ""
 
-    assert set(['one', 'two', 'three']) == get_args(func)
+    assert {'one', 'two', 'three'} == get_args(func)
 
 
 @op
@@ -71,8 +71,7 @@ def example_operation(ctx, has, some, args):
 @fixture
 def ctx():
     ctx = Mock()
-    ctx.instance = Mock()
-    ctx.instance.runtime_properties = {}
+    ctx.instance = Mock(runtime_properties={})
     current_ctx.set(ctx)
     yield ctx
     current_ctx.clear()
