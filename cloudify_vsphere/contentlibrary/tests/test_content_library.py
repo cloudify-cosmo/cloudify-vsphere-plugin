@@ -31,15 +31,12 @@ class ContentLibraryTest(unittest.TestCase):
         current_ctx.set(self.mock_ctx)
         # test results
         self.response_login = Mock()
-        self.response_login.cookies = {'vmware-api-session-id': 'session_id'}
         self.response_login.json = Mock(return_value={"value": 'session_id'})
 
         self.response_empty = Mock()
-        self.response_empty.cookies = {'vmware-api-session-id': 'session_id'}
         self.response_empty.json = Mock(return_value={"value": []})
 
         self.response_logout = Mock()
-        self.response_logout.cookies = {}
         self.response_logout.json = Mock(return_value={"value": "closed"})
 
     def test_init(self):
@@ -53,20 +50,9 @@ class ContentLibraryTest(unittest.TestCase):
                                                 'allow_insecure': True})
             cl.__del__()
 
-            # wrong session id
-            response = Mock()
-            response.json = Mock(return_value={"value": 'other_id'})
-            response.cookies = {'vmware-api-session-id': 'session_id'}
-            requests.request = Mock(return_value=response)
-            with self.assertRaises(NonRecoverableError):
-                contentlibrary.ContentLibrary({'host': 'host',
-                                               'username': 'username',
-                                               'password': 'password',
-                                               'allow_insecure': True})
             # no response
             response = Mock()
             response.json = Mock(return_value={})
-            response.cookies = {}
             requests.request = Mock(return_value=response)
             with self.assertRaises(NonRecoverableError):
                 contentlibrary.ContentLibrary({'host': 'host',
@@ -97,11 +83,9 @@ class ContentLibraryTest(unittest.TestCase):
 
     def test_content_library_get(self):
         response_list = Mock()
-        response_list.cookies = {}
         response_list.json = Mock(return_value={"value": ['abc']})
 
         response_library = Mock()
-        response_library.cookies = {}
         response_library.json = Mock(return_value={"value": {'name': 'abc',
                                                              'id': 'id'}})
 
@@ -149,11 +133,9 @@ class ContentLibraryTest(unittest.TestCase):
 
     def test_content_item_get(self):
         response_list = Mock()
-        response_list.cookies = {}
         response_list.json = Mock(return_value={"value": ['abc']})
 
         response_item = Mock()
-        response_item.cookies = {}
         response_item.json = Mock(return_value={"value": {'name': 'def',
                                                 'id': 'id'}})
 
@@ -210,14 +192,12 @@ class ContentLibraryTest(unittest.TestCase):
 
     def test_content_item_deploy(self):
         response_deployment = Mock()
-        response_deployment.cookies = {}
         response_deployment.json = Mock(return_value={"value": {
             'name': 'def',
             'succeeded': True,
             'id': 'id'}})
 
         response_deployment_state = Mock()
-        response_deployment_state.cookies = {}
         response_deployment_state.json = Mock(return_value={"value": {
             'name': 'def',
             'id': 'id'}})
@@ -248,13 +228,11 @@ class ContentLibraryTest(unittest.TestCase):
     def test_content_item_deploy_fail(self):
         # failed deployment
         response_deployment_state = Mock()
-        response_deployment_state.cookies = {}
         response_deployment_state.json = Mock(return_value={"value": {
             'name': 'def',
             'id': 'id'}})
 
         response_failed_deployment = Mock()
-        response_failed_deployment.cookies = {}
         response_failed_deployment.json = Mock(return_value={"value": {
             'name': 'def',
             'succeeded': False,

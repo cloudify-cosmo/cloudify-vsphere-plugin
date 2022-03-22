@@ -878,7 +878,8 @@ def get_state(server_client,
                     # This should all be handled in the create server logic
                     # and use operation retries, but until that is implemented
                     # this will have to remain.
-                    return False
+                    raise OperationRetry(
+                        "Management IP addresses not yet assigned.")
             for net in nets:
                 if net['name'] == network_name:
                     net[IP] = get_ip_from_vsphere_nic_ips(network)
@@ -896,7 +897,7 @@ def get_state(server_client,
             # wait for any ip before next steps
             if wait_ip:
                 ctx.logger.info("Waiting ip export from guest.")
-                return False
+                raise OperationRetry("IP address not yet exported.")
 
         if len(server_obj.guest.net):
             public_ips = [
@@ -959,7 +960,7 @@ def get_state(server_client,
         return True
     # This should all be handled in the create server logic and use operation
     # retries, but until that is implemented this will have to remain.
-    return False
+    raise OperationRetry("Server not yet started.")
 
 
 @op
