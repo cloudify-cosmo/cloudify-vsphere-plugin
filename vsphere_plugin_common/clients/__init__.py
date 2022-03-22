@@ -105,7 +105,7 @@ class Config(object):
         config_path = self._find_config_file()
         try:
             with open(config_path) as f:
-                cfg = yaml.load(f.read())
+                cfg = yaml.safe_load(f.read())
         except IOError:
             logger().warn(
                 "Unable to read configuration file {config_path}.".format(
