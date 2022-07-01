@@ -1,4 +1,4 @@
-2.19.12: Rebuild.
+2.19.12: Rebuild.   
 2.19.11: Build Aarch now
 2.19.10: Fix deprecated cookie authentication for content library and fix get_state retries.
 2.19.9: Fix minor issues of compatibility with old blueprints and improved get_state logic to skip if no need to start the vm.
