@@ -357,6 +357,13 @@ class ServerClient(VsphereClient):
             guest_map.adapter.ip.ipAddress = network[IP]
             guest_map.adapter.gateway = network["gateway"]
             guest_map.adapter.subnetMask = text_type(nw.netmask)
+
+        # always add conntected and startConnected to nic spec
+        connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+        connectable.connected = True
+        connectable.startConnected = True
+        nicspec.device.connectable = connectable
+
         return nicspec, guest_map
 
     def _get_nic_keys_for_remove(self, server):
