@@ -444,8 +444,13 @@ node_types:
         create:
           implementation: vsphere.vsphere_network_plugin.ippool.create
           inputs: {}
+        poststart:
+          implementation: vsphere.vsphere_network_plugin.ippool.poststart
         delete:
           implementation: vsphere.vsphere_network_plugin.ippool.delete
+          inputs: {}
+        check_drift:
+          implementation: vsphere.vsphere_network_plugin.ippool.check_drift
           inputs: {}
 
   cloudify.vsphere.nodes.CloudInitISO:
@@ -657,8 +662,14 @@ node_types:
         create:
           implementation: vsphere.cloudify_vsphere.resource_pool.create
           inputs: {}
+        poststart:
+          implementation: vsphere.cloudify_vsphere.resource_pool.poststart
+          inputs: {}
         delete:
           implementation: vsphere.cloudify_vsphere.resource_pool.delete
+          inputs: {}
+        check_drift:
+          implementation: vsphere.cloudify_vsphere.resource_pool.check_drift
           inputs: {}
       cloudify.interfaces.operations:
         update:

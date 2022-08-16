@@ -181,42 +181,19 @@ def compare_configuration(expected_configuration, remote_configuration):
                     remote_configuration)
 
 
-def check_drift(client, logger):
-    ctx.logger.info("Client type: {}".format(dir(client)))
-    server_obj = client.get_server_by_id(
-            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
-    logger.info(
-        'Checking drift state for {resource_name}.'.format(
-            resource_name=server_obj.name))
-    ctx.instance.refresh()
+def check_drift(logger, expected_configuration, current_configuration):
 
-    expected_configuration = ctx.instance.runtime_properties.get(
-        'expected_configuration')
-    remote_configuration = {}
-    network = json.loads(json.dumps(server_obj.network,
-                                    cls=VmomiSupport.VmomiJSONEncoder,
-                                    sort_keys=True, indent=4))
-    summary = json.loads(json.dumps(server_obj.summary.config,
-                                    cls=VmomiSupport.VmomiJSONEncoder,
-                                    sort_keys=True, indent=4))
-    remote_configuration['network'] = network
-    remote_configuration['summary'] = summary
-    ctx.logger.info(remote_configuration)
+    ctx.logger.debug("Expected configuration: {}".format(
+        expected_configuration))
+    ctx.logger.debug("Current configuration: {}".format(
+        current_configuration))
     result = compare_configuration(expected_configuration,
-                                   remote_configuration)
+                                   current_configuration)
     if result:
         logger.error(
-            'The {resource_name} '
-            'configuration has drifts: {res}.'.format(
-                resource_name=server_obj.name,
+            'Configuration has drifts: {res}.'.format(
                 res=result))
-        logger.error('Expected configuration: {}'.format(
-            expected_configuration))
-        logger.error('Remote configuration: {}'.format(
-            remote_configuration))
         return result
     logger.info(
-        'The {resource_name} '
-        'configuration has not drifted.'.format(
-            resource_name=server_obj.name))
+        'Configuration has not drifted.')
     return

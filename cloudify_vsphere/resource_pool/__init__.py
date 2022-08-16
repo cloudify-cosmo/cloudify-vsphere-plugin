@@ -23,6 +23,8 @@ from cloudify.exceptions import NonRecoverableError
 # This package imports
 from vsphere_plugin_common.utils import op
 from vsphere_plugin_common.utils import find_rels_by_type
+from vsphere_plugin_common.utils import check_drift as utils_check_drift
+
 from vsphere_plugin_common import with_server_client
 from vsphere_plugin_common.constants import RESOURCE_POOL_ID
 
@@ -168,3 +170,66 @@ def update_resource_pool(ctx, server_client, name, pool_spec, **_):
 
     spec = _get_pool_spec(pool_spec, vmware_resource.obj.config)
     vmware_resource.obj.UpdateConfig(name, spec)
+
+
+@op
+@with_server_client
+def poststart(ctx, server_client, name, **_):
+    vmware_resource = server_client.get_resource_pool_by_name(name)
+    if not vmware_resource:
+        raise NonRecoverableError(
+            'Could not use existing resource_pool "{name}" as no '
+            'resource_pool by that name exists!'.format(
+                name=name,
+            )
+        )
+
+    expected_configuration = {}
+    expected_configuration['name'] = vmware_resource.name
+    expected_configuration['id'] = vmware_resource.id
+
+    # ctx.instance.runtime_properties[RESOURCE_POOL_ID] = vmware_resource.id
+
+    # ctx.logger.debug("Summary config: {}".format(server_obj.summary.config))
+    # ctx.logger.debug("Network vm: {}".format(server_obj.network))
+    # expected_configuration = {}
+    # network = json.loads(json.dumps(server_obj.network,
+    #                                 cls=VmomiSupport.VmomiJSONEncoder,
+    #                                 sort_keys=True, indent=4))
+    # summary = json.loads(json.dumps(server_obj.summary.config,
+    #                                 cls=VmomiSupport.VmomiJSONEncoder,
+    #                                 sort_keys=True, indent=4))
+    # expected_configuration['network'] = network
+    # expected_configuration['summary'] = summary
+
+    ctx.instance.runtime_properties[
+        'expected_configuration'] = expected_configuration
+    ctx.instance.update()
+
+
+@op
+@with_server_client
+def check_drift(ctx, server_client, name, **_):
+    ctx.logger.info(
+        'Checking drift state for {resource_name}.'.format(
+            resource_name=name))
+
+    vmware_resource = server_client.get_resource_pool_by_name(name)
+    if not vmware_resource:
+        raise NonRecoverableError(
+            'Could not use existing resource_pool "{name}" as no '
+            'resource_pool by that name exists!'.format(
+                name=name,
+            )
+        )
+
+    current_configuration = {}
+    current_configuration['name'] = vmware_resource.name
+    current_configuration['id'] = vmware_resource.id
+
+    expected_configuration = ctx.instance.runtime_properties.get(
+        'expected_configuration')
+
+    utils_check_drift(ctx.logger,
+                      expected_configuration,
+                      current_configuration)

@@ -41,7 +41,7 @@ from vsphere_plugin_common.constants import (
     VSPHERE_RESOURCE_EXISTING,
 )
 from vsphere_plugin_common._compat import text_type
-from vsphere_plugin_common import utils
+from vsphere_plugin_common.utils import check_drift as utils_check_drift
 
 RELATIONSHIP_VM_TO_NIC = \
     'cloudify.relationships.vsphere.server_connected_to_nic'
@@ -1057,6 +1057,25 @@ def poststart(server_client, server, os_family, **_):
 
 @op
 @with_server_client
-def check_drift(server_client, server, **_):
-    utils.check_drift(server_client,
-                      ctx.logger)
+def check_drift(server_client, **_):
+    server_obj = server_client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+    ctx.logger.info(
+        'Checking drift state for {resource_name}.'.format(
+            resource_name=server_obj.name))
+    ctx.instance.refresh()
+
+    expected_configuration = ctx.instance.runtime_properties.get(
+        'expected_configuration')
+    current_configuration = {}
+    network = json.loads(json.dumps(server_obj.network,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    summary = json.loads(json.dumps(server_obj.summary.config,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    current_configuration['network'] = network
+    current_configuration['summary'] = summary
+    utils_check_drift(ctx.logger,
+                      expected_configuration,
+                      current_configuration)
