@@ -14,11 +14,20 @@
 # limitations under the License.
 
 import logging
+import json
+
 from functools import wraps
 from inspect import getargspec
+from deepdiff import DeepDiff
+from pyVmomi import VmomiSupport
 
 from cloudify import ctx
 from cloudify.decorators import operation
+
+
+from vsphere_plugin_common.constants import (
+    VSPHERE_SERVER_ID,
+)
 
 try:
     from cloudify.constants import RELATIONSHIP_INSTANCE, NODE_INSTANCE
@@ -160,3 +169,54 @@ def prepare_for_log(inputs):
             value = '**********'
         result[key] = value
     return result
+
+
+def assign_expected_configuration(iface, runtime_props, prop=None):
+    # assign_parameter(iface, 'expected_configuration', runtime_props, prop)
+    pass
+
+
+def compare_configuration(expected_configuration, remote_configuration):
+    return DeepDiff(expected_configuration,
+                    remote_configuration)
+
+
+def check_drift(client, logger):
+    ctx.logger.info("Client type: {}".format(dir(client)))
+    server_obj = client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+    logger.info(
+        'Checking drift state for {resource_name}.'.format(
+            resource_name=server_obj.name))
+    ctx.instance.refresh()
+
+    expected_configuration = ctx.instance.runtime_properties.get(
+        'expected_configuration')
+    remote_configuration = {}
+    network = json.loads(json.dumps(server_obj.network,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    summary = json.loads(json.dumps(server_obj.summary.config,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    remote_configuration['network'] = network
+    remote_configuration['summary'] = summary
+    ctx.logger.info(remote_configuration)
+    result = compare_configuration(expected_configuration,
+                                   remote_configuration)
+    if result:
+        logger.error(
+            'The {resource_name} '
+            'configuration has drifts: {res}.'.format(
+                resource_name=server_obj.name,
+                res=result))
+        logger.error('Expected configuration: {}'.format(
+            expected_configuration))
+        logger.error('Remote configuration: {}'.format(
+            remote_configuration))
+        return result
+    logger.info(
+        'The {resource_name} '
+        'configuration has not drifted.'.format(
+            resource_name=server_obj.name))
+    return
