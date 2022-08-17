@@ -196,4 +196,4 @@ def check_drift(logger, expected_configuration, current_configuration):
         return result
     logger.info(
         'Configuration has not drifted.')
-    return
+    return result
