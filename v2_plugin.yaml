@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.19.14'
+    package_version: '2.19.15'
 
 data_types:
 
@@ -224,6 +224,9 @@ node_types:
         start:
           implementation: vsphere.vsphere_server_plugin.server.start
           inputs: *interfaces_power_inputs
+        poststart:
+          implementation: vsphere.vsphere_server_plugin.server.poststart
+          inputs: {}
         stop:
           implementation: vsphere.vsphere_server_plugin.server.stop
           inputs: *interfaces_power_inputs
@@ -233,6 +236,9 @@ node_types:
         delete:
           implementation: vsphere.vsphere_server_plugin.server.delete
           inputs: *interfaces_power_inputs
+        check_drift:
+          implementation: vsphere.vsphere_server_plugin.server.check_drift
+          inputs: {}
       # suspend/resume
       cloudify.interfaces.freeze:
         suspend:
@@ -438,8 +444,14 @@ node_types:
         create:
           implementation: vsphere.vsphere_network_plugin.ippool.create
           inputs: {}
+        poststart:
+          implementation: vsphere.vsphere_network_plugin.ippool.poststart
+          inputs: {}
         delete:
           implementation: vsphere.vsphere_network_plugin.ippool.delete
+          inputs: {}
+        check_drift:
+          implementation: vsphere.vsphere_network_plugin.ippool.check_drift
           inputs: {}
 
   cloudify.vsphere.nodes.CloudInitISO:
@@ -651,8 +663,14 @@ node_types:
         create:
           implementation: vsphere.cloudify_vsphere.resource_pool.create
           inputs: {}
+        poststart:
+          implementation: vsphere.cloudify_vsphere.resource_pool.poststart
+          inputs: {}
         delete:
           implementation: vsphere.cloudify_vsphere.resource_pool.delete
+          inputs: {}
+        check_drift:
+          implementation: vsphere.cloudify_vsphere.resource_pool.check_drift
           inputs: {}
       cloudify.interfaces.operations:
         update:

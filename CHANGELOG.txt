@@ -1,3 +1,4 @@
+2.19.15: Support check drift.
 2.19.14: DSL 1_4 and redhat 8 wagon.
 2.19.13: CYBL-1661 modify NIC connectable definition to enforce connected state.
 2.19.12: Rebuild.

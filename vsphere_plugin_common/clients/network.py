@@ -419,6 +419,18 @@ class NetworkClient(VsphereClient):
         self.si.content.ipPoolManager.DestroyIpPool(dc=dc.obj, id=ippool_id,
                                                     force=True)
 
+    def query_ippool(self, datacenter_name, ippool_id):
+        dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
+        if not dc:
+            raise NonRecoverableError(
+                "Unable to get datacenter: {datacenter}"
+                .format(datacenter=text_type(datacenter_name)))
+        ippools = self.si.content.ipPoolManager.QueryIpPools(dc=dc.obj)
+        for ippool in ippools:
+            if ippool.id == ippool_id:
+                return ippool
+        return None
+
 
 class ControllerClient(VsphereClient):
 

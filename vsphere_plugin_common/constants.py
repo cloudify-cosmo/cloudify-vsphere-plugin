@@ -109,3 +109,10 @@ DELETE_NODE_ACTION = "cloudify.interfaces.lifecycle.delete"
 ASYNC_TASK_ID = '_task_id'
 # field name for save resulted resource id
 ASYNC_RESOURCE_ID = '_resource_id'
+
+SUPPORT_DRIFT = [
+    'cloudify.vsphere.nodes.Server',
+    'cloudify.vsphere.nodes.WindowsServer',
+    'cloudify.vsphere.nodes.IPPool',
+    'cloudify.vsphere.nodes.ResourcePool'
+]
