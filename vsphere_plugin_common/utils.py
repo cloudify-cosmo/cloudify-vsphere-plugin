@@ -14,20 +14,13 @@
 # limitations under the License.
 
 import logging
-import json
 
 from functools import wraps
 from inspect import getargspec
 from deepdiff import DeepDiff
-from pyVmomi import VmomiSupport
 
 from cloudify import ctx
 from cloudify.decorators import operation
-
-
-from vsphere_plugin_common.constants import (
-    VSPHERE_SERVER_ID,
-)
 
 try:
     from cloudify.constants import RELATIONSHIP_INSTANCE, NODE_INSTANCE
