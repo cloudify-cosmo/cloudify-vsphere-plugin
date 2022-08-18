@@ -15,6 +15,8 @@
 import re
 
 # Third party imports
+import json
+from pyVmomi import VmomiSupport
 
 # Cloudify imports
 import time
@@ -39,6 +41,7 @@ from vsphere_plugin_common.constants import (
     VSPHERE_RESOURCE_EXISTING,
 )
 from vsphere_plugin_common._compat import text_type
+from vsphere_plugin_common.utils import check_drift as utils_check_drift
 
 RELATIONSHIP_VM_TO_NIC = \
     'cloudify.relationships.vsphere.server_connected_to_nic'
@@ -1029,3 +1032,50 @@ def resize(server_client, server, os_family, **_):
     else:
         raise NonRecoverableError(
             "Server resize parameters should be specified.")
+
+
+@op
+@with_server_client
+def poststart(server_client, server, os_family, **_):
+    server_obj = get_server_by_context(server_client, server, os_family)
+    ctx.logger.debug("Summary config: {}".format(server_obj.summary.config))
+    ctx.logger.debug("Network vm: {}".format(server_obj.network))
+    expected_configuration = {}
+    network = json.loads(json.dumps(server_obj.network,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    summary = json.loads(json.dumps(server_obj.summary.config,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    expected_configuration['network'] = network
+    expected_configuration['summary'] = summary
+
+    ctx.instance.runtime_properties[
+        'expected_configuration'] = expected_configuration
+    ctx.instance.update()
+
+
+@op
+@with_server_client
+def check_drift(server_client, **_):
+    server_obj = server_client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+    ctx.logger.info(
+        'Checking drift state for {resource_name}.'.format(
+            resource_name=server_obj.name))
+    ctx.instance.refresh()
+
+    expected_configuration = ctx.instance.runtime_properties.get(
+        'expected_configuration')
+    current_configuration = {}
+    network = json.loads(json.dumps(server_obj.network,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    summary = json.loads(json.dumps(server_obj.summary.config,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    current_configuration['network'] = network
+    current_configuration['summary'] = summary
+    utils_check_drift(ctx.logger,
+                      expected_configuration,
+                      current_configuration)

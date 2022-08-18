@@ -14,11 +14,20 @@
 # limitations under the License.
 
 import logging
+import json
+
 from functools import wraps
 from inspect import getargspec
+from deepdiff import DeepDiff
+from pyVmomi import VmomiSupport
 
 from cloudify import ctx
 from cloudify.decorators import operation
+
+
+from vsphere_plugin_common.constants import (
+    VSPHERE_SERVER_ID,
+)
 
 try:
     from cloudify.constants import RELATIONSHIP_INSTANCE, NODE_INSTANCE
@@ -159,4 +168,32 @@ def prepare_for_log(inputs):
         if 'password' in key:
             value = '**********'
         result[key] = value
+    return result
+
+
+def assign_expected_configuration(iface, runtime_props, prop=None):
+    # assign_parameter(iface, 'expected_configuration', runtime_props, prop)
+    pass
+
+
+def compare_configuration(expected_configuration, remote_configuration):
+    return DeepDiff(expected_configuration,
+                    remote_configuration)
+
+
+def check_drift(logger, expected_configuration, current_configuration):
+
+    ctx.logger.debug("Expected configuration: {}".format(
+        expected_configuration))
+    ctx.logger.debug("Current configuration: {}".format(
+        current_configuration))
+    result = compare_configuration(expected_configuration,
+                                   current_configuration)
+    if result:
+        logger.error(
+            'Configuration has drifts: {res}.'.format(
+                res=result))
+        return result
+    logger.info(
+        'Configuration has not drifted.')
     return result
