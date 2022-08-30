@@ -15,6 +15,7 @@
 import unittest
 
 from mock import Mock, patch
+from pyVmomi import vim
 
 from cloudify.state import current_ctx
 from cloudify.mocks import MockCloudifyContext
@@ -29,20 +30,51 @@ class ContentDeploymentTest(unittest.TestCase):
         super(ContentDeploymentTest, self).setUp()
         self.mock_ctx = MockCloudifyContext(
             'node_name',
-            properties={},
+            properties={
+                "connection_config": {
+                    "username": "vcenter_user",
+                    "password": "vcenter_password",
+                    "host": "vcenter_ip",
+                    "port": 443,
+                    "datacenter_name": "vcenter_datacenter",
+                    "resource_pool_name": "vcenter_resource_pool",
+                    "auto_placement": "vsphere_auto_placement",
+                    "allow_insecure": True
+                }
+            },
             runtime_properties={}
         )
+        self.mock_ctx._execution_id = "execution_id"
         self.mock_ctx._operation = Mock()
         self.mock_ctx._capabilities = Mock()
         current_ctx.set(self.mock_ctx)
 
-    def test_delete(self):
-        self.mock_ctx._operation.name = DELETE_NODE_ACTION
-        runtime_properties = self.mock_ctx.instance.runtime_properties
+    @patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
+    @patch('vsphere_plugin_common.clients.Disconnect', Mock())
+    def test_delete(self, smart_m):
+        conn_mock = Mock()
+        smart_m.return_value = conn_mock
+        ctx = self.mock_ctx
+        ctx._operation.name = DELETE_NODE_ACTION
+
+        runtime_properties = ctx.instance.runtime_properties
         runtime_properties[deployment.CONTENT_ITEM_ID] = 'item'
         runtime_properties[deployment.CONTENT_LIBRARY_ID] = 'library'
         runtime_properties[deployment.VSPHERE_SERVER_ID] = 'server'
-        deployment.delete(ctx=self.mock_ctx)
+        runtime_properties[deployment.CONTENT_LIBRARY_VM_NAME] = 'name'
+
+        vm = Mock()
+        task = Mock()
+        task.info.state = vim.TaskInfo.State.success
+        vm.obj.snapshot = None  # no snapshots
+        vm.obj.Destroy = Mock(return_value=task)
+        with patch(
+            "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
+            Mock(return_value=vm)
+        ):
+            deployment.delete(server_client=None,
+                              ctx=ctx,
+                              max_wait_time=300)
         self.assertFalse(self.mock_ctx.instance.runtime_properties)
 
     def test_create(self):
