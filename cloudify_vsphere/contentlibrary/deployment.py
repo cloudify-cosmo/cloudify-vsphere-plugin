@@ -88,7 +88,8 @@ def create(ctx, connection_config, library_name, template_name, target,
 @with_server_client
 def delete(server_client, ctx, max_wait_time=300):
     runtime_properties = ctx.instance.runtime_properties
-    vm_name = runtime_properties['vm_name']
+    vm_name = runtime_properties[CONTENT_LIBRARY_VM_NAME]
+
     vm_id = runtime_properties[VSPHERE_SERVER_ID]
     server_obj = server_client.get_server_by_id(vm_id)
     ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
