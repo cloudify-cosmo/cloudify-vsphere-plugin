@@ -446,6 +446,7 @@ node_types:
           inputs: {}
         poststart:
           implementation: vsphere.vsphere_network_plugin.ippool.poststart
+          inputs: {}
         delete:
           implementation: vsphere.vsphere_network_plugin.ippool.delete
           inputs: {}

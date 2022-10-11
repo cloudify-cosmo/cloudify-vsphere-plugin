@@ -992,3 +992,13 @@ relationships:
 
   cloudify.relationships.vsphere.resource_pool_contained_in:
     derived_from: cloudify.relationships.contained_in
+
+blueprint_labels:
+  obj-type:
+    values:
+      - vsphere
+
+labels:
+  obj-type:
+    values:
+      - vsphere

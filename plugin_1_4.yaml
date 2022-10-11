@@ -446,6 +446,7 @@ node_types:
           inputs: {}
         poststart:
           implementation: vsphere.vsphere_network_plugin.ippool.poststart
+          inputs: {}
         delete:
           implementation: vsphere.vsphere_network_plugin.ippool.delete
           inputs: {}
@@ -991,3 +992,13 @@ relationships:
 
   cloudify.relationships.vsphere.resource_pool_contained_in:
     derived_from: cloudify.relationships.contained_in
+
+blueprint_labels:
+  obj-type:
+    values:
+      - vsphere
+
+labels:
+  obj-type:
+    values:
+      - vsphere
