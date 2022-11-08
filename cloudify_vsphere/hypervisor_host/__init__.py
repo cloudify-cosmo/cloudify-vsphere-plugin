@@ -43,7 +43,7 @@ def create(ctx, server_client, name, use_external_resource):
             )
     else:
         raise NonRecoverableError(
-            'Datastores cannot currently be created by this plugin.'
+            'Hypervisor hosts cannot currently be created by this plugin.'
         )
 
     ctx.instance.runtime_properties[HYPERVISOR_HOST_ID] = \

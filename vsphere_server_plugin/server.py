@@ -38,7 +38,6 @@ from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_DATASTORE,
     VSPHERE_SERVER_CONNECTED_NICS,
     VSPHERE_RESOURCE_EXTERNAL,
-    VSPHERE_RESOURCE_EXISTING,
 )
 from vsphere_plugin_common._compat import text_type
 from vsphere_plugin_common.utils import check_drift as utils_check_drift
@@ -385,7 +384,6 @@ def create(server_client,
         if not server_obj:
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(server.get('name')))
-        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
     elif "template" not in server:
         raise NonRecoverableError('No template provided.')
@@ -464,7 +462,6 @@ def start(server_client,
         if not server_obj:
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(server.get('name')))
-        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
     elif "template" not in server:
         raise NonRecoverableError('No template provided.')
