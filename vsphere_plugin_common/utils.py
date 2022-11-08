@@ -14,8 +14,10 @@
 # limitations under the License.
 
 import logging
+
 from functools import wraps
 from inspect import getargspec
+from deepdiff import DeepDiff
 
 from cloudify import ctx
 from cloudify.decorators import operation
@@ -81,7 +83,7 @@ def op(func):
         ctx_instance = _get_instance(ctx)
 
         for key in requested_inputs:
-            if key in ctx_instance.runtime_properties:
+            if key in ctx_instance.runtime_properties.keys():
                 processed_kwargs[key] = \
                     ctx_instance.runtime_properties.get(key)
             if key in kwargs:
@@ -159,4 +161,32 @@ def prepare_for_log(inputs):
         if 'password' in key:
             value = '**********'
         result[key] = value
+    return result
+
+
+def assign_expected_configuration(iface, runtime_props, prop=None):
+    # assign_parameter(iface, 'expected_configuration', runtime_props, prop)
+    pass
+
+
+def compare_configuration(expected_configuration, remote_configuration):
+    return DeepDiff(expected_configuration,
+                    remote_configuration)
+
+
+def check_drift(logger, expected_configuration, current_configuration):
+
+    ctx.logger.debug("Expected configuration: {}".format(
+        expected_configuration))
+    ctx.logger.debug("Current configuration: {}".format(
+        current_configuration))
+    result = compare_configuration(expected_configuration,
+                                   current_configuration)
+    if result:
+        logger.error(
+            'Configuration has drifts: {res}.'.format(
+                res=result))
+        return result
+    logger.info(
+        'Configuration has not drifted.')
     return result

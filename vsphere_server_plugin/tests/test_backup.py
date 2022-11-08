@@ -462,13 +462,14 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
-            self.assertFalse(
+            with self.assertRaisesRegexp(
+                    OperationRetry, "Server not yet started."):
                 server.get_state(ctx=ctx,
                                  server_client=None,
                                  server={"name": "server_name"},
                                  os_family="solaris",
                                  wait_ip=True,
-                                 networking={}))
+                                 networking={})
 
     @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
     @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())
@@ -505,13 +506,14 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
-            self.assertFalse(
+            with self.assertRaisesRegexp(
+                    OperationRetry, "IP address not yet exported."):
                 server.get_state(ctx=ctx,
                                  server_client=None,
                                  server={"name": "server_name"},
                                  os_family="solaris",
                                  wait_ip=True,
-                                 networking={}))
+                                 networking={})
 
         # we have some ip
         vm = mock.Mock()
@@ -598,7 +600,9 @@ class BackupServerTest(unittest.TestCase):
             "vsphere_plugin_common.clients.VsphereClient._get_obj_by_id",
             mock.Mock(return_value=vm)
         ):
-            self.assertFalse(
+            with self.assertRaisesRegexp(
+                    OperationRetry,
+                    "Management IP addresses not yet assigned."):
                 server.get_state(
                     ctx=ctx,
                     server_client=None,
@@ -612,7 +616,7 @@ class BackupServerTest(unittest.TestCase):
                                 'management': True
                             }
                         ]
-                    }))
+                    })
 
     @mock.patch("vsphere_plugin_common.clients.SmartConnectNoSSL")
     @mock.patch('vsphere_plugin_common.clients.Disconnect', mock.Mock())

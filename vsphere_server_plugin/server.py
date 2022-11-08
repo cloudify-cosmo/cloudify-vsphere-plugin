@@ -15,6 +15,8 @@
 import re
 
 # Third party imports
+import json
+from pyVmomi import VmomiSupport
 
 # Cloudify imports
 import time
@@ -36,9 +38,9 @@ from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_DATASTORE,
     VSPHERE_SERVER_CONNECTED_NICS,
     VSPHERE_RESOURCE_EXTERNAL,
-    VSPHERE_RESOURCE_EXISTING,
 )
 from vsphere_plugin_common._compat import text_type
+from vsphere_plugin_common.utils import check_drift as utils_check_drift
 
 RELATIONSHIP_VM_TO_NIC = \
     'cloudify.relationships.vsphere.server_connected_to_nic'
@@ -368,13 +370,20 @@ def create(server_client,
         ctx.logger.debug('Create operation ignores enable_start_vm property.')
         enable_start_vm = False
 
+    default_props = False
+    if server:
+        default_props = len(server.keys()) == 1 \
+            and 'add_scale_suffix' in server
+    if (not server or default_props) and not networking:
+        ctx.logger.debug('Create ignored because of empty properties')
+        return
+
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))
         if not server_obj:
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(server.get('name')))
-        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
     elif "template" not in server:
         raise NonRecoverableError('No template provided.')
@@ -497,7 +506,6 @@ def start(server_client,
         if not server_obj:
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(server.get('name')))
-        ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXISTING] = True
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
     elif "template" not in server:
         raise NonRecoverableError('No template provided.')
@@ -915,7 +923,8 @@ def get_state(server_client,
                     # This should all be handled in the create server logic
                     # and use operation retries, but until that is implemented
                     # this will have to remain.
-                    return False
+                    raise OperationRetry(
+                        "Management IP addresses not yet assigned.")
             for net in nets:
                 if net['name'] == network_name:
                     net[IP] = get_ip_from_vsphere_nic_ips(network)
@@ -933,7 +942,7 @@ def get_state(server_client,
             # wait for any ip before next steps
             if wait_ip:
                 ctx.logger.info("Waiting ip export from guest.")
-                return False
+                raise OperationRetry("IP address not yet exported.")
 
         if len(server_obj.guest.net):
             public_ips = [
@@ -990,9 +999,13 @@ def get_state(server_client,
         return True
     ctx.logger.info('Server {server} is not started yet'.format(
         server=server_obj.name))
+    # check if enable_start_vm is set to false ,
+    # no need for retrying hence return true
+    if not ctx.node.properties.get('enable_start_vm', True):
+        return True
     # This should all be handled in the create server logic and use operation
     # retries, but until that is implemented this will have to remain.
-    return False
+    raise OperationRetry("Server not yet started.")
 
 
 @op
@@ -1061,3 +1074,50 @@ def resize(server_client, server, os_family, **_):
     else:
         raise NonRecoverableError(
             "Server resize parameters should be specified.")
+
+
+@op
+@with_server_client
+def poststart(server_client, server, os_family, **_):
+    server_obj = get_server_by_context(server_client, server, os_family)
+    ctx.logger.debug("Summary config: {}".format(server_obj.summary.config))
+    ctx.logger.debug("Network vm: {}".format(server_obj.network))
+    expected_configuration = {}
+    network = json.loads(json.dumps(server_obj.network,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    summary = json.loads(json.dumps(server_obj.summary.config,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    expected_configuration['network'] = network
+    expected_configuration['summary'] = summary
+
+    ctx.instance.runtime_properties[
+        'expected_configuration'] = expected_configuration
+    ctx.instance.update()
+
+
+@op
+@with_server_client
+def check_drift(server_client, **_):
+    server_obj = server_client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+    ctx.logger.info(
+        'Checking drift state for {resource_name}.'.format(
+            resource_name=server_obj.name))
+    ctx.instance.refresh()
+
+    expected_configuration = ctx.instance.runtime_properties.get(
+        'expected_configuration')
+    current_configuration = {}
+    network = json.loads(json.dumps(server_obj.network,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    summary = json.loads(json.dumps(server_obj.summary.config,
+                                    cls=VmomiSupport.VmomiJSONEncoder,
+                                    sort_keys=True, indent=4))
+    current_configuration['network'] = network
+    current_configuration['summary'] = summary
+    utils_check_drift(ctx.logger,
+                      expected_configuration,
+                      current_configuration)

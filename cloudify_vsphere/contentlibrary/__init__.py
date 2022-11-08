@@ -19,6 +19,8 @@ import requests
 from cloudify import ctx
 from cloudify.exceptions import NonRecoverableError
 
+from base64 import b64encode
+
 
 class ContentLibrary(object):
 
@@ -26,29 +28,28 @@ class ContentLibrary(object):
         self.config = connection_config
         # we need set it empty for correct delete
         self.session_id = None
-        value = self._call(
+        # use header based authentication
+        credentials = b64encode(
+            '{0}:{1}'.format(
+                self.config['username'],
+                self.config['password']).encode('utf-8')).decode('ascii')
+        self._call(
             "POST",
             "https://{host}/rest/com/vmware/cis/session".format(
                 host=self.config['host']),
-            auth=(self.config['username'],
-                  self.config['password']),
+            headers={'vmware-use-header-authn': 'true',
+                     'Authorization': 'Basic {0}'.format(credentials)},
             verify=not self.config.get('allow_insecure', False))
-        # _call has side effect, _call always update self.session_id from
-        # last succesful call
-        if self.session_id != value or not self.session_id:
-            raise NonRecoverableError(
-                "Cookies should be same: {response} != {session_id}".format(
-                    response=value, session_id=self.session_id))
 
     def _call(self, *argc, **kwargs):
         response = requests.request(*argc, **kwargs)
         response.raise_for_status()
-        if 'vmware-api-session-id' in response.cookies:
-            self.session_id = response.cookies['vmware-api-session-id']
         value = response.json()
         ctx.logger.debug("Response is {value}".format(value=value))
         if "value" not in value:
             raise NonRecoverableError("No results provided.")
+        if argc[0].lower() == 'post' and 'com/vmware/cis/session' in argc[1]:
+            self.session_id = value["value"]
         return value["value"]
 
     def __del__(self):
@@ -58,7 +59,7 @@ class ContentLibrary(object):
                     "DELETE",
                     "https://{host}/rest/com/vmware/cis/session".format(
                         host=self.config['host']),
-                    cookies={'vmware-api-session-id': self.session_id},
+                    headers={'vmware-api-session-id': self.session_id},
                     verify=not self.config.get('allow_insecure', False))
             except Exception as ex:
                 ctx.logger.debug(
@@ -74,7 +75,7 @@ class ContentLibrary(object):
             "POST", url,
             json={"spec": {
                 "name": library_name}},
-            cookies={'vmware-api-session-id': self.session_id},
+            headers={'vmware-api-session-id': self.session_id},
             verify=not self.config.get('allow_insecure', False))
 
         # search our library
@@ -85,7 +86,7 @@ class ContentLibrary(object):
             library = self._call(
                 "GET",
                 url,
-                cookies={'vmware-api-session-id': self.session_id},
+                headers={'vmware-api-session-id': self.session_id},
                 verify=not self.config.get('allow_insecure', False))
             if library.get('name') == library_name:
                 return library
@@ -106,7 +107,7 @@ class ContentLibrary(object):
                     "name": template_name
                 }
             },
-            cookies={'vmware-api-session-id': self.session_id},
+            headers={'vmware-api-session-id': self.session_id},
             verify=not self.config.get('allow_insecure', False))
 
         # search our template
@@ -117,7 +118,7 @@ class ContentLibrary(object):
             template = self._call(
                 "GET",
                 url,
-                cookies={'vmware-api-session-id': self.session_id},
+                headers={'vmware-api-session-id': self.session_id},
                 verify=not self.config.get('allow_insecure', False))
             if template.get('name') == template_name:
                 return template
@@ -146,7 +147,7 @@ class ContentLibrary(object):
         self._call(
             "POST",
             url + "filter",
-            cookies={'vmware-api-session-id': self.session_id},
+            headers={'vmware-api-session-id': self.session_id},
             json={"target": target},
             verify=not self.config.get('allow_insecure', False))
 
@@ -159,7 +160,7 @@ class ContentLibrary(object):
         deployment = self._call(
             "POST",
             url + "deploy",
-            cookies={'vmware-api-session-id': self.session_id},
+            headers={'vmware-api-session-id': self.session_id},
             json={
                 "deployment_spec": deployment_spec,
                 "target": target

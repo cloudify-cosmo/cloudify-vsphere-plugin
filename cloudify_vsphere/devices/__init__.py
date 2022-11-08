@@ -61,6 +61,9 @@ def add_connected_network(node_instance, nic_properties=None):
         ctx.logger.error('The target network does not have an ID.')
         return
     nic_configuration = nic_properties.get('network_configuration')
+    mac_address = nic_properties.get('mac_address')
+    if mac_address:
+        connected_network['mac_address'] = mac_address
     if nic_configuration:
         connected_network.update(nic_configuration)
     node_instance.runtime_properties['connected_network'] = connected_network

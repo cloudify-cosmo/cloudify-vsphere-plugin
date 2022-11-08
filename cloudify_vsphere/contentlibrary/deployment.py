@@ -21,6 +21,8 @@
 # This package imports
 from . import ContentLibrary
 
+# This package imports
+from vsphere_plugin_common import with_server_client
 from vsphere_plugin_common.utils import op
 from vsphere_plugin_common import (
     remove_runtime_properties,
@@ -83,5 +85,14 @@ def create(ctx, connection_config, library_name, template_name, target,
 
 
 @op
-def delete(**_):
+@with_server_client
+def delete(server_client, ctx, max_wait_time=300):
+    runtime_properties = ctx.instance.runtime_properties
+    vm_name = runtime_properties[CONTENT_LIBRARY_VM_NAME]
+
+    vm_id = runtime_properties[VSPHERE_SERVER_ID]
+    server_obj = server_client.get_server_by_id(vm_id)
+    ctx.logger.info('Preparing to delete server {name}'.format(name=vm_name))
+    server_client.delete_server(server_obj, max_wait_time=max_wait_time)
+    ctx.logger.info('Successfully deleted server {name}'.format(name=vm_name))
     remove_runtime_properties()

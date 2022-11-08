@@ -1,3 +1,13 @@
+2.19.17: Delete use_existing_resource. Change use_external_resource default from using intrinsic functions to boolean.
+2.19.16: CYBL-1800 Improve vsphere.cloudify_vsphere.contentlibrary.deployment.delete to delete the VM from the infrastructure
+2.19.15: Support check drift.
+2.19.14: DSL 1_4 and redhat 8 wagon.
+2.19.13: CYBL-1661 modify NIC connectable definition to enforce connected state.
+2.19.12: Rebuild.
+2.19.11: Build Aarch now
+2.19.10: Fix deprecated cookie authentication for content library and fix get_state retries.
+2.19.9: Fix minor issues of compatibility with old blueprints and improved get_state logic to skip if no need to start the vm.
+2.19.8: Rerelease with Aarch64 Wagon.
 2.19.7: RD-3253 vsphere plugin does no fetch IP address for os_family "other"
 2.19.6: RD-3158-VM-Resize, Add a "not hot add" functionality to the resize_server operation .
 2.19.5: RD-3096-Vsphere-VM-Resize.

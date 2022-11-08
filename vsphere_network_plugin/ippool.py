@@ -13,13 +13,17 @@
 # limitations under the License.
 
 # Cloudify imports
+from cloudify.exceptions import NonRecoverableError
 
 # This package imports
+import json
+from pyVmomi import VmomiSupport
 from vsphere_plugin_common import with_network_client
 from vsphere_plugin_common.constants import IPPOOL_ID
 from vsphere_plugin_common.utils import (
     op,
     find_instances_by_type_from_rels)
+from vsphere_plugin_common.utils import check_drift as utils_check_drift
 
 
 @op
@@ -45,3 +49,36 @@ def delete(ctx, network_client, datacenter_name, **_):
         return
     network_client.delete_ippool(
         datacenter_name, ctx.instance.runtime_properties[IPPOOL_ID])
+
+
+@op
+@with_network_client
+def poststart(ctx, network_client, datacenter_name, **_):
+    ippool_id = ctx.instance.runtime_properties.get(IPPOOL_ID)
+    if not ippool_id:
+        raise NonRecoverableError(
+            "There is no ippool id.")
+    pool = network_client.query_ippool(datacenter_name, ippool_id)
+    config = json.loads(json.dumps(pool,
+                                   cls=VmomiSupport.VmomiJSONEncoder,
+                                   sort_keys=True, indent=4))
+    ctx.instance.runtime_properties["expected_configuration"] = config
+
+
+@op
+@with_network_client
+def check_drift(ctx, network_client, datacenter_name, **_):
+    ippool_id = ctx.instance.runtime_properties.get(IPPOOL_ID)
+    if not ippool_id:
+        raise NonRecoverableError(
+            "There is no ippool id.")
+    pool = network_client.query_ippool(datacenter_name, ippool_id)
+    current_configuration = json.loads(json.dumps(pool,
+                                       cls=VmomiSupport.VmomiJSONEncoder,
+                                       sort_keys=True, indent=4))
+    expected_configuration = ctx.instance.runtime_properties[
+        "expected_configuration"]
+
+    utils_check_drift(ctx.logger,
+                      expected_configuration,
+                      current_configuration)
