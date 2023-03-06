@@ -604,7 +604,8 @@ class ServerClient(VsphereClient):
         if not vm_folder:
             destfolder = datacenter.vmFolder
         else:
-            folder = self._get_obj_by_name(vim.Folder, vm_folder)
+            folder = self._get_obj_by_name(vim.Folder, vm_folder,
+                                           datacenter_name=datacenter_name)
             if not folder:
                 raise NonRecoverableError(
                     'Could not use vm_folder "{name}" as no '

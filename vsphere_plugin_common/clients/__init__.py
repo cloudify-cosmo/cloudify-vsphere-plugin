@@ -571,7 +571,8 @@ class VsphereClient(object):
 
     def _get_vm_folders(self, use_cache=True):
         properties = [
-            'name'
+            'name',
+            'parent'
         ]
 
         return self._get_entity(
@@ -1039,12 +1040,34 @@ class VsphereClient(object):
 
         return data
 
-    def _get_obj_by_name(self, vimtype, name, use_cache=True):
+    def _get_entity_datacenter(self, obj):
+        if isinstance(obj, vim.Datacenter):
+            return obj
+        datacenter = None
+        while True:
+            if not hasattr(obj, 'parent'):
+                break
+            obj = obj.parent
+            if isinstance(obj, vim.Datacenter):
+                datacenter = obj
+                break
+        return datacenter
+
+    def _get_obj_by_name(self, vimtype, name, use_cache=True,
+                         datacenter_name=None):
+
         entities = self._get_getter_method(vimtype)(use_cache)
         name = self._get_normalised_name(name)
         for entity in entities:
             if name == entity.name.lower():
-                return entity
+                # check if we are looking inside specific datacenter
+                if datacenter_name:
+                    # get the entity datacenter via parent property
+                    entity_dc = self._get_entity_datacenter(entity)
+                    if entity_dc and entity_dc.name == datacenter_name:
+                        return entity
+                else:
+                    return entity
 
     def _get_obj_by_id(self, vimtype, id, use_cache=True):
         entities = self._get_getter_method(vimtype)(use_cache)
