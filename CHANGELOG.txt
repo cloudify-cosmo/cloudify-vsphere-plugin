@@ -1,3 +1,4 @@
+2.19.19: CYBL-2038 pass the correct argument to storage resize.
 2.19.18: Check vm_folder against its data_center when specified.
 2.19.17: Delete use_existing_resource. Change use_external_resource default from using intrinsic functions to boolean.
 2.19.16: CYBL-1800 Improve vsphere.cloudify_vsphere.contentlibrary.deployment.delete to delete the VM from the infrastructure
