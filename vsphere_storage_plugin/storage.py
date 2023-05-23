@@ -141,6 +141,7 @@ def create(storage_client,
                 scsi=scsi_id,
             )
         )
+        ctx.instance.runtime_properties[VSPHERE_STORAGE_SIZE] = storage_size
         ctx.instance.runtime_properties[VSPHERE_STORAGE_SCSI_ID] = scsi_id
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = \
             storage_file_name
@@ -179,7 +180,8 @@ def delete(storage_client, max_wait_time=300, **_):
 
 @op
 @with_storage_client
-def resize(storage_client, max_wait_time=300, **_):
+def resize(storage_client, max_wait_time=300, storage=None, **_):
+    storage = storage or {}
     vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
     vm_name = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_NAME)
     if not vm_name or not vm_id:
@@ -188,7 +190,8 @@ def resize(storage_client, max_wait_time=300, **_):
         return
     storage_file_name = \
         ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME]
-    storage_size = ctx.instance.runtime_properties.get('storage_size')
+    # get the new storage value from inputs
+    storage_size = storage.get('storage_size')
     if not storage_size:
         raise NonRecoverableError(
             RESIZE_ERROR.format(reason='missing storage size.'))
@@ -200,6 +203,8 @@ def resize(storage_client, max_wait_time=300, **_):
         storage_file_name,
         storage_size,
         max_wait_time=max_wait_time)
+    # update the storage_size inside the runtime properties
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_SIZE] = storage_size
     ctx.logger.info(
         "Successfully resized storage {file} on {vm} to {new_size}".format(
             file=storage_file_name, vm=vm_name, new_size=storage_size))
