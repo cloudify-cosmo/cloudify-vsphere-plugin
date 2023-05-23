@@ -180,7 +180,8 @@ def delete(storage_client, max_wait_time=300, **_):
 
 @op
 @with_storage_client
-def resize(storage_client, max_wait_time=300, storage={}, **_):
+def resize(storage_client, max_wait_time=300, storage=None, **_):
+    storage = storage or {}
     vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
     vm_name = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_NAME)
     if not vm_name or not vm_id:
