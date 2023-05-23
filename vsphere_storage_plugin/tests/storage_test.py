@@ -87,7 +87,8 @@ class VsphereStorageTest(unittest.TestCase):
             }, use_external_resource=False)
 
         self.assertEqual(self.mock_ctx.instance.runtime_properties,
-                         {'scsi_id': 'something',
+                         {'storage_size': 7,
+                          'scsi_id': 'something',
                           'datastore_file_name': 'file name',
                           'attached_vm_id': 'i',
                           'attached_vm_name': 'Julie'})
@@ -246,7 +247,8 @@ class VsphereStorageTest(unittest.TestCase):
         runtime_properties['attached_vm_id'] = 'i'
         runtime_properties['attached_vm_name'] = 'Julie'
         runtime_properties['use_external_resource'] = True
-        storage.resize()
+        storage_arg = {'storage_size': 7}
+        storage.resize(storage=storage_arg)
         self.assertEqual(self.mock_ctx.instance.runtime_properties, {
             'datastore_file_name': 'file name',
             'storage_size': 7,
@@ -263,7 +265,8 @@ class VsphereStorageTest(unittest.TestCase):
         runtime_properties['datastore_file_name'] = 'file name'
         runtime_properties['attached_vm_id'] = 'i'
         runtime_properties['attached_vm_name'] = 'Julie'
-        storage.resize()
+        storage_arg = {'storage_size': 7}
+        storage.resize(storage=storage_arg)
         self.assertEqual(self.mock_ctx.instance.runtime_properties, {
             'datastore_file_name': 'file name',
             'storage_size': 7,
@@ -280,7 +283,8 @@ class VsphereStorageTest(unittest.TestCase):
         runtime_properties['attached_vm_name'] = 'Julie'
         runtime_properties['storage_size'] = 0
         with self.assertRaises(NonRecoverableError):
-            storage.resize()
+            storage_arg = {'storage_size': 0}
+            storage.resize(storage=storage_arg)
 
 
 if __name__ == '__main__':
