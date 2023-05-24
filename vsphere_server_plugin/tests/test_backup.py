@@ -51,6 +51,7 @@ class BackupServerTest(unittest.TestCase):
         _ctx._execution_id = "execution_id"
         _ctx.instance.host_ip = None
         _ctx._operation = mock.Mock()
+        _ctx.operation.retry_number = 0
 
         current_ctx.set(_ctx)
         return _ctx

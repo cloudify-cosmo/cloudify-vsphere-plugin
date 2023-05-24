@@ -631,6 +631,7 @@ def snapshot_create(server_client,
                     snapshot_incremental,
                     snapshot_type,
                     max_wait_time=300,
+                    with_memory=False,
                     **_):
     if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
@@ -657,7 +658,9 @@ def snapshot_create(server_client,
         server_obj,
         snapshot_name,
         snapshot_type,
-        max_wait_time=max_wait_time)
+        max_wait_time=max_wait_time,
+        with_memory=with_memory,
+        retry=ctx.operation.retry_number > 0)
     ctx.logger.info('Successfully backuped server {name}'
                     .format(name=vm_name))
 
