@@ -46,6 +46,7 @@ setup(
         'cloudify_vsphere.hypervisor_host',
         'cloudify_vsphere.resource_pool',
         'cloudify_vsphere.vm_folder',
+        'cloudify_vsphere.ovf',
     ],
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
