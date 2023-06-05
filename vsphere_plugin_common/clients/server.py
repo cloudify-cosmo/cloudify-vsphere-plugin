@@ -32,6 +32,7 @@ from ..constants import (
     TASK_CHECK_SLEEP,
     VSPHERE_SERVER_ID,
     ASYNC_RESOURCE_ID,
+    VSPHERE_SNAPSHOT_ID,
     VSPHERE_SERVER_CLUSTER_NAME,
     VSPHERE_SERVER_HYPERVISOR_HOSTNAME
 )
@@ -955,21 +956,30 @@ class ServerClient(VsphereClient):
                       snapshot_name,
                       description,
                       max_wait_time=30,
+                      with_memory=False,
+                      retry=False,
                       **_):
+        if not retry:
+            if server.obj.snapshot:
+                snapshot = self.get_snapshot_by_name(
+                    server.obj.snapshot.rootSnapshotList, snapshot_name)
+                if snapshot:
+                    raise NonRecoverableError(
+                        "Snapshot {snapshot_name} already exists.".format(
+                            snapshot_name=snapshot_name))
 
-        if server.obj.snapshot:
-            snapshot = self.get_snapshot_by_name(
-                server.obj.snapshot.rootSnapshotList, snapshot_name)
-            if snapshot:
-                raise NonRecoverableError(
-                    "Snapshot {snapshot_name} already exists.".format(
-                        snapshot_name=snapshot_name))
+            if with_memory is None:
+                with_memory = False
 
-        task = server.obj.CreateSnapshot(
-            snapshot_name, description=description,
-            memory=False, quiesce=False)
-        self._wait_for_task(task,
-                            max_wait_time=max_wait_time)
+            task = server.obj.CreateSnapshot(
+                snapshot_name, description=description,
+                memory=with_memory, quiesce=False)
+            self._wait_for_task(task,
+                                max_wait_time=max_wait_time,
+                                resource_id=VSPHERE_SNAPSHOT_ID)
+        else:
+            self._wait_for_task(max_wait_time=max_wait_time,
+                                resource_id=VSPHERE_SNAPSHOT_ID)
 
     def get_snapshot_by_name(self, snapshots, snapshot_name, **_):
         for snapshot in snapshots:

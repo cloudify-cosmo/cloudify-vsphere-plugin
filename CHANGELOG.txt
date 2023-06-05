@@ -1,4 +1,5 @@
 2.20.0:
+  - Add Snapshot with memory support.
   - Add VM cloning feature.
 2.19.19: CYBL-2038 pass the correct argument to storage resize.
 2.19.18: Check vm_folder against its data_center when specified.
