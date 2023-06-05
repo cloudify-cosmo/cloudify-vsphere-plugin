@@ -362,6 +362,7 @@ class ServerClient(VsphereClient):
         connectable = vim.vm.device.VirtualDevice.ConnectInfo()
         connectable.connected = True
         connectable.startConnected = True
+        connectable.allowGuestControl = True
         nicspec.device.connectable = connectable
 
         return nicspec, guest_map
@@ -539,11 +540,22 @@ class ServerClient(VsphereClient):
             postpone_delete_networks=False,
             max_wait_time=300,
             retry=False,
+            clone_vm=None,
+            disk_provision_type=None,
             **_):
 
         self._logger.debug(
             "Entering create_server with parameters %s"
             % prepare_for_log(locals()))
+
+        # if we pass clone_vm and template_name was empty
+        # assume that we will be cloning a VM not template
+        # same logic except for network reconfigure
+        if not template_name and clone_vm:
+            template_name = clone_vm
+            # set enable_start_vm to false so re-configure
+            # would work correctly
+            enable_start_vm = False
 
         self._validate_inputs(
             allowed_hosts=allowed_hosts,
@@ -623,6 +635,32 @@ class ServerClient(VsphereClient):
                 'Disabled autoplacement is not recomended for a cluster.'
             )
             relospec.host = host.obj
+
+        # modify disk provision type
+        if disk_provision_type:
+            dl = vim.vm.RelocateSpec.DiskLocator()
+            dl.datastore = datastore.obj
+            dl.diskBackingInfo = \
+                vim.vm.device.VirtualDisk.FlatVer2BackingInfo()
+            valid_disk_type = False
+            if disk_provision_type == 'thin':
+                valid_disk_type = True
+                dl.diskBackingInfo.thinProvisioned = True
+            elif disk_provision_type == 'thickLazyZeroed':
+                valid_disk_type = True
+                dl.diskBackingInfo.eagerlyScrub = False
+                dl.diskBackingInfo.thinProvisioned = False
+            elif disk_provision_type == 'thickEagerZeroed':
+                valid_disk_type = True
+                dl.diskBackingInfo.eagerlyScrub = True
+                dl.diskBackingInfo.thinProvisioned = False
+            if valid_disk_type:
+                for device in template_vm.config.hardware.device:
+                    if hasattr(device.backing, 'fileName') and \
+                            hasattr(device.backing, 'diskMode'):
+                        dl.diskId = device.key
+                        break
+                relospec.disk.append(dl)
 
         # Get list of NIC MAC addresses for removal
         if postpone_delete_networks and not enable_start_vm:
@@ -801,6 +839,35 @@ class ServerClient(VsphereClient):
             raise NonRecoverableError(
                 "Error during executing VM creation task. "
                 "VM name: \'{0}\'.".format(vm_name))
+
+        if clone_vm:
+            if not retry:
+                clone_obj_id = task.info.result._moId
+            else:
+                clone_obj_id = \
+                    ctx.instance.runtime_properties.get(ASYNC_RESOURCE_ID)
+            # fix network for cloned VM by reconfigure cards
+            cloned_vm = self._get_obj_by_id(
+                vim.VirtualMachine,
+                clone_obj_id,
+                use_cache=False,
+            )
+            hardware_devices = cloned_vm.config.hardware.device
+            device_changes = []
+            for device in hardware_devices:
+                if isinstance(device, vim.vm.device.VirtualEthernetCard):
+                    device_change = vim.vm.device.VirtualDeviceSpec()
+                    device_change.operation = \
+                        vim.vm.device.VirtualDeviceSpec.Operation.edit
+                    device_change.device = device
+                    device_change.device.connectable.startConnected = True
+                    device_change.device.connectable.allowGuestControl = \
+                        True
+                    device_changes.append(device_change)
+            if device_changes:
+                config_spec = vim.vm.ConfigSpec(
+                    deviceChange=device_changes)
+                cloned_vm.obj.ReconfigVM_Task(spec=config_spec)
 
         if not retry:
             # VM object created. Now perform final post-creation tasks
