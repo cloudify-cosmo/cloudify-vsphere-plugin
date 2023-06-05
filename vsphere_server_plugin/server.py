@@ -317,7 +317,7 @@ def create_new_server(server_client,
         memory=server.get('memory'),
         networks=networks,
         resource_pool_name=server_client.cfg['resource_pool_name'],
-        template_name=server['template'],
+        template_name=server.get('template'),
         vm_name=vm_name,
         windows_password=windows_password,
         windows_organization=windows_organization,
@@ -336,7 +336,9 @@ def create_new_server(server_client,
         enable_start_vm=enable_start_vm,
         postpone_delete_networks=postpone_delete_networks,
         max_wait_time=max_wait_time,
-        retry=ctx.operation.retry_number > 0)
+        retry=ctx.operation.retry_number > 0,
+        clone_vm=server.get('clone_vm'),
+        disk_provision_type=server.get('disk_provision_type'))
     ctx.logger.info('Created server called {name}'.format(name=vm_name))
     return server_obj
 
@@ -385,8 +387,8 @@ def create(server_client,
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(server.get('name')))
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
-    elif "template" not in server:
-        raise NonRecoverableError('No template provided.')
+    elif "template" not in server and "clone_vm" not in server:
+        raise NonRecoverableError('No template/clone_vm provided.')
     else:
         server_obj = get_server_by_context(server_client, server, os_family)
 
@@ -463,8 +465,8 @@ def start(server_client,
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(server.get('name')))
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
-    elif "template" not in server:
-        raise NonRecoverableError('No template provided.')
+    elif "template" not in server and "clone_vm" not in server:
+        raise NonRecoverableError('No template/clone_vm provided.')
     else:
         server_obj = get_server_by_context(server_client, server, os_family)
 
@@ -631,6 +633,7 @@ def snapshot_create(server_client,
                     snapshot_incremental,
                     snapshot_type,
                     max_wait_time=300,
+                    with_memory=False,
                     **_):
     if ctx.instance.runtime_properties.get(VSPHERE_RESOURCE_EXTERNAL):
         ctx.logger.info('Used existing resource.')
@@ -657,7 +660,9 @@ def snapshot_create(server_client,
         server_obj,
         snapshot_name,
         snapshot_type,
-        max_wait_time=max_wait_time)
+        max_wait_time=max_wait_time,
+        with_memory=with_memory,
+        retry=ctx.operation.retry_number > 0)
     ctx.logger.info('Successfully backuped server {name}'
                     .format(name=vm_name))
 

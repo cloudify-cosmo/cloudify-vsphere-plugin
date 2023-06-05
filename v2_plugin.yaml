@@ -103,6 +103,20 @@ data_types:
           scaled to more than one instance.
         type: boolean
         default: true
+      clone_vm:
+        description: >
+          Virtual machine from which server will be cloned.
+        type: string
+        required: false
+      disk_provision_type:
+        description: >
+          disk provisioning type.
+          it can be one of these values:
+            - thickLazyZeroed
+            - thickEagerZeroed
+            - thin
+        type: string
+        required: false
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
