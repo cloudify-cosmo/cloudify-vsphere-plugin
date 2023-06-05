@@ -782,6 +782,76 @@ node_types:
           implementation: vsphere.cloudify_vsphere.contentlibrary.deployment.delete
           inputs: {}
 
+  cloudify.vsphere.nodes.OvfDeployment:
+    derived_from: cloudify.nodes.Root
+    properties:
+      target:
+        description: >
+          Target settings for install:
+            resource_pool: name of the resource pool to which the
+                virtual machine or virtual appliance should be attached. If unset,
+                the server will automatically select the default resource pool
+                from connection_config.
+            host: name of the target host on which the virtual
+                machine or virtual appliance will run. Optional. If unset,
+                the server will automatically select a target host from the
+                resource pool.
+            folder: name of of the vCenter folder that should contain
+                the virtual machine or virtual appliance. The folder must be
+                virtual machine folder. Optional. If unset, the server will
+                choose the datacenter default folder.
+        default: {}
+      ovf_name:
+        description: >
+          Ovf Deployment name.
+        default: ""
+      ovf_source:
+        description: >
+          Ovf Source can be local or from URL
+        default: ""
+      datastore_name:
+        description: >
+         Datastore name to use when deploying the Ovf.
+      disk_provisioning:
+        description: >
+         Disk provisioning type.
+         could be one of these values:
+          - monolithicSparse
+          - monolithicFlat
+          - twoGbMaxExtentSparse
+          - twoGbMaxExtentFlat
+          - thin
+          - thick
+          - sparse
+          - flat
+          - seSparse
+        default: thin
+      network_mappings:
+        description: >
+          Specification of the target network to use for ovf:NetworkSection in the OVF descriptor.
+          array of networks mapping [(key: value)] where key is ovf network name and value is vCenter network
+      memory:
+        description: >
+          Amount of RAM, in MB.
+        type: integer
+        required: false
+      cpus:
+        description: >
+          Number of CPUs.
+        type: integer
+        required: false
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.ovf.create
+          inputs: {}
+        delete:
+          implementation: vsphere.cloudify_vsphere.ovf.delete
+          inputs: {}
+
   cloudify.vsphere.nodes.NIC:
     derived_from: cloudify.nodes.Root
     properties:
