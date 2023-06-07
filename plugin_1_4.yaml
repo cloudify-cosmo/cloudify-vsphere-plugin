@@ -1000,6 +1000,70 @@ node_types:
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_controller
 
+  cloudify.nodes.vsphere.PCIDevice:
+    derived_from: cloudify.nodes.Root
+    properties:
+      device_name:
+        description: >
+          PCI Passthrough device name
+        type: string
+      turn_off_vm:
+        description: >
+          control if we turn off the machine to attach PCI device
+          as it can't be attached while VM is turned on
+        default: false
+      connection_config:
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.devices.create_pci_device
+        delete:
+          implementation: vsphere.cloudify_vsphere.devices.delete_pci_device
+
+  cloudify.nodes.vsphere.USBDevice:
+    derived_from: cloudify.nodes.Root
+    properties:
+      controller_type:
+        description: >
+          usb controller type associated with USB.
+          values can be : usb2, usb3
+        default: 'usb3'
+      device_name:
+        description: >
+          host usb device name
+        type: string
+      connection_config:
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.devices.create_usb_device
+        delete:
+          implementation: vsphere.cloudify_vsphere.devices.delete_usb_device
+
+  cloudify.nodes.vsphere.SerialPort:
+    derived_from: cloudify.nodes.Root
+    properties:
+      device_name:
+        description: >
+          host serial port name should be absolute path
+          /dev/char/serial/uartX
+        type: string
+      turn_off_vm:
+        description: >
+          control if we turn off the machine to attach serial port
+          as it can't be attached while VM is turned on
+        default: false
+      connection_config:
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.cloudify_vsphere.devices.create_serial_port
+        delete:
+          implementation: vsphere.cloudify_vsphere.devices.delete_serial_port
+
 relationships:
 
   cloudify.vsphere.port_connected_to_network:
@@ -1046,6 +1110,33 @@ relationships:
 
   cloudify.relationships.vsphere.resource_pool_contained_in:
     derived_from: cloudify.relationships.contained_in
+
+  cloudify.relationships.vsphere.usb_connected_to_server:
+    derived_from: cloudify.relationships.contained_in
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        preconfigure:
+          implementation: vsphere.cloudify_vsphere.devices.attach_usb_device
+        unlink:
+          implementation: vsphere.cloudify_vsphere.devices.detach_usb_device
+
+  cloudify.relationships.vsphere.serial_connected_to_server:
+    derived_from: cloudify.relationships.contained_in
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        preconfigure:
+          implementation: vsphere.cloudify_vsphere.devices.attach_serial_port
+        unlink:
+          implementation: vsphere.cloudify_vsphere.devices.detach_serial_port
+
+  cloudify.relationships.vsphere.pci_connected_to_server:
+    derived_from: cloudify.relationships.contained_in
+    source_interfaces:
+      cloudify.interfaces.relationship_lifecycle:
+        preconfigure:
+          implementation: vsphere.cloudify_vsphere.devices.attach_pci_device
+        unlink:
+          implementation: vsphere.cloudify_vsphere.devices.detach_pci_device
 
 blueprint_labels:
   obj-type:
