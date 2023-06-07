@@ -331,7 +331,7 @@ def attach_usb_device(ctx, **kwargs):
     )
     # adding controller if needed
     if not has_controller:
-        controller_spec = vim.VirtualDeviceSpec()
+        controller_spec = vim.VirtualDeviceConfigSpec()
         controller_spec.operation = \
             vim.VirtualDeviceConfigSpecOperation.add
         controller_spec.device = usb_device_type.get(usb_type)()
@@ -340,7 +340,7 @@ def attach_usb_device(ctx, **kwargs):
         elif usb_type == 'usb3':
             controller_spec.device.key = 14000
         device_changes.append(controller_spec)
-    usb_spec = vim.VirtualDeviceSpec()
+    usb_spec = vim.VirtualDeviceConfigSpec()
     usb_spec.operation = vim.VirtualDeviceConfigSpecOperation.add
     usb_spec.device = vim.VirtualUSB()
     usb_spec.device.backing = vim.VirtualUSB.USBBackingInfo()
@@ -405,7 +405,7 @@ def attach_serial_port(ctx, **kwargs):
     vm = cl._get_obj_by_id(vim.VirtualMachine,
                            hostvm_properties.get('vsphere_server_id'))
     device_changes = []
-    serial_spec = vim.VirtualDeviceSpec()
+    serial_spec = vim.VirtualDeviceConfigSpec()
     serial_spec.operation = vim.VirtualDeviceConfigSpecOperation.add
     serial_spec.device = vim.VirtualSerialPort()
     serial_spec.device.yieldOnPoll = True
