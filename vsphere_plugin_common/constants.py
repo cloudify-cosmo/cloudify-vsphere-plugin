@@ -16,6 +16,7 @@ import os
 
 
 VSPHERE_SERVER_ID = 'vsphere_server_id'
+VSPHERE_SNAPSHOT_ID = 'vsphere_snapshot_id'
 PUBLIC_IP = 'public_ip'
 NETWORKS = 'networks'
 IP = 'ip'
