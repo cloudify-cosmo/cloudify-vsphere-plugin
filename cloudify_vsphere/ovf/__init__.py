@@ -78,7 +78,7 @@ class OvfHandler(object):
             if device_url.importKey == file_item.deviceId:
                 return device_url
         raise Exception(
-            "Failed to find deviceUrl for file {0}".format(file_item.path))
+            'Failed to find deviceUrl for file {0}'.format(file_item.path))
 
     def upload_disks(self, lease, content):
         self.lease = lease
@@ -87,15 +87,15 @@ class OvfHandler(object):
             for fileItem in self.spec.fileItem:
                 self.upload_disk(fileItem, lease, content)
             lease.Complete()
-            self.logger.debug("Finished deploy successfully.")
+            self.logger.debug('Finished deploy successfully.')
         except vmodl.MethodFault as mfex:
             lease.Abort(mfex)
             raise NonRecoverableError(
-                "Hit an error in upload: {0}".format(mfex))
+                'Hit an error in upload: {0}'.format(mfex))
         except Exception as ex:
             lease.Abort(vmodl.fault.SystemError(reason=str(ex)))
             raise NonRecoverableError(
-                "Hit an error in upload: {0}".format(ex))
+                'Hit an error in upload: {0}'.format(ex))
 
     def get_esxi_host_ip(self, content, host_name):
         host_ip = ''
@@ -142,7 +142,6 @@ class OvfHandler(object):
             if self.lease.state not in [vim.HttpNfcLease.State.done,
                                         vim.HttpNfcLease.State.error]:
                 self.start_timer()
-            self.logger.debug("Progress: %d%%\r" % prog)
         except Exception:
             pass
 
@@ -191,7 +190,7 @@ class WebHandle(object):
             raise FileNotFoundError(url)
         self.headers = self._headers_to_dict(r)
         if 'accept-ranges' not in self.headers:
-            raise Exception("Site does not accept ranges")
+            raise Exception('Site does not accept ranges')
         self.st_size = int(self.headers['content-length'])
         self.offset = 0
 
@@ -294,7 +293,7 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
 
     if import_spec.error:
         raise NonRecoverableError(
-            "Got these errors {0}".format(import_spec.error))
+            'Got these errors {0}'.format(import_spec.error))
 
     ovf_handle.set_spec(import_spec)
     if esxi_node:
@@ -306,12 +305,13 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
                                              vm_folder)
 
     while lease.state == vim.HttpNfcLease.State.initializing:
-        ctx.logger.debug("Waiting for lease to be ready...")
+        ctx.logger.debug('Waiting for lease to be ready...')
         time.sleep(1)
     if lease.state == vim.HttpNfcLease.State.error:
-        raise NonRecoverableError("Lease error: {0}".format(lease.error))
+        raise NonRecoverableError('Lease error: {0}'.format(lease.error))
     if lease.state == vim.HttpNfcLease.State.done:
-        raise NonRecoverableError("lease state is done couldn't upload files")
+        raise NonRecoverableError(
+            'lease state is done couldn\'t upload files')
 
     ovf_handle.upload_disks(lease, client.si.content)
     created_vm = client._get_obj_by_name(vim.VirtualMachine, ovf_name,

@@ -782,7 +782,7 @@ node_types:
           implementation: vsphere.cloudify_vsphere.contentlibrary.deployment.delete
           inputs: {}
 
-  cloudify.vsphere.nodes.OvfDeployment:
+  cloudify.nodes.vsphere.OvfDeployment:
     derived_from: cloudify.nodes.Root
     properties:
       target:
@@ -1016,10 +1016,10 @@ node_types:
         type: cloudify.datatypes.vsphere.Config
     interfaces:
       cloudify.interfaces.lifecycle:
-        create:
-          implementation: vsphere.cloudify_vsphere.devices.create_pci_device
-        delete:
-          implementation: vsphere.cloudify_vsphere.devices.delete_pci_device
+        precreate:
+          implementation: vsphere.cloudify_vsphere.devices.copy_device_properties
+        postdelete:
+          implementation: vsphere.cloudify_vsphere.devices.clean_device_properties
 
   cloudify.nodes.vsphere.USBDevice:
     derived_from: cloudify.nodes.Root
@@ -1037,10 +1037,10 @@ node_types:
         type: cloudify.datatypes.vsphere.Config
     interfaces:
       cloudify.interfaces.lifecycle:
-        create:
-          implementation: vsphere.cloudify_vsphere.devices.create_usb_device
-        delete:
-          implementation: vsphere.cloudify_vsphere.devices.delete_usb_device
+        precreate:
+          implementation: vsphere.cloudify_vsphere.devices.copy_device_properties
+        postdelete:
+          implementation: vsphere.cloudify_vsphere.devices.clean_device_properties
 
   cloudify.nodes.vsphere.SerialPort:
     derived_from: cloudify.nodes.Root
@@ -1059,10 +1059,10 @@ node_types:
         type: cloudify.datatypes.vsphere.Config
     interfaces:
       cloudify.interfaces.lifecycle:
-        create:
-          implementation: vsphere.cloudify_vsphere.devices.create_serial_port
-        delete:
-          implementation: vsphere.cloudify_vsphere.devices.delete_serial_port
+        precreate:
+          implementation: vsphere.cloudify_vsphere.devices.copy_device_properties
+        postdelete:
+          implementation: vsphere.cloudify_vsphere.devices.clean_device_properties
 
 relationships:
 
@@ -1115,7 +1115,7 @@ relationships:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
-        preconfigure:
+        establish:
           implementation: vsphere.cloudify_vsphere.devices.attach_usb_device
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_usb_device
@@ -1124,7 +1124,7 @@ relationships:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
-        preconfigure:
+        establish:
           implementation: vsphere.cloudify_vsphere.devices.attach_serial_port
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_serial_port
@@ -1133,7 +1133,7 @@ relationships:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
-        preconfigure:
+        establish:
           implementation: vsphere.cloudify_vsphere.devices.attach_pci_device
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_pci_device

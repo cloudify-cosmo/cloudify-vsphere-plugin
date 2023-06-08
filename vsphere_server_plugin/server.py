@@ -387,7 +387,7 @@ def create(server_client,
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(server.get('name')))
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
-    elif "template" not in server and "clone_vm" not in server:
+    elif 'template' not in server and 'clone_vm' not in server:
         raise NonRecoverableError('No template/clone_vm provided.')
     else:
         server_obj = get_server_by_context(server_client, server, os_family)
@@ -465,7 +465,7 @@ def start(server_client,
             raise NonRecoverableError(
                 'A VM with name {0} was not found.'.format(server.get('name')))
         ctx.instance.runtime_properties[VSPHERE_RESOURCE_EXTERNAL] = True
-    elif "template" not in server and "clone_vm" not in server:
+    elif 'template' not in server and 'clone_vm' not in server:
         raise NonRecoverableError('No template/clone_vm provided.')
     else:
         server_obj = get_server_by_context(server_client, server, os_family)
@@ -663,8 +663,8 @@ def snapshot_create(server_client,
         max_wait_time=max_wait_time,
         with_memory=with_memory,
         retry=ctx.operation.retry_number > 0)
-    ctx.logger.info('Successfully backuped server {name}'
-                    .format(name=vm_name))
+    ctx.logger.info('Successfully backuped server {name}'.format(
+        name=vm_name))
 
 
 @op

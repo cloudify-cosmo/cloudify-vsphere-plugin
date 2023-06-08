@@ -245,77 +245,68 @@ def temp_start_server(cl, server, instance):
 
 
 @operation(resumable=True)
-def create_usb_device(ctx, **kwargs):
-    usb_properties = ctx.instance.runtime_properties
-    usb_properties.update(kwargs)
-    ctx.logger.info("Properties {0}".format(repr(usb_properties)))
+def copy_device_properties(ctx, **kwargs):
+    ctx.instance.runtime_properties.update(kwargs)
 
 
 @operation(resumable=True)
-def delete_usb_device(**kwargs):
+def clean_device_properties(**kwargs):
     remove_runtime_properties()
+
+
+def get_usb_physical_path(content, vm_host_name, device_name):
+    cv = content.viewManager.CreateContainerView(
+        container=content.rootFolder, type=[vim.HostSystem],
+        recursive=True)
+    container = content.viewManager.CreateContainerView(
+        container=content.rootFolder, type=[vim.ComputeResource],
+        recursive=True)
+    cluster_cont = container.view[0]
+    for host in cv.view:
+        # let's make sure that we are checking against the VM host
+        if host.name != vm_host_name:
+            continue
+        for resource_container in cluster_cont.host:
+            if host.name != resource_container.name:
+                continue
+            host_info = \
+                cluster_cont.environmentBrowser.QueryConfigTarget(host)
+            if len(host_info.usb) > 0:
+                for usb in host_info.usb:
+                    if usb.description == device_name:
+                        return usb.physicalPath
+    container.Destroy()
+    cv.Destroy()
+
+
+def check_if_vm_has_usb_controller(vm, controller_type):
+    for device in vm.config.hardware.device:
+        if isinstance(device, controller_type):
+            return True
+    return False
 
 
 @operation(resumable=True)
 def attach_usb_device(ctx, **kwargs):
-
-    def get_usb_physical_path(content, vm_host_name, device_name):
-        usb_path = None
-        cv = content.viewManager.CreateContainerView(
-            container=content.rootFolder, type=[vim.HostSystem],
-            recursive=True)
-        container = content.viewManager.CreateContainerView(
-            container=content.rootFolder, type=[vim.ComputeResource],
-            recursive=True)
-        cluster_cont = container.view[0]
-        found = False
-        for host in cv.view:
-            # let's make sure that we are checking against the VM host
-            if host.name != vm_host_name:
-                continue
-            for resource_container in cluster_cont.host:
-                if host.name != resource_container.name:
-                    continue
-                host_info = \
-                    cluster_cont.environmentBrowser.QueryConfigTarget(host)
-                if len(host_info.usb) > 0:
-                    for usb in host_info.usb:
-                        if usb.description == device_name:
-                            usb_path = usb.physicalPath
-                            found = True
-                            break
-                if found:
-                    break
-            if found:
-                break
-        container.Destroy()
-        cv.Destroy()
-        return usb_path
-
-    def check_if_vm_has_usb_controller(vm, controller_type):
-        found = False
-        for device in vm.config.hardware.device:
-            if isinstance(device, controller_type):
-                found = True
-                break
-        return found
-
     if '__attached' in ctx.source.instance.runtime_properties:
-        ctx.logger.info("USB device was attached")
+        ctx.logger.info('USB device was attached')
         return
-    hostvm_properties = ctx.target.instance.runtime_properties
-    node_props = ctx.source.node.properties
+    vsphere_server_id = ctx.target.instance.runtime_properties.get(
+        'vsphere_server_id')
+    connection_config_props = ctx.source.node.properties.get(
+        'connection_config')
+    device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=node_props.get("connection_config"))
+    cl.get(config=connection_config_props)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
-                           hostvm_properties.get('vsphere_server_id'))
+                           vsphere_server_id)
     device_name = get_usb_physical_path(cl.si.content,
                                         vm.summary.runtime.host.name,
-                                        node_props.get('device_name'))
+                                        device_name_from_props)
     if not device_name:
         raise NonRecoverableError(
             'usb device {0} not found on vm host {1}'.format(
-                node_props.get('device_name'),
+                device_name_from_props,
                 vm.summary.runtime.host.name
             )
         )
@@ -324,7 +315,7 @@ def attach_usb_device(ctx, **kwargs):
         'usb2': vim.VirtualUSBController,
         'usb3': vim.VirtualUSBXHCIController
     }
-    usb_type = node_props.get('controller_type')
+    usb_type = ctx.source.node.properties.get('controller_type')
     has_controller = check_if_vm_has_usb_controller(
         vm,
         usb_device_type.get(usb_type)
@@ -357,16 +348,19 @@ def attach_usb_device(ctx, **kwargs):
 
 @operation(resumable=True)
 def detach_usb_device(ctx, **kwargs):
-    hostvm_properties = ctx.target.instance.runtime_properties
-    node_props = ctx.source.node.properties
+    vsphere_server_id = ctx.target.instance.runtime_properties.get(
+        'vsphere_server_id')
+    connection_config_props = ctx.source.node.properties.get(
+        'connection_config')
+    device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=node_props.get("connection_config"))
+    cl.get(config=connection_config_props)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
-                           hostvm_properties.get('vsphere_server_id'))
+                           vsphere_server_id)
     usb_device = None
     for device in vm.config.hardware.device:
         if isinstance(device, vim.VirtualUSB) and \
-                device.deviceInfo.summary == node_props.get('device_name'):
+                device.deviceInfo.summary == device_name_from_props:
             usb_device = device
             break
     if usb_device:
@@ -382,28 +376,19 @@ def detach_usb_device(ctx, **kwargs):
 
 
 @operation(resumable=True)
-def create_serial_port(ctx, **kwargs):
-    serial_properties = ctx.instance.runtime_properties
-    serial_properties.update(kwargs)
-    ctx.logger.info("Properties {0}".format(repr(serial_properties)))
-
-
-@operation(resumable=True)
-def delete_serial_port(**kwargs):
-    remove_runtime_properties()
-
-
-@operation(resumable=True)
 def attach_serial_port(ctx, **kwargs):
     if '__attached' in ctx.source.instance.runtime_properties:
-        ctx.logger.info("Serial Port was attached")
+        ctx.logger.info('Serial Port was attached')
         return
-    hostvm_properties = ctx.target.instance.runtime_properties
-    node_props = ctx.source.node.properties
+    vsphere_server_id = ctx.target.instance.runtime_properties.get(
+        'vsphere_server_id')
+    connection_config_props = ctx.source.node.properties.get(
+        'connection_config')
+    device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=node_props.get("connection_config"))
+    cl.get(config=connection_config_props)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
-                           hostvm_properties.get('vsphere_server_id'))
+                           vsphere_server_id)
     device_changes = []
     serial_spec = vim.VirtualDeviceConfigSpec()
     serial_spec.operation = vim.VirtualDeviceConfigSpecOperation.add
@@ -411,11 +396,11 @@ def attach_serial_port(ctx, **kwargs):
     serial_spec.device.yieldOnPoll = True
     serial_spec.device.backing = \
         vim.VirtualSerialPort.DeviceBackingInfo()
-    serial_spec.device.backing.deviceName = node_props.get("device_name")
+    serial_spec.device.backing.deviceName = device_name_from_props
     device_changes.append(serial_spec)
     config_spec = vim.vm.ConfigSpec()
     config_spec.deviceChange = device_changes
-    if node_props.get('turn_off_vm', False):
+    if ctx.source.node.properties.get('turn_off_vm', False):
         temp_stop_server(cl, vm, ctx.target.instance)
         task = vm.obj.ReconfigVM_Task(spec=config_spec)
         cl._wait_for_task(task, instance=ctx.source.instance)
@@ -425,21 +410,24 @@ def attach_serial_port(ctx, **kwargs):
         ctx.source.instance.update()
     else:
         raise NonRecoverableError(
-            "Serial Port can't be attached while VM is running")
+            'Serial Port can\'t be attached while VM is running')
 
 
 @operation(resumable=True)
 def detach_serial_port(ctx, **kwargs):
-    hostvm_properties = ctx.target.instance.runtime_properties
-    node_props = ctx.source.node.properties
+    vsphere_server_id = ctx.target.instance.runtime_properties.get(
+        'vsphere_server_id')
+    connection_config_props = ctx.source.node.properties.get(
+        'connection_config')
+    device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=node_props.get("connection_config"))
+    cl.get(config=connection_config_props)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
-                           hostvm_properties.get('vsphere_server_id'))
+                           vsphere_server_id)
     serial_port = None
     for device in vm.config.hardware.device:
         if isinstance(device, vim.VirtualSerialPort) and \
-                device.deviceInfo.summary == node_props.get('device_name'):
+                device.deviceInfo.summary == device_name_from_props:
             serial_port = device
             break
     if serial_port:
@@ -450,7 +438,7 @@ def detach_serial_port(ctx, **kwargs):
         dev_changes.append(device_spec)
         config_spec = vim.vm.ConfigSpec()
         config_spec.deviceChange = dev_changes
-        if node_props.get('turn_off_vm', False):
+        if ctx.source.node.properties.get('turn_off_vm', False):
             temp_stop_server(cl, vm, ctx.target.instance)
             task = vm.obj.ReconfigVM_Task(spec=config_spec)
             cl._wait_for_task(task, instance=ctx.source.instance)
@@ -458,23 +446,10 @@ def detach_serial_port(ctx, **kwargs):
             temp_start_server(cl, vm, ctx.target.instance)
         else:
             raise NonRecoverableError(
-                "Serial Port can't be detached while VM is running")
-
-
-@operation(resumable=True)
-def create_pci_device(ctx, **kwargs):
-    pci_properties = ctx.instance.runtime_properties
-    pci_properties.update(kwargs)
-    ctx.logger.info("Properties {0}".format(repr(pci_properties)))
-
-
-@operation(resumable=True)
-def delete_pci_device(**kwargs):
-    remove_runtime_properties()
+                'Serial Port can\'t be detached while VM is running')
 
 
 def get_pci_device(content, vm_host_name, device_name):
-    pci_device = None
     cv = content.viewManager.CreateContainerView(
         container=content.rootFolder, type=[vim.HostSystem],
         recursive=True)
@@ -482,7 +457,6 @@ def get_pci_device(content, vm_host_name, device_name):
         container=content.rootFolder, type=[vim.ComputeResource],
         recursive=True)
     cluster_cont = container.view[0]
-    found = False
     for host in cv.view:
         # let's make sure that we are checking against the VM host
         if host.name != vm_host_name:
@@ -495,36 +469,32 @@ def get_pci_device(content, vm_host_name, device_name):
             if len(host_info.pciPassthrough) > 0:
                 for pci in host_info.pciPassthrough:
                     if pci.pciDevice.deviceName == device_name:
-                        pci_device = pci
-                        found = True
-                        break
-            if found:
-                break
-        if found:
-            break
+                        return pci
     container.Destroy()
     cv.Destroy()
-    return pci_device
 
 
 @operation(resumable=True)
 def attach_pci_device(ctx, **kwargs):
     if '__attached' in ctx.source.instance.runtime_properties:
-        ctx.logger.info("PCI device was attached")
+        ctx.logger.info('PCI device was attached')
         return
-    hostvm_properties = ctx.target.instance.runtime_properties
-    node_props = ctx.source.node.properties
+    vsphere_server_id = ctx.target.instance.runtime_properties.get(
+        'vsphere_server_id')
+    connection_config_props = ctx.source.node.properties.get(
+        'connection_config')
+    device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=node_props.get("connection_config"))
+    cl.get(config=connection_config_props)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
-                           hostvm_properties.get('vsphere_server_id'))
+                           vsphere_server_id)
     pci_device = get_pci_device(cl.si.content,
                                 vm.summary.runtime.host.name,
-                                node_props.get('device_name'))
+                                device_name_from_props)
     if not pci_device:
         raise NonRecoverableError(
             'pci device {0} not found on vm host {1}'.format(
-                node_props.get('device_name'),
+                device_name_from_props,
                 vm.summary.runtime.host.name
             )
         )
@@ -543,7 +513,7 @@ def attach_pci_device(ctx, **kwargs):
     config_spec = vim.vm.ConfigSpec()
     config_spec.memoryReservationLockedToMax = True
     config_spec.deviceChange = device_changes
-    if node_props.get('turn_off_vm', False):
+    if ctx.source.node.properties.get('turn_off_vm', False):
         temp_stop_server(cl, vm, ctx.target.instance)
         task = vm.obj.ReconfigVM_Task(spec=config_spec)
         cl._wait_for_task(task, instance=ctx.source.instance)
@@ -553,20 +523,23 @@ def attach_pci_device(ctx, **kwargs):
         ctx.source.instance.update()
     else:
         raise NonRecoverableError(
-            "PCI Device can't be attached while VM is running")
+            'PCI Device can\'t be attached while VM is running')
 
 
 @operation(resumable=True)
 def detach_pci_device(ctx, **kwargs):
-    hostvm_properties = ctx.target.instance.runtime_properties
-    node_props = ctx.source.node.properties
+    vsphere_server_id = ctx.target.instance.runtime_properties.get(
+        'vsphere_server_id')
+    connection_config_props = ctx.source.node.properties.get(
+        'connection_config')
+    device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=node_props.get("connection_config"))
+    cl.get(config=connection_config_props)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
-                           hostvm_properties.get('vsphere_server_id'))
+                           vsphere_server_id)
     pci_details = get_pci_device(cl.si.content,
                                  vm.summary.runtime.host.name,
-                                 node_props.get('device_name'))
+                                 device_name_from_props)
     pci_device = None
     for device in vm.config.hardware.device:
         if isinstance(device, vim.VirtualPCIPassthrough) and \
@@ -581,7 +554,7 @@ def detach_pci_device(ctx, **kwargs):
         dev_changes.append(device_spec)
         config_spec = vim.vm.ConfigSpec()
         config_spec.deviceChange = dev_changes
-        if node_props.get('turn_off_vm', False):
+        if ctx.source.node.properties.get('turn_off_vm', False):
             temp_stop_server(cl, vm, ctx.target.instance)
             task = vm.obj.ReconfigVM_Task(spec=config_spec)
             cl._wait_for_task(task, instance=ctx.source.instance)
@@ -589,4 +562,4 @@ def detach_pci_device(ctx, **kwargs):
             temp_start_server(cl, vm, ctx.target.instance)
         else:
             raise NonRecoverableError(
-                "PCI Device can't be detached while VM is running")
+                'PCI Device can\'t be detached while VM is running')
