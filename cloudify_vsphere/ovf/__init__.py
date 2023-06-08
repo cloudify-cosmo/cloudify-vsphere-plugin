@@ -333,8 +333,7 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
 @op
 @with_server_client
 def delete(server_client, ctx, ovf_name, max_wait_time=300):
-    runtime_properties = ctx.instance.runtime_properties
-    vm_id = runtime_properties[VSPHERE_SERVER_ID]
+    vm_id = ctx.instance.runtime_properties[VSPHERE_SERVER_ID]
     server_obj = server_client.get_server_by_id(vm_id)
     ctx.logger.info('Preparing to delete server {name}'.format(name=ovf_name))
     server_client.delete_server(server_obj, max_wait_time=max_wait_time)
