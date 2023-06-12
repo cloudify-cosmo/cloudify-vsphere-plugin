@@ -57,6 +57,7 @@ class IPPoolTest(unittest.TestCase):
                 "range": "192.0.2.1#12"
             }
         }
+        self.mock_ctx.node.type = "cloudify.vsphere.nodes.IPPool"
 
         ippool.create()
         self.assertEqual(
