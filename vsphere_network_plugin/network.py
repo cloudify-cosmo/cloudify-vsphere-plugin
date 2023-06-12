@@ -38,11 +38,11 @@ def create(ctx,
            network_client,
            network,
            use_external_resource):
-    
+
     if ctx.node.type in "cloudify.vsphere.nodes.Network":
-            ctx.logger.error('The node {} is deprecated, '
-                'please update your node type.'.format(ctx.node.type))
-        
+        ctx.logger.error('The node {} is deprecated, '
+                         'please update your node type.'.format(ctx.node.type))
+
     network.update(network)
     network['name'] = get_network_name(ctx, network)
     check_name_for_special_characters(network['name'])

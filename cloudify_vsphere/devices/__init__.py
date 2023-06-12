@@ -86,10 +86,10 @@ def controller_without_connected_networks(runtime_properties):
 @operation(resumable=True)
 def create_controller(ctx, **kwargs):
 
-    if ctx.node.type in ["cloudify.vsphere.nodes.NIC", 
+    if ctx.node.type in ["cloudify.vsphere.nodes.NIC",
                          "cloudify.vsphere.nodes.SCSIController"]:
         ctx.logger.error('The node {} is deprecated, '
-            'please update your node type.'.format(ctx.node.type))
+                         'please update your node type.'.format(ctx.node.type))
 
     controller_properties = ctx.instance.runtime_properties
     controller_properties.update(kwargs)

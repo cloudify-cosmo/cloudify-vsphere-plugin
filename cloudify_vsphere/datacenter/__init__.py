@@ -32,7 +32,7 @@ def create(ctx, server_client, name, use_external_resource):
 
     if ctx.node.type in "cloudify.vsphere.nodes.Datacenter":
         ctx.logger.error('The node {} is deprecated, '
-            'please update your node type.'.format(ctx.node.type))
+                         'please update your node type.'.format(ctx.node.type))
 
     wmware_resource = server_client._get_obj_by_name(
         vim.Datacenter,

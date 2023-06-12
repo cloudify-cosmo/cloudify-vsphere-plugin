@@ -46,10 +46,10 @@ def create(storage_client,
            use_external_resource=False,
            max_wait_time=300,
            **_):
-    
+
     if ctx.node.type in "cloudify.vsphere.nodes.Storage":
         ctx.logger.error('The node {} is deprecated, '
-            'please update your node type.'.format(ctx.node.type))
+                         'please update your node type.'.format(ctx.node.type))
 
     ctx.logger.debug("Entering create storage procedure.")
     storage.setdefault('name', ctx.node.id)
