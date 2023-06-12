@@ -41,7 +41,7 @@ class IPPoolTest(unittest.TestCase):
         rel = Mock()
         rel.type_hierarchy = [
             "cloudify.relationships.vsphere.ippool_connected_to_network"]
-        rel.target.node.type_hierarchy = ["cloudify.vsphere.nodes.Network"]
+        rel.target.node.type_hierarchy = ["cloudify.nodes.vsphere.Network"]
         self.mock_ctx.instance._relationships = [rel]
         self.mock_ctx.node._properties = {
             'connection_config': {
@@ -57,7 +57,6 @@ class IPPoolTest(unittest.TestCase):
                 "range": "192.0.2.1#12"
             }
         }
-        self.mock_ctx.node.type = "cloudify.vsphere.nodes.IPPool"
 
         ippool.create()
         self.assertEqual(
