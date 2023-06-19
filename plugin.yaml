@@ -752,13 +752,3 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_pci_device
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_pci_device
-
-blueprint_labels:
-  obj-type:
-    values:
-      - vsphere
-
-labels:
-  obj-type:
-    values:
-      - vsphere
