@@ -94,8 +94,16 @@ def _get_pool_spec(pool_spec, old_config=None):
 
 @op
 @with_server_client
-def create(ctx, server_client, name, use_external_resource, host_name=None,
-           cluster_name=None, pool_spec=None):
+def create(ctx, 
+           server_client, 
+           name, 
+           use_external_resource, 
+           host_name=None,
+           cluster_name=None, 
+           pool_spec=None):
+    if ctx.node.type in "cloudify.vsphere.nodes.ResourcePool":
+        ctx.logger.error('The node {} is deprecated, '
+                         'please update your node type.'.format(ctx.node.type))
     if use_external_resource:
         vmware_resource = server_client.get_resource_pool_by_name(name)
 
