@@ -38,7 +38,10 @@ class ResourcePoolTest(unittest.TestCase):
 
     @patch('vsphere_plugin_common.VsphereClient.get')
     def test_create(self, mock_client_get):
+        self.mock_ctx.node._type = 'cloudify.vsphere.nodes.ResourcePool'
+
         vm_resource = Mock()
+
         vm_resource._moId = 42
         mock_client_get().create_resource_pool.side_effect = [vm_resource]
         self.mock_ctx.node._properties = {
@@ -58,8 +61,9 @@ class ResourcePoolTest(unittest.TestCase):
                     "expandableReservation": False,
                     "limit": 4096
                 }
-            }
+            },
         }
+
         resource_pool.create()
         self.assertEqual(self.mock_ctx.instance.runtime_properties,
                          {RESOURCE_POOL_ID: 42})

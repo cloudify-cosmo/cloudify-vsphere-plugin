@@ -29,6 +29,9 @@ from vsphere_plugin_common.constants import DATACENTER_ID
 @op
 @with_server_client
 def create(ctx, server_client, name, use_external_resource):
+    if "cloudify.vsphere.nodes.Datacenter" in ctx.node.type:
+        ctx.logger.error('The node {} is deprecated, '
+                         'please update your node type.'.format(ctx.node.type))
     wmware_resource = server_client._get_obj_by_name(
         vim.Datacenter,
         name,

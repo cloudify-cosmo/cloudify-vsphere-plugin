@@ -36,11 +36,11 @@ from vsphere_plugin_common.constants import (
 
 
 @op
-def create(ctx, connection_config, library_name, template_name, target, 
+def create(ctx, connection_config, library_name, template_name, target,
            deployment_spec):
-    if ctx.type in "cloudify.vsphere.nodes.ContentLibraryDeployment":
+    if "cloudify.vsphere.nodes.ContentLibraryDeployment" in ctx.node.type:
         ctx.logger.error('The node {} is deprecated, '
-                         'please update your node type.'.format(ctx.type))
+                         'please update your node type.'.format(ctx.node.type))
     runtime_properties = ctx.instance.runtime_properties
 
     if runtime_properties.get(VSPHERE_SERVER_ID):

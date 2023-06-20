@@ -125,6 +125,8 @@ class ContentDeploymentTest(unittest.TestCase):
 
         requests = Mock()
         requests.request = _fake_response
+        type_vsphere = 'cloudify.vsphere.nodes.ContentLibraryDeployment'
+        self.mock_ctx.node._type = type_vsphere
 
         with patch("cloudify_vsphere.contentlibrary.requests", requests):
             deployment.create(ctx=self.mock_ctx,

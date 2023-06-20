@@ -108,6 +108,7 @@ class VsphereControllerTest(unittest.TestCase):
 
     def test_create_controller(self):
         _ctx = self._gen_ctx()
+        _ctx.node._type = "cloudify.vsphere.nodes.NIC"
         devices.create_controller(ctx=_ctx, a="b")
         self.assertEqual(_ctx.instance.runtime_properties, {"a": "b"})
 
