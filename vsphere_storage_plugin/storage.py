@@ -46,6 +46,9 @@ def create(storage_client,
            use_external_resource=False,
            max_wait_time=300,
            **_):
+    if "cloudify.vsphere.nodes.Storage" in ctx.node.type:
+        ctx.logger.error('The node {} is deprecated, '
+                         'please update your node type.'.format(ctx.node.type))
     ctx.logger.debug("Entering create storage procedure.")
     storage.setdefault('name', ctx.node.id)
     # This should be debug, but left as info until CFY-4867 makes logs more

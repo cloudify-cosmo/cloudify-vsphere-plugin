@@ -367,7 +367,9 @@ def create(server_client,
            extra_config=None,
            max_wait_time=300,
            **_):
-
+    if "cloudify.vsphere.nodes.Server" in ctx.node.type:
+        ctx.logger.error('The node {} is deprecated,'
+                         'please update your node type.'.format(ctx.node.type))
     if enable_start_vm:
         ctx.logger.debug('Create operation ignores enable_start_vm property.')
         enable_start_vm = False
@@ -458,6 +460,9 @@ def start(server_client,
           max_wait_time=300,
           **_):
 
+    if "cloudify.vsphere.nodes.Server" in ctx.node.type:
+        ctx.logger.error('The node {} is deprecated, '
+                         'please update your node type.'.format(ctx.node.type))
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))

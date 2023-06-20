@@ -41,7 +41,9 @@ def create(rawvolume_client,
            volume_prefix,
            raw_files=None,
            **_):
-
+    if "cloudify.nodes.vsphere.CloudInitISO" in ctx.node.type:
+        ctx.logger.error('The node {} is deprecated, '
+                         'please update your node type.'.format(ctx.node.type))
     if ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
         ctx.logger.info('Instance is already created.')
         return

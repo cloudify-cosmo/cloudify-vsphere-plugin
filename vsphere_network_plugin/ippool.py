@@ -29,13 +29,16 @@ from vsphere_plugin_common.utils import check_drift as utils_check_drift
 @op
 @with_network_client
 def create(ctx, network_client, ippool, datacenter_name, **_):
+    if "cloudify.vsphere.nodes.IPPool" in ctx.node.type:
+        ctx.logger.error('The node {} is deprecated,'
+                         'please update your node type.'.format(ctx.node.type))
     if ctx.instance.runtime_properties.get(IPPOOL_ID):
         ctx.logger.info('Instance is already created.')
         return
     networks = find_instances_by_type_from_rels(
         ctx.instance,
         "cloudify.relationships.vsphere.ippool_connected_to_network",
-        "cloudify.vsphere.nodes.Network"
+        "cloudify.nodes.vsphere.Network"
     )
     ctx.instance.runtime_properties[IPPOOL_ID] = network_client.create_ippool(
         datacenter_name, ippool, networks)
