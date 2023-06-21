@@ -21,7 +21,7 @@ from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
-from vsphere_plugin_common.utils import find_rels_by_type
+from vsphere_plugin_common.utils import find_rels_by_type, is_node_deprecated
 from vsphere_plugin_common.clients.server import ServerClient
 from vsphere_plugin_common.clients.network import ControllerClient
 from vsphere_plugin_common import (
@@ -85,10 +85,7 @@ def controller_without_connected_networks(runtime_properties):
 
 @operation(resumable=True)
 def create_controller(ctx, **kwargs):
-    if ctx.node.type in ["cloudify.vsphere.nodes.NIC",
-                         "cloudify.vsphere.nodes.SCSIController"]:
-        ctx.logger.error('The node {} is deprecated, '
-                         'please update your node type.'.format(ctx.node.type))
+    is_node_deprecated(ctx.node.type)
     controller_properties = ctx.instance.runtime_properties
     controller_properties.update(kwargs)
     ctx.logger.info("Properties {0}".format(repr(controller_properties)))

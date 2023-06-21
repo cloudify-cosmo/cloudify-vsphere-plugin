@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import logging
 
 from functools import wraps
@@ -190,3 +191,10 @@ def check_drift(logger, expected_configuration, current_configuration):
     logger.info(
         'Configuration has not drifted.')
     return result
+
+
+def is_node_deprecated(node_type):
+    pattern = r"^cloudify\.vsphere\.nodes\."
+    if re.match(pattern, node_type):
+        ctx.logger.error('The node {} is deprecated,'
+                         'please update your node'.format(node_type))

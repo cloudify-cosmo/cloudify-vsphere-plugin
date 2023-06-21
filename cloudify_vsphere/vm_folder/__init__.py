@@ -21,7 +21,7 @@ from pyVmomi import vim
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
-from vsphere_plugin_common.utils import op
+from vsphere_plugin_common.utils import op, is_node_deprecated
 from vsphere_plugin_common import with_server_client
 from vsphere_plugin_common.constants import VM_FOLDER_ID
 
@@ -29,9 +29,7 @@ from vsphere_plugin_common.constants import VM_FOLDER_ID
 @op
 @with_server_client
 def create(ctx, server_client, name, use_external_resource):
-    if "cloudify.vsphere.nodes.VMFolder" in ctx.node.type:
-        ctx.logger.error('The node {} is deprecated, '
-                         'please update your node type.'.format(ctx.node.type))
+    is_node_deprecated(ctx.node.type)
     vmware_resource = server_client._get_obj_by_name(
         vim.Folder,
         name,

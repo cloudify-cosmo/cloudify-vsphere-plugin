@@ -21,7 +21,7 @@ from pyVmomi import vim
 from cloudify.exceptions import NonRecoverableError
 
 # This package imports
-from vsphere_plugin_common.utils import op
+from vsphere_plugin_common.utils import op, is_node_deprecated
 from vsphere_plugin_common.utils import find_rels_by_type
 from vsphere_plugin_common.utils import check_drift as utils_check_drift
 
@@ -96,9 +96,7 @@ def _get_pool_spec(pool_spec, old_config=None):
 @with_server_client
 def create(ctx, server_client, name, use_external_resource, host_name=None,
            cluster_name=None, pool_spec=None):
-    if "cloudify.vsphere.nodes.ResourcePool" in ctx.node.type:
-        ctx.logger.error('The node {} is deprecated, '
-                         'please update your node type.'.format(ctx.node.type))
+    is_node_deprecated(ctx.node.type)
     if use_external_resource:
         vmware_resource = server_client.get_resource_pool_by_name(name)
 

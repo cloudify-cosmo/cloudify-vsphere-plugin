@@ -24,7 +24,7 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 # This package imports
 from vsphere_plugin_common import with_storage_client
 from vsphere_plugin_common._compat import text_type
-from vsphere_plugin_common.utils import op, prepare_for_log
+from vsphere_plugin_common.utils import op, prepare_for_log, is_node_deprecated
 from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
     VSPHERE_STORAGE_SIZE,
@@ -46,9 +46,7 @@ def create(storage_client,
            use_external_resource=False,
            max_wait_time=300,
            **_):
-    if "cloudify.vsphere.nodes.Storage" in ctx.node.type:
-        ctx.logger.error('The node {} is deprecated, '
-                         'please update your node type.'.format(ctx.node.type))
+    is_node_deprecated(ctx.node.type)
     ctx.logger.debug("Entering create storage procedure.")
     storage.setdefault('name', ctx.node.id)
     # This should be debug, but left as info until CFY-4867 makes logs more

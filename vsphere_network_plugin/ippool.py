@@ -22,6 +22,7 @@ from vsphere_plugin_common import with_network_client
 from vsphere_plugin_common.constants import IPPOOL_ID
 from vsphere_plugin_common.utils import (
     op,
+    is_node_deprecated,
     find_instances_by_type_from_rels)
 from vsphere_plugin_common.utils import check_drift as utils_check_drift
 
@@ -29,9 +30,7 @@ from vsphere_plugin_common.utils import check_drift as utils_check_drift
 @op
 @with_network_client
 def create(ctx, network_client, ippool, datacenter_name, **_):
-    if "cloudify.vsphere.nodes.IPPool" in ctx.node.type:
-        ctx.logger.error('The node {} is deprecated,'
-                         'please update your node type.'.format(ctx.node.type))
+    is_node_deprecated(ctx.node.type)
     if ctx.instance.runtime_properties.get(IPPOOL_ID):
         ctx.logger.info('Instance is already created.')
         return

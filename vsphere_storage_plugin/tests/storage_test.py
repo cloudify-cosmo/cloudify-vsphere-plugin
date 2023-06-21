@@ -50,7 +50,7 @@ class VsphereStorageTest(unittest.TestCase):
         self.mock_ctx.capabilities.get_all = Mock(return_value={})
 
         with self.assertRaises(NonRecoverableError):
-            self.mock_ctx.node._type = "cloudify.vsphere.nodes.Storage"
+            self.mock_ctx.node._type = "cloudify.nodes.vsphere.Storage"
             storage.create(
                 storage={
                     'storage_size': 7,
@@ -110,7 +110,7 @@ class VsphereStorageTest(unittest.TestCase):
 
         # not enough info
         with self.assertRaises(NonRecoverableError):
-            self.mock_ctx.node._type = "cloudify.vsphere.nodes.Storage"
+            self.mock_ctx.node._type = "cloudify.nodes.vsphere.Storage"
             storage.create(
                 storage={
                     'storage_size': 7,
@@ -147,7 +147,7 @@ class VsphereStorageTest(unittest.TestCase):
             },
         })
 
-        self.mock_ctx.node._type = "cloudify.vsphere.nodes.Storage"
+        self.mock_ctx.node._type = "cloudify.nodes.vsphere.Storage"
         storage.create(
             storage={
                 'storage_size': 7,
@@ -176,7 +176,7 @@ class VsphereStorageTest(unittest.TestCase):
             OperationRetry,
             'Name clash with another storage. Retrying'
         ):
-            self.mock_ctx.node._type = "cloudify.vsphere.nodes.Storage"
+            self.mock_ctx.node._type = "cloudify.nodes.vsphere.Storage"
             storage.create(
                 storage={
                     'storage_size': 7,
@@ -199,7 +199,7 @@ class VsphereStorageTest(unittest.TestCase):
             NonRecoverableError,
             'Something is going wrong'
         ):
-            self.mock_ctx.node._type = "cloudify.vsphere.nodes.Storage"
+            self.mock_ctx.node._type = "cloudify.nodes.vsphere.Storage"
             storage.create(
                 storage={
                     'storage_size': 7,
