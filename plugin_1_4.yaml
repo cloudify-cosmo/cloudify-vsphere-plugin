@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.0'
+    package_version: '2.20.1'
 
 data_types:
 
@@ -150,7 +150,11 @@ data_types:
 
 node_types:
 
+
   cloudify.vsphere.nodes.Server:
+    derived_from: cloudify.nodes.vsphere.Server
+
+  cloudify.nodes.vsphere.Server:
     derived_from: cloudify.nodes.Compute
     properties:
       use_external_resource:
@@ -304,6 +308,9 @@ node_types:
           inputs: *interfaces_power_inputs
 
   cloudify.vsphere.nodes.WindowsServer:
+    derived_from: cloudify.nodes.vsphere.WindowsServer
+
+  cloudify.nodes.vsphere.WindowsServer:
     derived_from: cloudify.vsphere.nodes.Server
     properties:
       windows_password:
@@ -348,6 +355,9 @@ node_types:
           port: 5985
 
   cloudify.vsphere.nodes.Network:
+    derived_from: cloudify.nodes.vsphere.Network
+
+  cloudify.nodes.vsphere.Network:
     derived_from: cloudify.nodes.Network
     properties:
       use_external_resource:
@@ -374,6 +384,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Storage:
+    derived_from: cloudify.nodes.vsphere.Storage
+
+  cloudify.nodes.vsphere.Storage:
     derived_from: cloudify.nodes.Volume
     properties:
       use_external_resource:
@@ -424,6 +437,9 @@ node_types:
               default: { get_property: [ SELF, storage ] }
 
   cloudify.vsphere.nodes.IPPool:
+    derived_from: cloudify.nodes.vsphere.IPPool
+
+  cloudify.nodes.vsphere.IPPool:
     derived_from: cloudify.nodes.Subnet
     properties:
       datacenter_name:
@@ -460,6 +476,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.CloudInitISO:
+    derived_from: cloudify.nodes.vsphere.CloudInitISO
+
+  cloudify.nodes.vsphere.CloudInitISO:
     derived_from: cloudify.nodes.Volume
     properties:
       datacenter_name:
@@ -523,6 +542,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Datacenter:
+    derived_from: cloudify.nodes.vsphere.Datacenter
+
+  cloudify.nodes.vsphere.Datacenter:
     derived_from: cloudify.nodes.Root
     properties:
       name:
@@ -548,6 +570,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Datastore:
+    derived_from: cloudify.nodes.vsphere.Datastore
+
+  cloudify.nodes.vsphere.Datastore:
     derived_from: cloudify.nodes.Root
     properties:
       name:
@@ -574,6 +599,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Cluster:
+    derived_from: cloudify.nodes.vsphere.Cluster
+
+  cloudify.nodes.vsphere.Cluster:
     derived_from: cloudify.nodes.Root
     properties:
       name:
@@ -599,6 +627,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.ResourcePool:
+    derived_from: cloudify.nodes.vsphere.ResourcePool
+
+  cloudify.nodes.vsphere.ResourcePool:
     derived_from: cloudify.nodes.Root
     properties:
       name:
@@ -668,6 +699,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.VMFolder:
+    derived_from: cloudify.nodes.vsphere.VMFolder
+
+  cloudify.nodes.vsphere.VMFolder:
     derived_from: cloudify.nodes.Root
     properties:
       name:
@@ -694,6 +728,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Host:
+    derived_from: cloudify.nodes.vsphere.Host
+
+  cloudify.nodes.vsphere.Host:
     derived_from: cloudify.nodes.Root
     properties:
       name:
@@ -719,8 +756,11 @@ node_types:
           implementation: vsphere.cloudify_vsphere.hypervisor_host.delete
           inputs: {}
 
-# For more information look to https://vdc-repo.vmware.com/vmwb-repository/dcr-public/1cd28284-3b72-4885-9e31-d1c6d9e26686/71ef7304-a6c9-43b3-a3cd-868b2c236c81/doc/operations/com/vmware/vcenter/ovf/library_item.deploy-operation.html
   cloudify.vsphere.nodes.ContentLibraryDeployment:
+    derived_from: cloudify.nodes.vsphere.ContentLibraryDeployment
+ 
+# For more information look to https://vdc-repo.vmware.com/vmwb-repository/dcr-public/1cd28284-3b72-4885-9e31-d1c6d9e26686/71ef7304-a6c9-43b3-a3cd-868b2c236c81/doc/operations/com/vmware/vcenter/ovf/library_item.deploy-operation.html
+  cloudify.nodes.vsphere.ContentLibraryDeployment:
     derived_from: cloudify.nodes.Root
     properties:
       library_name:
@@ -853,6 +893,9 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.NIC:
+    derived_from: cloudify.nodes.vsphere.NIC
+
+  cloudify.nodes.vsphere.NIC:
     derived_from: cloudify.nodes.Root
     properties:
       name:
@@ -945,6 +988,9 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.delete_controller
 
   cloudify.vsphere.nodes.SCSIController:
+    derived_from: cloudify.nodes.vsphere.SCSIController
+
+  cloudify.nodes.vsphere.SCSIController:
     derived_from: cloudify.nodes.Root
     properties:
       busNumber:
@@ -1067,15 +1113,27 @@ node_types:
 relationships:
 
   cloudify.vsphere.port_connected_to_network:
+    derived_from: cloudify.relationships.vsphere.port_connected_to_network
+
+  cloudify.relationships.vsphere.port_connected_to_network:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.port_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.port_connected_to_server
+
+  cloudify.relationships.vsphere.port_connected_to_server:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.storage_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.storage_connected_to_server
+
+  cloudify.relationships.vsphere.storage_connected_to_server:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.nic_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.nic_connected_to_server
+
+  cloudify.relationships.vsphere.nic_connected_to_server:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
@@ -1085,6 +1143,9 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.detach_controller
 
   cloudify.vsphere.controller_connected_to_vm:
+    derived_from: cloudify.relationships.vsphere.controller_connected_to_vm
+
+  cloudify.relationships.vsphere.controller_connected_to_vm:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:

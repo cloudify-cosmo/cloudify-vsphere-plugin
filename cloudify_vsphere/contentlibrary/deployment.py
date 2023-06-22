@@ -23,7 +23,7 @@ from . import ContentLibrary
 
 # This package imports
 from vsphere_plugin_common import with_server_client
-from vsphere_plugin_common.utils import op
+from vsphere_plugin_common.utils import op, is_node_deprecated
 from vsphere_plugin_common import (
     remove_runtime_properties,
 )
@@ -38,6 +38,7 @@ from vsphere_plugin_common.constants import (
 @op
 def create(ctx, connection_config, library_name, template_name, target,
            deployment_spec):
+    is_node_deprecated(ctx.node.type)
     runtime_properties = ctx.instance.runtime_properties
 
     if runtime_properties.get(VSPHERE_SERVER_ID):

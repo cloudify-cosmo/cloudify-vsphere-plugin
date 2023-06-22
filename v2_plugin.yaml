@@ -2,365 +2,255 @@
 # Cloudify vSphere built in types and plugins definitions.
 ##################################################################################
 
+##################################################################################
+# Cloudify vSphere built in types and plugins definitions.
+##################################################################################
+
 plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.0'
+    package_version: '2.20.1'
 
 data_types:
 
   cloudify.datatypes.vsphere.Config:
     properties:
       username:
-        description: >
-          vSphere username.
         type: string
         required: false
       host:
-        description: >
-          vCenter hostname or IP address.
         type: string
         required: false
       password:
-        description: >
-          vCenter password.
         type: string
         required: false
       datacenter_name:
-        description: >
-          datacenter name.
         type: string
         required: false
       auto_placement:
-        description: >
-          Must be true if you are using clusters.
-          Disabled `auto placement` is not recommended for a cluster.
-          If `auto placement` set to false, plugin will provide recommendation
-          to vsphere to place vm to selected host, vsphere can move vm to other
-          host by internal logic.
         type: string
         required: false
       resource_pool_name:
-        description: >
-          Name of a resource pool.
-          Defaults to Resources, which is a hidden resource pool on vSphere.
         type: string
         required: false
       port:
-        description: >
-          vCenter port for SDK.
         type: integer
         required: false
       allow_insecure:
-        description: >
-          Whether to allow insecure connections. Defaults to false, but this is not
-          yet enforced on Python versions older than 2.7.9.
-          Python versions pre-2.7.9 can only make insecure connections, which will
-          fail in the next major version of this plugin unless this is set to false.
         type: boolean
         required: false
       certificate_path:
-        description: >
-          The path to the PEM encoded certificate for the vCenter. This will be used
-          on Python 2.7.9 and above to verify the SSL connection.
-          On older versions of python the connection will be insecure.
-          It is not supported to set this while allow_insecure is set to 'true'.
         type: string
         required: false
 
   cloudify.datatypes.vsphere.ServerProperties:
     properties:
       memory:
-        description: >
-          Amount of RAM, in MB.
         type: integer
         required: false
       cpus:
-        description: >
-          Number of CPUs.
         type: integer
         required: false
       template:
-        description: >
-          Virtual machine template from which server will be spawned.
-          See full documentation at docs.getcloudify.org for requirements.
         type: string
         required: false
       name:
-        description: >
-          Server name.
-          Will use node name if this is not set.
-          Must consist of only ASCII letters, numbers, and hyphens.
-          Will automatically convert underscores to hyphens.
         type: string
         required: false
       add_scale_suffix:
-        description: >
-          Whether or not to add a suffix to the server name.
-          This setting is meaningful only when the name property is specified.
-          It must be true - which is the default - if such a server is to be
-          scaled to more than one instance.
         type: boolean
         default: true
       clone_vm:
-        description: >
-          Virtual machine from which server will be cloned.
         type: string
         required: false
       disk_provision_type:
-        description: >
-          disk provisioning type.
-          it can be one of these values:
-            - thickLazyZeroed
-            - thickEagerZeroed
-            - thin
         type: string
         required: false
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
       domain:
-        description: >
-          the domain for this server.
-          Combined with the hostname this will produce the fully-qualified domain name
-          (e.g. if ``domain`` is ``example.local`` and the host name is ``test-abc123``
-          then the fully-qualified domain name will be ``test-abc123.example.local``)
         type: string
         required: false
       dns_servers:
-        description: >
-          List of DNS servers.
         required: false
       connect_networks:
-        description: |
-          List of network interfaces to connect.
-          These should be in the form of dicts with:
-          name: The name of the network on vsphere, or of the related node if from_relationship is true.
-          from_relationship: true/false- determines whether to use a relationship from a connected node (default false)
-          management: true/false- determines if this is a management network interface (default false)
-          external: true/false- determines if this is a external network interface (default false)
-          switch_distributed: determines if this is connected to a distributed port group (default false)
-          nsx_t_switch: determines if this is connected to a NSX-T Logical Switch (default false)
-          use_dhcp: whether to use DHCP for IP addressing (default true)
-          network: network CIDR to use if use_dhcp is false
-          gateway: default gateway to use if use_dhcp is false. You should only set this on one interface.
-          ip: IP address to use if use_dhcp is false
         required: false
 
 node_types:
 
   cloudify.vsphere.nodes.Server:
+    derived_from: cloudify.nodes.vsphere.Server
+    properties: {}
+    interfaces: {}
+  cloudify.nodes.vsphere.Server:
     derived_from: cloudify.nodes.Compute
     properties:
       use_external_resource:
-        description: >
-          Whether to use a vm that already exists on vSphere.
         type: boolean
         default: false
       allowed_hosts:
-        description: >
-          Which ESX host(s) this server is allowed to be deployed on.
         required: false
       allowed_clusters:
-        description: >
-          Which ESX cluster(s) this server is allowed to be deployed on.
         required: false
       allowed_datastores:
-        description: >
-          Which ESX datastore(s) this server is allowed to be deployed on.
         required: false
       server:
         type: cloudify.datatypes.vsphere.ServerProperties
       networking:
         type: cloudify.datatypes.vsphere.NetworkingProperties
       custom_attributes:
-        description: |
-          Dictionary of custom attribute keys & values.
-          Keys which don't yet exist on the platform will
-          be created automatically. ::
-            custom_attributes:
-            key: value
-            lock: locked
-            keyring: empty
         required: false
       cdrom_image:
-        description: |
-          Cdrom image path
         default: false
       extra_config:
-        description: |
-          Extra config to set, key-value dictionary
         default: {}
       wait_ip:
-        description: |
-          Use guest exported ip as default.
         default: false
       vm_folder:
-        description: |
-          Folder name for place new created VM
         default: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config
       force_stop:
-        description: |
-          Force stop vm for external resource
         default: false
       force_delete:
-        description: |
-          Force delete vm for external resource
         default: false
       enable_start_vm:
-        description: |
-          Enable start (power on) operation for VM.
         default: true
       postpone_delete_networks:
-        description: |
-          Remover networks only after create VM.
         default: false
       minimal_vm_version:
-        description: |
-          Set minimal version of vm
         default: 13
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_server_plugin.server.create
-          inputs: &interfaces_power_inputs
-            max_wait_time:
+          inputs:
+            max_wait_time: &id001
               type: integer
               default: 300
-              description: >
-                How long to wait for the operation to complete before retry.
         start:
           implementation: vsphere.vsphere_server_plugin.server.start
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         poststart:
           implementation: vsphere.vsphere_server_plugin.server.poststart
           inputs: {}
         stop:
           implementation: vsphere.vsphere_server_plugin.server.stop
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         shutdown_guest:
           implementation: vsphere.vsphere_server_plugin.server.shutdown_guest
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         delete:
           implementation: vsphere.vsphere_server_plugin.server.delete
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         check_drift:
           implementation: vsphere.vsphere_server_plugin.server.check_drift
           inputs: {}
-      # suspend/resume
       cloudify.interfaces.freeze:
         suspend:
           implementation: vsphere.vsphere_server_plugin.server.freeze_suspend
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         resume:
           implementation: vsphere.vsphere_server_plugin.server.freeze_resume
-          inputs: *interfaces_power_inputs
-      # backups related section
+          inputs:
+            max_wait_time: *id001
       cloudify.interfaces.snapshot:
         create:
           implementation: vsphere.vsphere_server_plugin.server.snapshot_create
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         apply:
           implementation: vsphere.vsphere_server_plugin.server.snapshot_apply
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         delete:
           implementation: vsphere.vsphere_server_plugin.server.snapshot_delete
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
       cloudify.interfaces.host:
         get_state:
           implementation: vsphere.vsphere_server_plugin.server.get_state
           inputs:
+            max_wait_time: *id001
             minimum_wait_time:
               type: integer
               default: 0
-              description: |
-                The time it takes for the machine to up, should be in seconds.
-            <<: *interfaces_power_inputs
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_server_plugin.server.resize_server
           inputs:
-            <<: *interfaces_power_inputs
+            max_wait_time: *id001
             hot_add:
               default: true
       cloudify.interfaces.power:
         'on':
           implementation: vsphere.vsphere_server_plugin.power.power_on
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         'off':
           implementation: vsphere.vsphere_server_plugin.power.power_off
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         reset:
           implementation: vsphere.vsphere_server_plugin.power.reset
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         reboot:
           implementation: vsphere.vsphere_server_plugin.power.reboot
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
         shut_down:
           implementation: vsphere.vsphere_server_plugin.power.shut_down
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
 
   cloudify.vsphere.nodes.WindowsServer:
+    derived_from: cloudify.nodes.vsphere.WindowsServer
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.WindowsServer:
     derived_from: cloudify.vsphere.nodes.Server
     properties:
       windows_password:
-        description: >
-          Administrator password to set when deploying Windows instances.
-          If this is not supplied, agent_config.password will be used (if that has been supplied).
-          Supplying neither of these properties will result in an error.
         type: string
         required: false
       windows_timezone:
-        description: >
-          Timezone to set Windows instances to.
-          See https://msdn.microsoft.com/en-us/library/ms912391%28v=winembedded.11%29.aspx
-          Defaults to GMT without daylight savings.
         type: integer
         default: 90
       windows_organization:
-        description: >
-          The organization name to set on the Windows system.
         type: string
         default: Organization
       custom_sysprep:
-        description: >
-          A custom System Preparation Answers file
-          to use for full customization of Windows.
-          This can be generated by the Windows System Image Manager.
-          Note that this file should be verified to work correctly before being applied,
-          as any errors will appear only on Windows and will not be visible to the plugin.
-          Also note that any scripts, etc.,
-          that attempt to work on the VM after the custom sysprep must tolerate multiple retries
-          because the plugin cannot detect when the custom sysprep has finished,
-          so provides the server as soon as the IPs are assigned
-          (which occurs before customization is complete).
         type: string
         required: false
       os_family:
         default: windows
-        description: Overridden default from ``Server`` node_type.
       agent_config:
         type: cloudify.datatypes.AgentConfig
         default:
           port: 5985
+    interfaces: {}
 
   cloudify.vsphere.nodes.Network:
+    derived_from: cloudify.nodes.vsphere.Network
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.Network:
     derived_from: cloudify.nodes.Network
     properties:
       use_external_resource:
-        description: >
-          Whether to use a vm that already exists on vSphere.
         type: boolean
         default: false
-      network:
-        description: |
-          key-value network configuration. ::
-            name: network name
-            vlan_id: vLAN identifier which will be assigned to the network
-            vswitch_name: name of the vSwitch the network will be connected to.
+      network: {}
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -374,32 +264,17 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Storage:
+    derived_from: cloudify.nodes.vsphere.Storage
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.Storage:
     derived_from: cloudify.nodes.Volume
     properties:
       use_external_resource:
-        description: >
-          Whether to use a vm that already exists on vSphere.
         type: boolean
         default: false
       storage:
-        description: |
-          key-value storage disk configuration. ::
-          parent_key: Device key from controller, negative mean
-            that can be used any
-          storage_size: disk size in GB.
-          thin_provision: Flag to indicate to the underlying
-            filesystem, whether the virtual disk backing file should
-            be allocated lazily (using thin provisioning). This flag
-            is only used for file systems that support configuring
-            the provisioning policy on a per file basis, such as VMFS3.
-            Default: false
-          mode: The disk persistence mode. Valid modes are:
-            * persistent
-            * independent_persistent
-            * independent_nonpersistent
-            * nonpersistent
-            * undoable
-            * append
         default: {}
       connection_config:
         default: {}
@@ -409,38 +284,33 @@ node_types:
         create:
           implementation: vsphere.vsphere_storage_plugin.storage.create
           inputs:
-            <<: *interfaces_power_inputs
+            max_wait_time: *id001
             storage:
-              default: { get_property: [ SELF, storage ] }
+              default: '{ get_property: [''SELF'', ''storage''] }'
         delete:
           implementation: vsphere.vsphere_storage_plugin.storage.delete
-          inputs: *interfaces_power_inputs
+          inputs:
+            max_wait_time: *id001
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_storage_plugin.storage.resize
           inputs:
-            <<: *interfaces_power_inputs
+            max_wait_time: *id001
             storage:
-              default: { get_property: [ SELF, storage ] }
+              default: '{ get_property: [''SELF'', ''storage''] }'
 
   cloudify.vsphere.nodes.IPPool:
+    derived_from: cloudify.nodes.vsphere.IPPool
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.IPPool:
     derived_from: cloudify.nodes.Subnet
     properties:
       datacenter_name:
-        description: >
-          datacenter name.
         type: string
         required: false
-      ippool:
-        description: >
-          Ip Pool settings:
-            name: ip pool name
-            subnet: Subnet settings: x.x.x.x
-            netmask: Netmask: x.x.x.x
-            gateway: Ip gateway: x.x.x.x
-            range: Ip range for allocate: x.x.x.x#x
-            dhcp: Use external dhcp server. Default is False
-            enabled: Enable ip pool. Default is True
+      ippool: {}
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -460,56 +330,32 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.CloudInitISO:
+    derived_from: cloudify.nodes.vsphere.CloudInitISO
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.CloudInitISO:
     derived_from: cloudify.nodes.Volume
     properties:
       datacenter_name:
-        description: >
-          datacenter name.
         type: string
         required: false
       allowed_datastores:
-        description: >
-          Which ESX datastore(s) this image is allowed to be stored on.
         required: false
       allowed_datastore_ids:
-        description: >
-          Which ESX datastore id(s) this image is allowed to be stored on.
-          Field has priority over allowed_datastores.
         required: false
       volume_prefix:
         default: cloudinit
-        description: >
-          Datastorage path for save volume
       vol_ident:
         default: cidata
-        description: >
-          The volume identification string to use on the new ISO.
       sys_ident:
-        default: ""
-        description: >
-          The system identification string to use on the new ISO.
+        default: ''
       files:
         default: {}
-        description: >
-          List of files for save to CloudInit iso image with file content.
-          Example:
-            meta-data: "instance-id: localhost"
-            user-data: "password: passw0rd"
-          where meta-data and user-data are file names on cloud init image.
       raw_files:
         default: {}
-        description: >
-          Deprecated. List files for save to CloudInit iso image with file
-          name from blueprint.
       files_raw:
-        default: { get_property: [ SELF, raw_files] }
-        description: >
-          List files for save to CloudInit iso image with file name from
-          blueprint.
-          Example:
-            meta-data: meta_data.yaml
-          where meta-data is file names on cloud init image,
-          meta_data.yaml is raw file name.
+        default: '{ get_property: [''SELF'', ''raw_files''] }'
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -523,16 +369,15 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Datacenter:
+    derived_from: cloudify.nodes.vsphere.Datacenter
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.Datacenter:
     derived_from: cloudify.nodes.Root
     properties:
-      name:
-        description: >
-          The name of the datacenter.
+      name: {}
       use_external_resource:
-        description: >
-          Whether to use a datacenter that already exists on vSphere.
-          Currently, datacenters cannot be created or deleted,
-          and this node type exists only for compatibility with the NSX plugin.
         type: boolean
         default: true
       connection_config:
@@ -548,17 +393,15 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Datastore:
+    derived_from: cloudify.nodes.vsphere.Datastore
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.Datastore:
     derived_from: cloudify.nodes.Root
     properties:
-      name:
-        description: >
-          The name of the datastore.
+      name: {}
       use_external_resource:
-        description: >
-          Whether to use a datastore that already exists on vSphere.
-          Currently, datastores cannot be created or deleted,
-          and this node type exists only for compatibility with the NSX/Content
-          Library plugin.
         type: boolean
         default: true
       connection_config:
@@ -574,16 +417,15 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Cluster:
+    derived_from: cloudify.nodes.vsphere.Cluster
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.Cluster:
     derived_from: cloudify.nodes.Root
     properties:
-      name:
-        description: >
-          The name of the cluster.
+      name: {}
       use_external_resource:
-        description: >
-          Whether to use a cluster that already exists on vSphere.
-          Currently, clusters cannot be created or deleted,
-          and this node type exists only for compatibility with the NSX plugin.
         type: boolean
         default: true
       connection_config:
@@ -599,51 +441,22 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.ResourcePool:
+    derived_from: cloudify.nodes.vsphere.ResourcePool
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.ResourcePool:
     derived_from: cloudify.nodes.Root
     properties:
-      name:
-        description: >
-          The name of the resource_pool.
+      name: {}
       use_external_resource:
-        description: >
-          Whether to use a resource pool that already exists on vSphere.
         type: boolean
         default: false
       host_name:
-        description: >
-          The name of the host to create the resource pool
-        default: ""
+        default: ''
       cluster_name:
-        description: >
-          The name of the cluster to create the resource pool
-        default: ""
+        default: ''
       pool_spec:
-        description: |
-          key-value resource pool configuration. ::
-          cpuAllocation:
-            expandableReservation: True or False
-            limit: max limit
-            reservation: Amount of resource that is guaranteed available
-            shares:
-              level: The allocation level. Valid levels are:
-                * custom
-                * high
-                * low
-                * normal
-              shares: The number of shares allocated. Used to determine resource allocation in case of resource contention,
-                      used with custom level only
-          memoryAllocation:
-            expandableReservation: True or False
-            limit: max limit
-            reservation: Amount of resource that is guaranteed available
-            shares:
-              level: The allocation level. Valid levels are:
-                * custom
-                * high
-                * low
-                * normal
-              shares: The number of shares allocated. Used to determine resource allocation in case of resource contention,
-                      used with custom level only
         default: {}
       connection_config:
         default: {}
@@ -668,17 +481,15 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.VMFolder:
+    derived_from: cloudify.nodes.vsphere.VMFolder
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.VMFolder:
     derived_from: cloudify.nodes.Root
     properties:
-      name:
-        description: >
-          The name of the VM folder.
+      name: {}
       use_external_resource:
-        description: >
-          Whether to use a VM folder that already exists on vSphere.
-          Currently, VM folder cannot be created or deleted,
-          and this node type exists only for compatibility with the NSX/Content
-          Library plugin.
         type: boolean
         default: true
       connection_config:
@@ -694,17 +505,15 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.Host:
+    derived_from: cloudify.nodes.vsphere.Host
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.Host:
     derived_from: cloudify.nodes.Root
     properties:
-      name:
-        description: >
-          The name of the hypervisor host.
+      name: {}
       use_external_resource:
-        description: >
-          Whether to use a hypervisor host that already exists on vSphere.
-          Currently, hypervisor hosts cannot be created or deleted,
-          and this node type exists only for compatibility with the NSX/Content
-          Library plugin.
         type: boolean
         default: true
       connection_config:
@@ -719,56 +528,21 @@ node_types:
           implementation: vsphere.cloudify_vsphere.hypervisor_host.delete
           inputs: {}
 
-# For more information look to https://vdc-repo.vmware.com/vmwb-repository/dcr-public/1cd28284-3b72-4885-9e31-d1c6d9e26686/71ef7304-a6c9-43b3-a3cd-868b2c236c81/doc/operations/com/vmware/vcenter/ovf/library_item.deploy-operation.html
   cloudify.vsphere.nodes.ContentLibraryDeployment:
+    derived_from: cloudify.nodes.vsphere.ContentLibraryDeployment
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.ContentLibraryDeployment:
     derived_from: cloudify.nodes.Root
     properties:
       library_name:
-        description: >
-          The name of the content library name.
-        default: ""
+        default: ''
       template_name:
-        description: >
-          The name of the content library item name.
-        default: ""
+        default: ''
       target:
-        description: >
-          Target settings for install:
-            resource_pool_id: Identifier of the resource pool to which the
-                virtual machine or virtual appliance should be attached.
-            host_id: Identifier of the target host on which the virtual
-                machine or virtual appliance will run. Optional. If unset,
-                the server will automatically select a target host from the
-                resource pool.
-            folder_id: Identifier of the vCenter folder that should contain
-                the virtual machine or virtual appliance. The folder must be
-                virtual machine folder. Optional. If unset, the server will
-                choose the deployment folder.
         default: {}
       deployment_spec:
-        description: >
-          Deployment settings for install:
-            name: Name assigned to the deployed target virtual machine or
-                virtual appliance. Optional. If unset, the server will use
-                the name from the instance.id.
-            annotation: Annotation assigned to the deployed target virtual
-                machine or virtual appliance. Optional. If unset, the server
-                will use the annotation from the OVF package.
-            network_mappings: Specification of the target network to use for
-                sections of type ovf:NetworkSection in the OVF descriptor.
-            storage_mappings: Specification of the target storage to use for
-                sections of type vmw:StorageGroupSection in the OVF descriptor.
-            storage_provisioning: Default storage provisioning type to use for
-                all sections of type vmw:StorageSection in the OVF descriptor.
-            storage_profile_id: Default storage profile to use for all sections
-                of type vmw:StorageSection in the OVF descriptor.
-            locale: The locale to use for parsing the OVF descriptor.
-            flags: Flags to be use for deployment.
-            additional_parameters: Additional OVF parameters that may be needed
-                for the deployment.
-            default_datastore_id: Default datastore to use for all sections of
-                type vmw:StorageSection in the OVF descriptor. Optional.
-                If unset, the server will choose the default datastore.
         default: {}
       connection_config:
         default: {}
@@ -786,58 +560,19 @@ node_types:
     derived_from: cloudify.nodes.Root
     properties:
       target:
-        description: >
-          Target settings for install:
-            resource_pool: name of the resource pool to which the
-                virtual machine or virtual appliance should be attached. If unset,
-                the server will automatically select the default resource pool
-                from connection_config.
-            host: name of the target host on which the virtual
-                machine or virtual appliance will run. Optional. If unset,
-                the server will automatically select a target host from the
-                resource pool.
-            folder: name of of the vCenter folder that should contain
-                the virtual machine or virtual appliance. The folder must be
-                virtual machine folder. Optional. If unset, the server will
-                choose the datacenter default folder.
         default: {}
       ovf_name:
-        description: >
-          Ovf Deployment name.
-        default: ""
+        default: ''
       ovf_source:
-        description: >
-          Ovf Source can be local or from URL
-        default: ""
-      datastore_name:
-        description: >
-         Datastore name to use when deploying the Ovf.
+        default: ''
+      datastore_name: {}
       disk_provisioning:
-        description: >
-         Disk provisioning type.
-         could be one of these values:
-          - monolithicSparse
-          - monolithicFlat
-          - twoGbMaxExtentSparse
-          - twoGbMaxExtentFlat
-          - thin
-          - thick
-          - sparse
-          - flat
-          - seSparse
         default: thin
-      network_mappings:
-        description: >
-          Specification of the target network to use for ovf:NetworkSection in the OVF descriptor.
-          array of networks mapping [(key: value)] where key is ovf network name and value is vCenter network
+      network_mappings: {}
       memory:
-        description: >
-          Amount of RAM, in MB.
         type: integer
         required: false
       cpus:
-        description: >
-          Number of CPUs.
         type: integer
         required: false
       connection_config:
@@ -853,67 +588,32 @@ node_types:
           inputs: {}
 
   cloudify.vsphere.nodes.NIC:
+    derived_from: cloudify.nodes.vsphere.NIC
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.NIC:
     derived_from: cloudify.nodes.Root
     properties:
-      name:
-        description: >
-          Network name for connect
+      name: {}
       switch_distributed:
-        description: >
-          determines if this is connected to a distributed port group
         default: false
       adapter_type:
-        description: >
-          Possible: Vmxnet3, Vmxnet2, Sriov, E1000, E1000e
         default: Vmxnet3
       start_connected:
-        description: >
-          Specifies whether or not to connect the device when the virtual
-          machine starts.
         default: true
       allow_guest_control:
-        description: >
-          Enables guest control over whether the connectable device is
-          connected.
         default: true
       network_connected:
-        description: >
-          Indicates whether the device is currently connected.
-          Valid only while the virtual machine is running.
         default: true
       wake_on_lan_enabled:
-        description: >
-          Indicates whether wake-on-LAN is enabled on this virtual network
-          adapter. Clients can set this property to selectively enable or
-          disable wake-on-LAN.
         default: true
       address_type:
-        description: >
-          MAC address type. Valid values for address type are:
-          ManualStatically assigned MAC address.
-          GeneratedAutomatically generated MAC address.
-          AssignedMAC address assigned by VirtualCenter.
         default: assigned
       mac_address:
-        description: >
-          MAC address assigned to the virtual network adapter. Clients can
-          set this property to any of the allowed address types. The server
-          might override the specified value for "Generated" or "Assigned"
-          if it does not fall in the right ranges or is determined to be
-          a duplicate.
-        default: ""
+        default: ''
       network_configuration:
         default: {}
-        description: >
-          Only valid with a relationship cloudify.relationships.vsphere.nic_connected_to_network to a network.
-          Dictionary with following keys:
-            'from_relationship': (bool, False),
-            'external': (bool, False),
-            'management': (bool, False),
-            'use_dhcp': (bool, True),
-            'network': (basestring, None),
-            'gateway': (basestring, None),
-            'ip': (basestring, None)
       connection_config:
         type: cloudify.datatypes.vsphere.Config
     interfaces:
@@ -922,61 +622,47 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.create_controller
           inputs:
             name:
-              default: { get_attribute: [ SELF, name ] }
+              default: '{ get_attribute: [''SELF'', ''name''] }'
             switch_distributed:
-              default: { get_attribute: [ SELF, switch_distributed ] }
+              default: '{ get_attribute: [''SELF'', ''switch_distributed''] }'
             adapter_type:
-              default: { get_attribute: [ SELF, adapter_type ] }
+              default: '{ get_attribute: [''SELF'', ''adapter_type''] }'
             start_connected:
-              default: { get_attribute: [ SELF, start_connected ] }
+              default: '{ get_attribute: [''SELF'', ''start_connected''] }'
             allow_guest_control:
-              default: { get_attribute: [ SELF, allow_guest_control ] }
+              default: '{ get_attribute: [''SELF'', ''allow_guest_control''] }'
             network_connected:
-              default: { get_attribute: [ SELF, network_connected ] }
+              default: '{ get_attribute: [''SELF'', ''network_connected''] }'
             wake_on_lan_enabled:
-              default: { get_attribute: [ SELF, wake_on_lan_enabled ] }
+              default: '{ get_attribute: [''SELF'', ''wake_on_lan_enabled''] }'
             address_type:
-              default: { get_attribute: [ SELF, address_type ] }
+              default: '{ get_attribute: [''SELF'', ''address_type''] }'
             mac_address:
-              default: { get_attribute: [ SELF, mac_address ] }
+              default: '{ get_attribute: [''SELF'', ''mac_address''] }'
             network_configuration:
-              default: { get_attribute: [ SELF, network_configuration ] }
+              default: '{ get_attribute: [''SELF'', ''network_configuration''] }'
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_controller
 
   cloudify.vsphere.nodes.SCSIController:
+    derived_from: cloudify.nodes.vsphere.SCSIController
+    properties: {}
+    interfaces: {}
+
+  cloudify.nodes.vsphere.SCSIController:
     derived_from: cloudify.nodes.Root
     properties:
       busNumber:
-        description: >
-          Bus number associated with this controller.
         default: 0
       label:
-        description: >
-          Label for SCSI controller
         default: SCSIController
       adapterType:
-        description: >
-          Possible: paravirtual, lsilogic_sas, lsilogic
         default: paravirtual
       hotAddRemove:
-        description: >
-          All SCSI controllers support hot adding and removing of devices.
-          This support can't be toggled in the current implementation.
-          Therefore, this option is ignored when reconfiguring a SCSI
-          controller and is always set to "true" when reading an existing
-          configuration.
         default: true
       sharedBus:
-        description: >
-          Mode for sharing the SCSI bus. The modes are physicalSharing,
-          virtualSharing, and noSharing.
         default: noSharing
       scsiCtlrUnitNumber:
-        description: >
-          The unit number of the SCSI controller. The SCSI controller
-          sits on its own bus, so this field defines which slot the
-          controller is using.
         default: -1
       connection_config:
         type: cloudify.datatypes.vsphere.Config
@@ -986,32 +672,26 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.create_controller
           inputs:
             busNumber:
-              default: { get_attribute: [ SELF, busNumber ] }
+              default: '{ get_attribute: [''SELF'', ''busNumber''] }'
             hotAddRemove:
-              default: { get_attribute: [ SELF, hotAddRemove ] }
+              default: '{ get_attribute: [''SELF'', ''hotAddRemove''] }'
             sharedBus:
-              default: { get_attribute: [ SELF, sharedBus ] }
+              default: '{ get_attribute: [''SELF'', ''sharedBus''] }'
             scsiCtlrUnitNumber:
-              default: { get_attribute: [ SELF, scsiCtlrUnitNumber ] }
+              default: '{ get_attribute: [''SELF'', ''scsiCtlrUnitNumber''] }'
             adapterType:
-              default: { get_attribute: [ SELF, adapterType ] }
+              default: '{ get_attribute: [''SELF'', ''adapterType''] }'
             label:
-              default: { get_attribute: [ SELF, label ] }
+              default: '{ get_attribute: [''SELF'', ''label''] }'
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_controller
-
 
   cloudify.nodes.vsphere.PCIDevice:
     derived_from: cloudify.nodes.Root
     properties:
       device_name:
-        description: >
-          PCI Passthrough device name
         type: string
       turn_off_vm:
-        description: >
-          control if we turn off the machine to attach PCI device
-          as it can't be attached while VM is turned on
         default: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config
@@ -1026,13 +706,8 @@ node_types:
     derived_from: cloudify.nodes.Root
     properties:
       controller_type:
-        description: >
-          usb controller type associated with USB.
-          values can be : usb2, usb3
-        default: 'usb3'
+        default: usb3
       device_name:
-        description: >
-          host usb device name
         type: string
       connection_config:
         type: cloudify.datatypes.vsphere.Config
@@ -1047,14 +722,8 @@ node_types:
     derived_from: cloudify.nodes.Root
     properties:
       device_name:
-        description: >
-          host serial port name should be absolute path
-          /dev/char/serial/uartX
         type: string
       turn_off_vm:
-        description: >
-          control if we turn off the machine to attach serial port
-          as it can't be attached while VM is turned on
         default: false
       connection_config:
         type: cloudify.datatypes.vsphere.Config
@@ -1068,15 +737,27 @@ node_types:
 relationships:
 
   cloudify.vsphere.port_connected_to_network:
+    derived_from: cloudify.relationships.vsphere.port_connected_to_network
+
+  cloudify.relationships.vsphere.port_connected_to_network:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.port_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.port_connected_to_server
+
+  cloudify.relationships.vsphere.port_connected_to_server:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.storage_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.storage_connected_to_server
+
+  cloudify.relationships.vsphere.storage_connected_to_server:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.nic_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.nic_connected_to_server
+
+  cloudify.relationships.vsphere.nic_connected_to_server:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
@@ -1086,6 +767,9 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.detach_controller
 
   cloudify.vsphere.controller_connected_to_vm:
+    derived_from: cloudify.relationships.vsphere.controller_connected_to_vm
+
+  cloudify.relationships.vsphere.controller_connected_to_vm:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:

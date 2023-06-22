@@ -27,7 +27,12 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 # This package imports
 from vsphere_plugin_common import with_server_client
 from vsphere_plugin_common.clients.server import get_ip_from_vsphere_nic_ips
-from vsphere_plugin_common.utils import op, prepare_for_log, find_rels_by_type
+from vsphere_plugin_common.utils import (
+    op,
+    is_node_deprecated,
+    prepare_for_log,
+    find_rels_by_type
+)
 from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,
@@ -367,7 +372,7 @@ def create(server_client,
            extra_config=None,
            max_wait_time=300,
            **_):
-
+    is_node_deprecated(ctx.node.type)
     if enable_start_vm:
         ctx.logger.debug('Create operation ignores enable_start_vm property.')
         enable_start_vm = False
@@ -458,6 +463,7 @@ def start(server_client,
           max_wait_time=300,
           **_):
 
+    is_node_deprecated(ctx.node.type)
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))

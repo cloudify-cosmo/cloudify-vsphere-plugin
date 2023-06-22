@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import logging
 
 from functools import wraps
@@ -109,7 +110,24 @@ def find_rels_by_type(node_instance, rel_type):
             if rel_type in x.type_hierarchy]
 
 
-def find_instances_by_type_from_rels(node_instance, rel_type, node_type):
+def find_instances_by_type_from_rels(node_instance, rel_type, node_types):
+    if isinstance(node_types, str):
+        return _find_instances_by_type_from_rels(node_instance,
+                                                 rel_type,
+                                                 node_types)
+    results = []
+    for node_type in node_types:
+        instances = _find_instances_by_type_from_rels(node_instance,
+                                                      rel_type,
+                                                      node_type)
+        for instance in instances:
+            if instance not in results:
+                results.append(instance)
+
+    return results
+
+
+def _find_instances_by_type_from_rels(node_instance, rel_type, node_type):
     instances = []
     for relationship in find_rels_by_type(node_instance, rel_type):
         if node_type in relationship.target.node.type_hierarchy:
@@ -190,3 +208,10 @@ def check_drift(logger, expected_configuration, current_configuration):
     logger.info(
         'Configuration has not drifted.')
     return result
+
+
+def is_node_deprecated(node_type):
+    pattern = r"^cloudify\.vsphere\.nodes\."
+    if re.match(pattern, node_type):
+        ctx.logger.error('The node {} is deprecated,'
+                         'please update your node'.format(node_type))

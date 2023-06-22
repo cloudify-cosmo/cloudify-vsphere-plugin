@@ -1,3 +1,4 @@
+2.20.1: RND-537-deprecate-node-types.
 2.20.0:
   - Add Ovf Deploy support.
   - Add Snapshot with memory support.

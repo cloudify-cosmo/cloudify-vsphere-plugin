@@ -110,6 +110,12 @@ ASYNC_TASK_ID = '_task_id'
 ASYNC_RESOURCE_ID = '_resource_id'
 
 SUPPORT_DRIFT = [
+    'cloudify.nodes.vsphere.Server',
+    'cloudify.nodes.vsphere.WindowsServer',
+    'cloudify.nodes.vsphere.IPPool',
+    'cloudify.nodes.vsphere.ResourcePool'
+
+    # Deprecated node type.
     'cloudify.vsphere.nodes.Server',
     'cloudify.vsphere.nodes.WindowsServer',
     'cloudify.vsphere.nodes.IPPool',
