@@ -37,7 +37,7 @@ def create(ctx, network_client, ippool, datacenter_name, **_):
     networks = find_instances_by_type_from_rels(
         ctx.instance,
         "cloudify.relationships.vsphere.ippool_connected_to_network",
-        "cloudify.nodes.vsphere.Network"
+        ["cloudify.nodes.vsphere.Network", "cloudify.vsphere.nodes.Network"]
     )
     ctx.instance.runtime_properties[IPPOOL_ID] = network_client.create_ippool(
         datacenter_name, ippool, networks)

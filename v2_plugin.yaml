@@ -2,12 +2,18 @@
 # Cloudify vSphere built in types and plugins definitions.
 ##################################################################################
 
+##################################################################################
+# Cloudify vSphere built in types and plugins definitions.
+##################################################################################
+
 plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: 2.20.0
+    package_version: '2.20.1'
+
 data_types:
+
   cloudify.datatypes.vsphere.Config:
     properties:
       username:
@@ -37,6 +43,7 @@ data_types:
       certificate_path:
         type: string
         required: false
+
   cloudify.datatypes.vsphere.ServerProperties:
     properties:
       memory:
@@ -60,6 +67,7 @@ data_types:
       disk_provision_type:
         type: string
         required: false
+
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
       domain:
@@ -69,7 +77,9 @@ data_types:
         required: false
       connect_networks:
         required: false
+
 node_types:
+
   cloudify.vsphere.nodes.Server:
     derived_from: cloudify.nodes.vsphere.Server
     properties: {}
@@ -200,10 +210,12 @@ node_types:
           implementation: vsphere.vsphere_server_plugin.power.shut_down
           inputs:
             max_wait_time: *id001
+
   cloudify.vsphere.nodes.WindowsServer:
     derived_from: cloudify.nodes.vsphere.WindowsServer
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.WindowsServer:
     derived_from: cloudify.vsphere.nodes.Server
     properties:
@@ -226,10 +238,12 @@ node_types:
         default:
           port: 5985
     interfaces: {}
+
   cloudify.vsphere.nodes.Network:
     derived_from: cloudify.nodes.vsphere.Network
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.Network:
     derived_from: cloudify.nodes.Network
     properties:
@@ -248,10 +262,12 @@ node_types:
         delete:
           implementation: vsphere.vsphere_network_plugin.network.delete
           inputs: {}
+
   cloudify.vsphere.nodes.Storage:
     derived_from: cloudify.nodes.vsphere.Storage
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.Storage:
     derived_from: cloudify.nodes.Volume
     properties:
@@ -282,10 +298,12 @@ node_types:
             max_wait_time: *id001
             storage:
               default: '{ get_property: [''SELF'', ''storage''] }'
+
   cloudify.vsphere.nodes.IPPool:
     derived_from: cloudify.nodes.vsphere.IPPool
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.IPPool:
     derived_from: cloudify.nodes.Subnet
     properties:
@@ -310,10 +328,12 @@ node_types:
         check_drift:
           implementation: vsphere.vsphere_network_plugin.ippool.check_drift
           inputs: {}
+
   cloudify.vsphere.nodes.CloudInitISO:
     derived_from: cloudify.nodes.vsphere.CloudInitISO
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.CloudInitISO:
     derived_from: cloudify.nodes.Volume
     properties:
@@ -347,10 +367,12 @@ node_types:
         delete:
           implementation: vsphere.vsphere_storage_plugin.cidata.delete
           inputs: {}
+
   cloudify.vsphere.nodes.Datacenter:
     derived_from: cloudify.nodes.vsphere.Datacenter
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.Datacenter:
     derived_from: cloudify.nodes.Root
     properties:
@@ -369,10 +391,12 @@ node_types:
         delete:
           implementation: vsphere.cloudify_vsphere.datacenter.delete
           inputs: {}
+
   cloudify.vsphere.nodes.Datastore:
     derived_from: cloudify.nodes.vsphere.Datastore
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.Datastore:
     derived_from: cloudify.nodes.Root
     properties:
@@ -391,10 +415,12 @@ node_types:
         delete:
           implementation: vsphere.cloudify_vsphere.datastore.delete
           inputs: {}
+
   cloudify.vsphere.nodes.Cluster:
     derived_from: cloudify.nodes.vsphere.Cluster
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.Cluster:
     derived_from: cloudify.nodes.Root
     properties:
@@ -413,10 +439,12 @@ node_types:
         delete:
           implementation: vsphere.cloudify_vsphere.cluster.delete
           inputs: {}
+
   cloudify.vsphere.nodes.ResourcePool:
     derived_from: cloudify.nodes.vsphere.ResourcePool
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.ResourcePool:
     derived_from: cloudify.nodes.Root
     properties:
@@ -451,10 +479,12 @@ node_types:
         update:
           implementation: vsphere.cloudify_vsphere.resource_pool.update_resource_pool
           inputs: {}
+
   cloudify.vsphere.nodes.VMFolder:
     derived_from: cloudify.nodes.vsphere.VMFolder
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.VMFolder:
     derived_from: cloudify.nodes.Root
     properties:
@@ -473,10 +503,12 @@ node_types:
         delete:
           implementation: vsphere.cloudify_vsphere.vm_folder.delete
           inputs: {}
+
   cloudify.vsphere.nodes.Host:
     derived_from: cloudify.nodes.vsphere.Host
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.Host:
     derived_from: cloudify.nodes.Root
     properties:
@@ -495,10 +527,12 @@ node_types:
         delete:
           implementation: vsphere.cloudify_vsphere.hypervisor_host.delete
           inputs: {}
+
   cloudify.vsphere.nodes.ContentLibraryDeployment:
     derived_from: cloudify.nodes.vsphere.ContentLibraryDeployment
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.ContentLibraryDeployment:
     derived_from: cloudify.nodes.Root
     properties:
@@ -521,6 +555,7 @@ node_types:
         delete:
           implementation: vsphere.cloudify_vsphere.contentlibrary.deployment.delete
           inputs: {}
+
   cloudify.nodes.vsphere.OvfDeployment:
     derived_from: cloudify.nodes.Root
     properties:
@@ -551,10 +586,12 @@ node_types:
         delete:
           implementation: vsphere.cloudify_vsphere.ovf.delete
           inputs: {}
+
   cloudify.vsphere.nodes.NIC:
     derived_from: cloudify.nodes.vsphere.NIC
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.NIC:
     derived_from: cloudify.nodes.Root
     properties:
@@ -606,10 +643,12 @@ node_types:
               default: '{ get_attribute: [''SELF'', ''network_configuration''] }'
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_controller
+
   cloudify.vsphere.nodes.SCSIController:
     derived_from: cloudify.nodes.vsphere.SCSIController
     properties: {}
     interfaces: {}
+
   cloudify.nodes.vsphere.SCSIController:
     derived_from: cloudify.nodes.Root
     properties:
@@ -646,6 +685,7 @@ node_types:
               default: '{ get_attribute: [''SELF'', ''label''] }'
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_controller
+
   cloudify.nodes.vsphere.PCIDevice:
     derived_from: cloudify.nodes.Root
     properties:
@@ -661,6 +701,7 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.copy_device_properties
         postdelete:
           implementation: vsphere.cloudify_vsphere.devices.clean_device_properties
+
   cloudify.nodes.vsphere.USBDevice:
     derived_from: cloudify.nodes.Root
     properties:
@@ -676,6 +717,7 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.copy_device_properties
         postdelete:
           implementation: vsphere.cloudify_vsphere.devices.clean_device_properties
+
   cloudify.nodes.vsphere.SerialPort:
     derived_from: cloudify.nodes.Root
     properties:
@@ -691,14 +733,31 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.copy_device_properties
         postdelete:
           implementation: vsphere.cloudify_vsphere.devices.clean_device_properties
+
 relationships:
+
   cloudify.vsphere.port_connected_to_network:
+    derived_from: cloudify.relationships.vsphere.port_connected_to_network
+
+  cloudify.relationships.vsphere.port_connected_to_network:
     derived_from: cloudify.relationships.connected_to
+
   cloudify.vsphere.port_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.port_connected_to_server
+
+  cloudify.relationships.vsphere.port_connected_to_server:
     derived_from: cloudify.relationships.connected_to
+
   cloudify.vsphere.storage_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.storage_connected_to_server
+
+  cloudify.relationships.vsphere.storage_connected_to_server:
     derived_from: cloudify.relationships.connected_to
+
   cloudify.vsphere.nic_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.nic_connected_to_server
+
+  cloudify.relationships.vsphere.nic_connected_to_server:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
@@ -706,7 +765,11 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_ethernet_card
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_controller
+
   cloudify.vsphere.controller_connected_to_vm:
+    derived_from: cloudify.relationships.vsphere.controller_connected_to_vm
+
+  cloudify.relationships.vsphere.controller_connected_to_vm:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
@@ -714,8 +777,10 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_scsi_controller
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_controller
+
   cloudify.relationships.vsphere.nic_connected_to_network:
     derived_from: cloudify.relationships.contained_in
+
   cloudify.relationships.vsphere.server_connected_to_nic:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
@@ -724,10 +789,13 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_server_to_ethernet_card
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_server_from_controller
+
   cloudify.relationships.vsphere.ippool_connected_to_network:
     derived_from: cloudify.relationships.depends_on
+
   cloudify.relationships.vsphere.resource_pool_contained_in:
     derived_from: cloudify.relationships.contained_in
+
   cloudify.relationships.vsphere.usb_connected_to_server:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
@@ -736,6 +804,7 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_usb_device
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_usb_device
+
   cloudify.relationships.vsphere.serial_connected_to_server:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
@@ -744,6 +813,7 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.attach_serial_port
         unlink:
           implementation: vsphere.cloudify_vsphere.devices.detach_serial_port
+
   cloudify.relationships.vsphere.pci_connected_to_server:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:

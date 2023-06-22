@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.0'
+    package_version: '2.20.1'
 
 data_types:
 
@@ -1113,15 +1113,27 @@ node_types:
 relationships:
 
   cloudify.vsphere.port_connected_to_network:
+    derived_from: cloudify.relationships.vsphere.port_connected_to_network
+
+  cloudify.relationships.vsphere.port_connected_to_network:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.port_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.port_connected_to_server
+
+  cloudify.relationships.vsphere.port_connected_to_server:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.storage_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.storage_connected_to_server
+
+  cloudify.relationships.vsphere.storage_connected_to_server:
     derived_from: cloudify.relationships.connected_to
 
   cloudify.vsphere.nic_connected_to_server:
+    derived_from: cloudify.relationships.vsphere.nic_connected_to_server
+
+  cloudify.relationships.vsphere.nic_connected_to_server:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:
@@ -1131,6 +1143,9 @@ relationships:
           implementation: vsphere.cloudify_vsphere.devices.detach_controller
 
   cloudify.vsphere.controller_connected_to_vm:
+    derived_from: cloudify.relationships.vsphere.controller_connected_to_vm
+
+  cloudify.relationships.vsphere.controller_connected_to_vm:
     derived_from: cloudify.relationships.contained_in
     source_interfaces:
       cloudify.interfaces.relationship_lifecycle:

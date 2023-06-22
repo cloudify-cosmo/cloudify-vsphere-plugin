@@ -64,6 +64,7 @@ class IPPoolTest(unittest.TestCase):
             self.mock_ctx.instance.runtime_properties,
             {'ippool': 12345}
         )
+
         mock_client_get().create_ippool.assert_called_once_with(
             'datacenter', {
                 'subnet': '192.0.2.0',

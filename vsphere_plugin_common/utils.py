@@ -110,7 +110,24 @@ def find_rels_by_type(node_instance, rel_type):
             if rel_type in x.type_hierarchy]
 
 
-def find_instances_by_type_from_rels(node_instance, rel_type, node_type):
+def find_instances_by_type_from_rels(node_instance, rel_type, node_types):
+    if isinstance(node_types, str):
+        return _find_instances_by_type_from_rels(node_instance,
+                                                 rel_type,
+                                                 node_types)
+    results = []
+    for node_type in node_types:
+        instances = _find_instances_by_type_from_rels(node_instance,
+                                                      rel_type,
+                                                      node_type)
+        for instance in instances:
+            if instance not in results:
+                results.append(instance)
+
+    return results
+
+
+def _find_instances_by_type_from_rels(node_instance, rel_type, node_type):
     instances = []
     for relationship in find_rels_by_type(node_instance, rel_type):
         if node_type in relationship.target.node.type_hierarchy:
