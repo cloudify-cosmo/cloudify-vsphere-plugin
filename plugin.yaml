@@ -148,6 +148,10 @@ node_types:
         check_drift:
           implementation: vsphere.vsphere_server_plugin.server.check_drift
           inputs: {}
+        update:
+          implementation: vsphere.vsphere_server_plugin.server.update
+          inputs: {}
+      # suspend/resume
       cloudify.interfaces.freeze:
         suspend:
           implementation: vsphere.vsphere_server_plugin.server.freeze_suspend
@@ -282,18 +286,24 @@ node_types:
           inputs:
             max_wait_time: *id001
             storage:
-              default: '{ get_property: [''SELF'', ''storage''] }'
+              default: { get_property: [SELF, storage ]}
         delete:
           implementation: vsphere.vsphere_storage_plugin.storage.delete
           inputs:
             max_wait_time: *id001
+        check_drift:
+          implementation: vsphere.vsphere_storage_plugin.storage.check_drift
+          inputs: {}
+        update:
+          implementation: vsphere.vsphere_storage_plugin.storage.update
+          inputs: {}
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_storage_plugin.storage.resize
           inputs:
             max_wait_time: *id001
             storage:
-              default: '{ get_property: [''SELF'', ''storage''] }'
+              default: { get_property: [SELF, storage] }
 
   cloudify.vsphere.nodes.IPPool:
     derived_from: cloudify.nodes.vsphere.IPPool
@@ -351,7 +361,7 @@ node_types:
       raw_files:
         default: {}
       files_raw:
-        default: '{ get_property: [''SELF'', ''raw_files''] }'
+        default: { get_property: [SELF, raw_files] }
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -618,25 +628,25 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.create_controller
           inputs:
             name:
-              default: '{ get_attribute: [''SELF'', ''name''] }'
+              default: { get_attribute: [SELF, name] }
             switch_distributed:
-              default: '{ get_attribute: [''SELF'', ''switch_distributed''] }'
+              default: { get_attribute: [SELF, switch_distributed] }
             adapter_type:
-              default: '{ get_attribute: [''SELF'', ''adapter_type''] }'
+              default: { get_attribute: [SELF, adapter_type] }
             start_connected:
-              default: '{ get_attribute: [''SELF'', ''start_connected''] }'
+              default: { get_attribute: [SELF, start_connected] }
             allow_guest_control:
-              default: '{ get_attribute: [''SELF'', ''allow_guest_control''] }'
+              default: { get_attribute: [SELF, allow_guest_control] }
             network_connected:
-              default: '{ get_attribute: [''SELF'', ''network_connected''] }'
+              default: { get_attribute: [SELF, network_connected] }
             wake_on_lan_enabled:
-              default: '{ get_attribute: [''SELF'', ''wake_on_lan_enabled''] }'
+              default: { get_attribute: [SELF, wake_on_lan_enabled] }
             address_type:
-              default: '{ get_attribute: [''SELF'', ''address_type''] }'
+              default: { get_attribute: [SELF, address_type] }
             mac_address:
-              default: '{ get_attribute: [''SELF'', ''mac_address''] }'
+              default: { get_attribute: [SELF, mac_address] }
             network_configuration:
-              default: '{ get_attribute: [''SELF'', ''network_configuration''] }'
+              default: { get_attribute: [SELF, network_configuration] }
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_controller
 
@@ -668,17 +678,17 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.create_controller
           inputs:
             busNumber:
-              default: '{ get_attribute: [''SELF'', ''busNumber''] }'
+              default: { get_attribute: [SELF, busNumber] }
             hotAddRemove:
-              default: '{ get_attribute: [''SELF'', ''hotAddRemove''] }'
+              default: { get_attribute: [SELF, hotAddRemove] }
             sharedBus:
-              default: '{ get_attribute: [''SELF'', ''sharedBus''] }'
+              default: { get_attribute: [SELF, sharedBus] }
             scsiCtlrUnitNumber:
-              default: '{ get_attribute: [''SELF'', ''scsiCtlrUnitNumber''] }'
+              default: { get_attribute: [SELF, scsiCtlrUnitNumber] }
             adapterType:
-              default: '{ get_attribute: [''SELF'', ''adapterType''] }'
+              default: { get_attribute: [SELF, adapterType] }
             label:
-              default: '{ get_attribute: [''SELF'', ''label''] }'
+              default: { get_attribute: [SELF, label] }
         delete:
           implementation: vsphere.cloudify_vsphere.devices.delete_controller
 

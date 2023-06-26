@@ -254,6 +254,9 @@ node_types:
         check_drift:
           implementation: vsphere.vsphere_server_plugin.server.check_drift
           inputs: {}
+        update:
+          implementation: vsphere.vsphere_server_plugin.server.update
+          inputs: {}
       # suspend/resume
       cloudify.interfaces.freeze:
         suspend:
@@ -428,6 +431,12 @@ node_types:
         delete:
           implementation: vsphere.vsphere_storage_plugin.storage.delete
           inputs: *interfaces_power_inputs
+        check_drift:
+          implementation: vsphere.vsphere_storage_plugin.storage.check_drift
+          inputs: {}
+        update:
+          implementation: vsphere.vsphere_storage_plugin.storage.update
+          inputs: {}
       cloudify.interfaces.modify:
         resize:
           implementation: vsphere.vsphere_storage_plugin.storage.resize
