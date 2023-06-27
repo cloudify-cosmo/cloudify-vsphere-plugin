@@ -82,8 +82,7 @@ node_types:
 
   cloudify.vsphere.nodes.Server:
     derived_from: cloudify.nodes.vsphere.Server
-    properties: {}
-    interfaces: {}
+
   cloudify.nodes.vsphere.Server:
     derived_from: cloudify.nodes.Compute
     properties:
@@ -155,7 +154,6 @@ node_types:
         update:
           implementation: vsphere.vsphere_server_plugin.server.update
           inputs: {}
-      # suspend/resume
       cloudify.interfaces.freeze:
         suspend:
           implementation: vsphere.vsphere_server_plugin.server.freeze_suspend
@@ -217,8 +215,6 @@ node_types:
 
   cloudify.vsphere.nodes.WindowsServer:
     derived_from: cloudify.nodes.vsphere.WindowsServer
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.WindowsServer:
     derived_from: cloudify.vsphere.nodes.Server
@@ -241,12 +237,9 @@ node_types:
         type: cloudify.datatypes.AgentConfig
         default:
           port: 5985
-    interfaces: {}
 
   cloudify.vsphere.nodes.Network:
     derived_from: cloudify.nodes.vsphere.Network
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.Network:
     derived_from: cloudify.nodes.Network
@@ -269,8 +262,6 @@ node_types:
 
   cloudify.vsphere.nodes.Storage:
     derived_from: cloudify.nodes.vsphere.Storage
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.Storage:
     derived_from: cloudify.nodes.Volume
@@ -311,8 +302,6 @@ node_types:
 
   cloudify.vsphere.nodes.IPPool:
     derived_from: cloudify.nodes.vsphere.IPPool
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.IPPool:
     derived_from: cloudify.nodes.Subnet
@@ -341,8 +330,6 @@ node_types:
 
   cloudify.vsphere.nodes.CloudInitISO:
     derived_from: cloudify.nodes.vsphere.CloudInitISO
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.CloudInitISO:
     derived_from: cloudify.nodes.Volume
@@ -380,8 +367,6 @@ node_types:
 
   cloudify.vsphere.nodes.Datacenter:
     derived_from: cloudify.nodes.vsphere.Datacenter
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.Datacenter:
     derived_from: cloudify.nodes.Root
@@ -404,8 +389,6 @@ node_types:
 
   cloudify.vsphere.nodes.Datastore:
     derived_from: cloudify.nodes.vsphere.Datastore
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.Datastore:
     derived_from: cloudify.nodes.Root
@@ -428,8 +411,6 @@ node_types:
 
   cloudify.vsphere.nodes.Cluster:
     derived_from: cloudify.nodes.vsphere.Cluster
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.Cluster:
     derived_from: cloudify.nodes.Root
@@ -452,8 +433,6 @@ node_types:
 
   cloudify.vsphere.nodes.ResourcePool:
     derived_from: cloudify.nodes.vsphere.ResourcePool
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.ResourcePool:
     derived_from: cloudify.nodes.Root
@@ -492,8 +471,6 @@ node_types:
 
   cloudify.vsphere.nodes.VMFolder:
     derived_from: cloudify.nodes.vsphere.VMFolder
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.VMFolder:
     derived_from: cloudify.nodes.Root
@@ -516,8 +493,6 @@ node_types:
 
   cloudify.vsphere.nodes.Host:
     derived_from: cloudify.nodes.vsphere.Host
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.Host:
     derived_from: cloudify.nodes.Root
@@ -540,8 +515,6 @@ node_types:
 
   cloudify.vsphere.nodes.ContentLibraryDeployment:
     derived_from: cloudify.nodes.vsphere.ContentLibraryDeployment
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.ContentLibraryDeployment:
     derived_from: cloudify.nodes.Root
@@ -585,6 +558,9 @@ node_types:
       cpus:
         type: integer
         required: false
+      disk_size:
+        type: integer
+        required: false
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -599,8 +575,6 @@ node_types:
 
   cloudify.vsphere.nodes.NIC:
     derived_from: cloudify.nodes.vsphere.NIC
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.NIC:
     derived_from: cloudify.nodes.Root
@@ -656,8 +630,6 @@ node_types:
 
   cloudify.vsphere.nodes.SCSIController:
     derived_from: cloudify.nodes.vsphere.SCSIController
-    properties: {}
-    interfaces: {}
 
   cloudify.nodes.vsphere.SCSIController:
     derived_from: cloudify.nodes.Root

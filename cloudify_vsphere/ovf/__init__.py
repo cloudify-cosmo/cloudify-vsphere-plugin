@@ -253,7 +253,7 @@ def extract_network_names(string):
 @op
 def create(ctx, connection_config, target, ovf_name, ovf_source,
            datastore_name, disk_provisioning, network_mappings,
-           memory, cpus):
+           memory, cpus, disk_size):
     esxi_node = target.get('host')
     vm_folder = target.get('folder')
     resource_pool = target.get('resource_pool')
@@ -353,13 +353,13 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
     vmconf.cpuHotAddEnabled = True
     vmconf.memoryHotAddEnabled = True
     vmconf.cpuHotRemoveEnabled = True
-    if len(not_mapped_networks) > 0:
+    if len(not_mapped_networks) > 0 or disk_size:
         hardware_devices = created_vm.config.hardware.device
         device_changes = []
         for device in hardware_devices:
             # 4000 is the first network card key
             if isinstance(device, vim.vm.device.VirtualEthernetCard) and \
-                    device.key != 4000:
+                    device.key != 4000 and len(not_mapped_networks) > 0:
                 device_change = vim.vm.device.VirtualDeviceSpec()
                 device_change.operation = \
                     vim.vm.device.VirtualDeviceSpec.Operation.edit
@@ -367,6 +367,13 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
                 device_change.device.connectable.startConnected = False
                 device_change.device.connectable.allowGuestControl = \
                     True
+                device_changes.append(device_change)
+            if isinstance(device, vim.vm.device.VirtualDisk) and disk_size:
+                device_change = vim.vm.device.VirtualDeviceSpec()
+                device_change.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.edit
+                device_change.device = device
+                device_change.device.capacityInKB = disk_size * 1024 * 1024
                 device_changes.append(device_change)
         vmconf.deviceChange = device_changes
     task = created_vm.obj.ReconfigVM_Task(spec=vmconf)

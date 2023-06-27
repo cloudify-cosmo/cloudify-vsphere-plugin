@@ -767,7 +767,7 @@ node_types:
 
   cloudify.vsphere.nodes.ContentLibraryDeployment:
     derived_from: cloudify.nodes.vsphere.ContentLibraryDeployment
- 
+
 # For more information look to https://vdc-repo.vmware.com/vmwb-repository/dcr-public/1cd28284-3b72-4885-9e31-d1c6d9e26686/71ef7304-a6c9-43b3-a3cd-868b2c236c81/doc/operations/com/vmware/vcenter/ovf/library_item.deploy-operation.html
   cloudify.nodes.vsphere.ContentLibraryDeployment:
     derived_from: cloudify.nodes.Root
@@ -887,6 +887,11 @@ node_types:
       cpus:
         description: >
           Number of CPUs.
+        type: integer
+        required: false
+      disk_size:
+        description: >
+          Disk size in GBs.
         type: integer
         required: false
       connection_config:
