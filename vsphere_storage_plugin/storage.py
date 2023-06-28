@@ -209,3 +209,46 @@ def resize(storage_client, max_wait_time=300, storage=None, **_):
     ctx.logger.info(
         "Successfully resized storage {file} on {vm} to {new_size}".format(
             file=storage_file_name, vm=vm_name, new_size=storage_size))
+
+
+@op
+@with_storage_client
+def check_drift(storage_client, **_):
+    resource_name = \
+        ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME)
+
+    if not resource_name:
+        raise NonRecoverableError('Instance not configured correctly')
+
+    ctx.logger.info(
+        'Checking drift state for {resource_name}.'.format(
+            resource_name=resource_name))
+    # get new storage_size from update
+    storage_size = ctx.node.properties['storage'].get('storage_size')
+    current_size = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_SIZE)
+
+    if (storage_size and current_size) and storage_size != current_size:
+        return True
+    return False
+
+
+@op
+@with_storage_client
+def update(storage_client, **_):
+    # get new storage_size from update
+    storage_size = ctx.node.properties['storage'].get('storage_size')
+
+    vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
+    storage_file_name = \
+        ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME)
+
+    if None in (vm_id, storage_file_name, storage_size):
+        raise NonRecoverableError(
+            "values passed or instance not initialized correctly")
+    else:
+        storage_client.resize_storage(
+            vm_id,
+            storage_file_name,
+            storage_size,
+            max_wait_time=300)
+        ctx.instance.runtime_properties[VSPHERE_STORAGE_SIZE] = storage_size

@@ -189,7 +189,8 @@ def assign_expected_configuration(iface, runtime_props, prop=None):
 
 def compare_configuration(expected_configuration, remote_configuration):
     return DeepDiff(expected_configuration,
-                    remote_configuration)
+                    remote_configuration,
+                    ignore_order=True)
 
 
 def check_drift(logger, expected_configuration, current_configuration):

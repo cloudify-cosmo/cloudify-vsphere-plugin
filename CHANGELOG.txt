@@ -1,4 +1,7 @@
-2.20.1: RND-537-deprecate-node-types.
+2.20.1:
+  - RND-537-deprecate-node-types.
+  - Add Update support for Server/Storage.
+  - handle ovf network mapping where user don't provide all ovf networks.
 2.20.0:
   - Add Ovf Deploy support.
   - Add Snapshot with memory support.

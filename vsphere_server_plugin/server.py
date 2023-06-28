@@ -1002,6 +1002,12 @@ def resize_server(server_client,
         value = locals()[property]
         if value:
             ctx.instance.runtime_properties[property] = value
+            if property == 'memory':
+                ctx.instance.runtime_properties['expected_configuration'][
+                    'summary']['memorySizeMB'] = value
+            elif property == 'cpus':
+                ctx.instance.runtime_properties['expected_configuration'][
+                    'summary']['numCpu'] = value
 
 
 @op
@@ -1066,8 +1072,12 @@ def poststart(server_client, server, os_family, **_):
 @op
 @with_server_client
 def check_drift(server_client, **_):
-    server_obj = server_client.get_server_by_id(
-            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+    server_id = ctx.instance.runtime_properties.get(VSPHERE_SERVER_ID)
+
+    if not server_id:
+        raise NonRecoverableError('Instance not configured correctly')
+
+    server_obj = server_client.get_server_by_id(server_id)
     ctx.logger.info(
         'Checking drift state for {resource_name}.'.format(
             resource_name=server_obj.name))
@@ -1084,6 +1094,38 @@ def check_drift(server_client, **_):
                                     sort_keys=True, indent=4))
     current_configuration['network'] = network
     current_configuration['summary'] = summary
-    utils_check_drift(ctx.logger,
-                      expected_configuration,
-                      current_configuration)
+
+    # get new memory/cpus from update
+    memory = ctx.node.properties('server', {}).get('memory')
+    cpus = ctx.node.properties('server', {}).get('cpus')
+    if (memory and
+            memory != expected_configuration['summary']['memorySizeMB']) or \
+            (cpus and cpus != expected_configuration['summary']['numCpu']):
+        return True
+
+    return utils_check_drift(ctx.logger,
+                             expected_configuration,
+                             current_configuration)
+
+
+@op
+@with_server_client
+def update(server_client, **_):
+    cpus = ctx.node.properties.get('server', {}).get('cpus')
+    memory = ctx.node.properties('server', {}).get('memory')
+
+    if not any((cpus, memory,)):
+        raise NonRecoverableError("CPU and Memory values are None")
+    else:
+        server_obj = server_client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+        server_client.resize_server(server_obj,
+                                    cpus=cpus,
+                                    memory=memory,
+                                    max_wait_time=300)
+        ctx.instance.runtime_properties['cpus'] = cpus
+        ctx.instance.runtime_properties['memory'] = memory
+        ctx.instance.runtime_properties['expected_configuration']['summary'][
+            'memorySizeMB'] = memory
+        ctx.instance.runtime_properties['expected_configuration']['summary'][
+            'numCpu'] = cpus
