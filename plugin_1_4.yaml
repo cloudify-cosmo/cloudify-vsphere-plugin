@@ -894,6 +894,11 @@ node_types:
           Disk size in GBs.
         type: integer
         required: false
+      cdrom_image:
+        description: |
+          Cdrom image path
+        type: string
+        required: false
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config

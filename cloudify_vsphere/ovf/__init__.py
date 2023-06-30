@@ -253,7 +253,7 @@ def extract_network_names(string):
 @op
 def create(ctx, connection_config, target, ovf_name, ovf_source,
            datastore_name, disk_provisioning, network_mappings,
-           memory, cpus, disk_size):
+           memory, cpus, disk_size, cdrom_image):
     esxi_node = target.get('host')
     vm_folder = target.get('folder')
     resource_pool = target.get('resource_pool')
@@ -353,9 +353,11 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
     vmconf.cpuHotAddEnabled = True
     vmconf.memoryHotAddEnabled = True
     vmconf.cpuHotRemoveEnabled = True
-    if len(not_mapped_networks) > 0 or disk_size:
+    if len(not_mapped_networks) > 0 or disk_size or cdrom_image:
         hardware_devices = created_vm.config.hardware.device
         device_changes = []
+        ide_controller = None
+        cdrom_attached = False
         for device in hardware_devices:
             # 4000 is the first network card key
             if isinstance(device, vim.vm.device.VirtualEthernetCard) and \
@@ -368,6 +370,7 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
                 device_change.device.connectable.allowGuestControl = \
                     True
                 device_changes.append(device_change)
+            # change disk size based on input
             if isinstance(device, vim.vm.device.VirtualDisk) and disk_size:
                 device_change = vim.vm.device.VirtualDeviceSpec()
                 device_change.operation = \
@@ -375,6 +378,40 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
                 device_change.device = device
                 device_change.device.capacityInKB = disk_size * 1024 * 1024
                 device_changes.append(device_change)
+            # look for ide_controller to attach new cdrom
+            if isinstance(device, vim.vm.device.VirtualIDEController):
+                if len(device.device) < 2:
+                    ide_controller = device.key
+            # cdrom already attached , update it
+            if isinstance(device, vim.vm.device.VirtualCdrom) and cdrom_image:
+                cdrom_attached = True
+                cdrom = vim.vm.device.VirtualDeviceSpec()
+                cdrom.device = device
+                device.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
+                    fileName=cdrom_image)
+                cdrom.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.edit
+                connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+                connectable.allowGuestControl = True
+                connectable.startConnected = True
+                device.connectable = connectable
+                device_changes.append(cdrom)
+        if cdrom_image and not cdrom_attached:
+            cdrom_device = vim.vm.device.VirtualDeviceSpec()
+            cdrom_device.operation = \
+                vim.vm.device.VirtualDeviceSpec.Operation.add
+            connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+            connectable.allowGuestControl = True
+            connectable.startConnected = True
+
+            cdrom = vim.vm.device.VirtualCdrom()
+            cdrom.controllerKey = ide_controller
+            cdrom.key = -1
+            cdrom.connectable = connectable
+            cdrom.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
+                fileName=cdrom_image)
+            cdrom_device.device = cdrom
+            device_changes.append(cdrom_device)
         vmconf.deviceChange = device_changes
     task = created_vm.obj.ReconfigVM_Task(spec=vmconf)
     client._wait_for_task(task)
