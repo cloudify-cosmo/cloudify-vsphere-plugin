@@ -1096,8 +1096,8 @@ def check_drift(server_client, **_):
     current_configuration['summary'] = summary
 
     # get new memory/cpus from update
-    memory = ctx.node.properties('server', {}).get('memory')
-    cpus = ctx.node.properties('server', {}).get('cpus')
+    memory = ctx.node.properties.get('server', {}).get('memory')
+    cpus = ctx.node.properties.get('server', {}).get('cpus')
     if (memory and
             memory != expected_configuration['summary']['memorySizeMB']) or \
             (cpus and cpus != expected_configuration['summary']['numCpu']):
@@ -1112,7 +1112,7 @@ def check_drift(server_client, **_):
 @with_server_client
 def update(server_client, **_):
     cpus = ctx.node.properties.get('server', {}).get('cpus')
-    memory = ctx.node.properties('server', {}).get('memory')
+    memory = ctx.node.properties.get('server', {}).get('memory')
 
     if not any((cpus, memory,)):
         raise NonRecoverableError("CPU and Memory values are None")
