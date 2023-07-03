@@ -113,7 +113,7 @@ SUPPORT_DRIFT = [
     'cloudify.nodes.vsphere.Server',
     'cloudify.nodes.vsphere.WindowsServer',
     'cloudify.nodes.vsphere.IPPool',
-    'cloudify.nodes.vsphere.ResourcePool'
+    'cloudify.nodes.vsphere.ResourcePool',
 
     # Deprecated node type.
     'cloudify.vsphere.nodes.Server',
