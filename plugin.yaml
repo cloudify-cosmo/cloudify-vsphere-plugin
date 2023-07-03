@@ -557,6 +557,9 @@ node_types:
       disk_size:
         type: integer
         required: false
+      cdrom_image:
+        default: string
+        required: false
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
