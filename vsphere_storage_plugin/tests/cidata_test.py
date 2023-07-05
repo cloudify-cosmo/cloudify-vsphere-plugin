@@ -45,7 +45,7 @@ class VsphereCIDataTest(unittest.TestCase):
             'host': 'host',
             'port': '80'
         }
-
+        self.mock_ctx.node._type = "cloudify.nodes.vsphere.CloudInitISO"
         cidata.create(
             files=None, raw_files={
                 'g': 'file_call'

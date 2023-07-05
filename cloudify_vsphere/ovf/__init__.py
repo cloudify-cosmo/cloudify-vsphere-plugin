@@ -14,6 +14,7 @@
 
 # Stdlib imports
 import os
+import re
 import ssl
 import time
 import tarfile
@@ -243,10 +244,16 @@ def get_obj_in_list(obj_name, obj_list):
     raise NonRecoverableError('Could not find {0}'.format(obj_name))
 
 
+def extract_network_names(string):
+    pattern = r'<Network ovf:name="([^"]*)"'
+    matches = re.findall(pattern, string)
+    return matches
+
+
 @op
 def create(ctx, connection_config, target, ovf_name, ovf_source,
            datastore_name, disk_provisioning, network_mappings,
-           memory, cpus):
+           memory, cpus, disk_size, cdrom_image):
     esxi_node = target.get('host')
     vm_folder = target.get('folder')
     resource_pool = target.get('resource_pool')
@@ -270,6 +277,12 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
     datastore = get_obj_in_list(datastore_name, client._get_datastores())
     ovf_handle = OvfHandler(ctx.logger, ovf_source)
 
+    ovf_descriptor = ovf_handle.get_descriptor()
+
+    network_names = extract_network_names(ovf_descriptor)
+    mapped_networks = []
+    not_mapped_networks = []
+
     nma = vim.OvfManager.NetworkMapping.Array()
     for network in network_mappings:
         interface_name = network.get('key')
@@ -278,6 +291,21 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
         nm = vim.OvfManager.NetworkMapping(name=interface_name,
                                            network=network)
         nma.append(nm)
+        mapped_networks.append(interface_name)
+
+    # we are not mapping all networks
+    # let's map the remaining network with default network
+    # then we will disconnect them
+    if len(mapped_networks) != len(network_names):
+        mapped_network = \
+            get_obj_in_list(network_mappings[-1].get('value'),
+                            datacenter.network)
+        for network in network_names:
+            if network not in mapped_networks:
+                nm = vim.OvfManager.NetworkMapping(name=network,
+                                                   network=mapped_network)
+                nma.append(nm)
+                not_mapped_networks.append(network)
 
     spec_params = vim.OvfManager.CreateImportSpecParams(
         entityName=ovf_name,
@@ -287,7 +315,7 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
     if esxi_node:
         spec_params.hostSystem = host
     import_spec = client.si.content.ovfManager.CreateImportSpec(
-        ovf_handle.get_descriptor(), resource_pool.obj,
+        ovf_descriptor, resource_pool.obj,
         datastore.obj, spec_params
     )
 
@@ -325,6 +353,66 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
     vmconf.cpuHotAddEnabled = True
     vmconf.memoryHotAddEnabled = True
     vmconf.cpuHotRemoveEnabled = True
+    if len(not_mapped_networks) > 0 or disk_size or cdrom_image:
+        hardware_devices = created_vm.config.hardware.device
+        device_changes = []
+        ide_controller = None
+        cdrom_attached = False
+        for device in hardware_devices:
+            # 4000 is the first network card key
+            if isinstance(device, vim.vm.device.VirtualEthernetCard) and \
+                    device.key != 4000 and len(not_mapped_networks) > 0:
+                device_change = vim.vm.device.VirtualDeviceSpec()
+                device_change.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.edit
+                device_change.device = device
+                device_change.device.connectable.startConnected = False
+                device_change.device.connectable.allowGuestControl = \
+                    True
+                device_changes.append(device_change)
+            # change disk size based on input
+            if isinstance(device, vim.vm.device.VirtualDisk) and disk_size:
+                device_change = vim.vm.device.VirtualDeviceSpec()
+                device_change.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.edit
+                device_change.device = device
+                device_change.device.capacityInKB = disk_size * 1024 * 1024
+                device_changes.append(device_change)
+            # look for ide_controller to attach new cdrom
+            if isinstance(device, vim.vm.device.VirtualIDEController):
+                if len(device.device) < 2:
+                    ide_controller = device.key
+            # cdrom already attached , update it
+            if isinstance(device, vim.vm.device.VirtualCdrom) and cdrom_image:
+                cdrom_attached = True
+                cdrom = vim.vm.device.VirtualDeviceSpec()
+                cdrom.device = device
+                device.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
+                    fileName=cdrom_image)
+                cdrom.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.edit
+                connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+                connectable.allowGuestControl = True
+                connectable.startConnected = True
+                device.connectable = connectable
+                device_changes.append(cdrom)
+        if cdrom_image and not cdrom_attached:
+            cdrom_device = vim.vm.device.VirtualDeviceSpec()
+            cdrom_device.operation = \
+                vim.vm.device.VirtualDeviceSpec.Operation.add
+            connectable = vim.vm.device.VirtualDevice.ConnectInfo()
+            connectable.allowGuestControl = True
+            connectable.startConnected = True
+
+            cdrom = vim.vm.device.VirtualCdrom()
+            cdrom.controllerKey = ide_controller
+            cdrom.key = -1
+            cdrom.connectable = connectable
+            cdrom.backing = vim.vm.device.VirtualCdrom.IsoBackingInfo(
+                fileName=cdrom_image)
+            cdrom_device.device = cdrom
+            device_changes.append(cdrom_device)
+        vmconf.deviceChange = device_changes
     task = created_vm.obj.ReconfigVM_Task(spec=vmconf)
     client._wait_for_task(task)
     client.start_server(created_vm)

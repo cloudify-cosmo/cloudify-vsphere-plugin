@@ -24,7 +24,7 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 # This package imports
 from vsphere_plugin_common import with_storage_client
 from vsphere_plugin_common._compat import text_type
-from vsphere_plugin_common.utils import op, prepare_for_log
+from vsphere_plugin_common.utils import op, prepare_for_log, is_node_deprecated
 from vsphere_plugin_common.constants import (
     VSPHERE_SERVER_ID,
     VSPHERE_STORAGE_SIZE,
@@ -46,6 +46,7 @@ def create(storage_client,
            use_external_resource=False,
            max_wait_time=300,
            **_):
+    is_node_deprecated(ctx.node.type)
     ctx.logger.debug("Entering create storage procedure.")
     storage.setdefault('name', ctx.node.id)
     # This should be debug, but left as info until CFY-4867 makes logs more
@@ -208,3 +209,46 @@ def resize(storage_client, max_wait_time=300, storage=None, **_):
     ctx.logger.info(
         "Successfully resized storage {file} on {vm} to {new_size}".format(
             file=storage_file_name, vm=vm_name, new_size=storage_size))
+
+
+@op
+@with_storage_client
+def check_drift(storage_client, **_):
+    resource_name = \
+        ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME)
+
+    if not resource_name:
+        raise NonRecoverableError('Instance not configured correctly')
+
+    ctx.logger.info(
+        'Checking drift state for {resource_name}.'.format(
+            resource_name=resource_name))
+    # get new storage_size from update
+    storage_size = ctx.node.properties['storage'].get('storage_size')
+    current_size = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_SIZE)
+
+    if (storage_size and current_size) and storage_size != current_size:
+        return True
+    return False
+
+
+@op
+@with_storage_client
+def update(storage_client, **_):
+    # get new storage_size from update
+    storage_size = ctx.node.properties['storage'].get('storage_size')
+
+    vm_id = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_VM_ID)
+    storage_file_name = \
+        ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME)
+
+    if None in (vm_id, storage_file_name, storage_size):
+        raise NonRecoverableError(
+            "values passed or instance not initialized correctly")
+    else:
+        storage_client.resize_storage(
+            vm_id,
+            storage_file_name,
+            storage_size,
+            max_wait_time=300)
+        ctx.instance.runtime_properties[VSPHERE_STORAGE_SIZE] = storage_size

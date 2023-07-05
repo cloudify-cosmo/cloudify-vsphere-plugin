@@ -19,7 +19,7 @@ import cloudify_common_sdk.iso9660 as iso9660
 from cloudify import ctx
 
 # This package imports
-from vsphere_plugin_common.utils import op
+from vsphere_plugin_common.utils import op, is_node_deprecated
 from vsphere_plugin_common import with_rawvolume_client
 from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_IMAGE,
@@ -41,7 +41,7 @@ def create(rawvolume_client,
            volume_prefix,
            raw_files=None,
            **_):
-
+    is_node_deprecated(ctx.node.type)
     if ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
         ctx.logger.info('Instance is already created.')
         return

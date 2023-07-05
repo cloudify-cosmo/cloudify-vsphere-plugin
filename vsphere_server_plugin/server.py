@@ -13,10 +13,11 @@
 # limitations under the License.
 
 import re
+import uuid
 
 # Third party imports
 import json
-from pyVmomi import VmomiSupport
+from pyVmomi import vim, VmomiSupport
 
 # Cloudify imports
 import time
@@ -27,7 +28,12 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 # This package imports
 from vsphere_plugin_common import with_server_client
 from vsphere_plugin_common.clients.server import get_ip_from_vsphere_nic_ips
-from vsphere_plugin_common.utils import op, prepare_for_log, find_rels_by_type
+from vsphere_plugin_common.utils import (
+    op,
+    is_node_deprecated,
+    prepare_for_log,
+    find_rels_by_type
+)
 from vsphere_plugin_common.constants import (
     IP,
     NETWORKS,
@@ -367,7 +373,7 @@ def create(server_client,
            extra_config=None,
            max_wait_time=300,
            **_):
-
+    is_node_deprecated(ctx.node.type)
     if enable_start_vm:
         ctx.logger.debug('Create operation ignores enable_start_vm property.')
         enable_start_vm = False
@@ -458,6 +464,7 @@ def start(server_client,
           max_wait_time=300,
           **_):
 
+    is_node_deprecated(ctx.node.type)
     ctx.logger.debug("Checking whether server exists...")
     if use_external_resource and "name" in server:
         server_obj = server_client.get_server_by_name(server.get('name'))
@@ -996,6 +1003,12 @@ def resize_server(server_client,
         value = locals()[property]
         if value:
             ctx.instance.runtime_properties[property] = value
+            if property == 'memory':
+                ctx.instance.runtime_properties['expected_configuration'][
+                    'summary']['memorySizeMB'] = value
+            elif property == 'cpus':
+                ctx.instance.runtime_properties['expected_configuration'][
+                    'summary']['numCpu'] = value
 
 
 @op
@@ -1060,8 +1073,12 @@ def poststart(server_client, server, os_family, **_):
 @op
 @with_server_client
 def check_drift(server_client, **_):
-    server_obj = server_client.get_server_by_id(
-            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+    server_id = ctx.instance.runtime_properties.get(VSPHERE_SERVER_ID)
+
+    if not server_id:
+        raise NonRecoverableError('Instance not configured correctly')
+
+    server_obj = server_client.get_server_by_id(server_id)
     ctx.logger.info(
         'Checking drift state for {resource_name}.'.format(
             resource_name=server_obj.name))
@@ -1078,6 +1095,196 @@ def check_drift(server_client, **_):
                                     sort_keys=True, indent=4))
     current_configuration['network'] = network
     current_configuration['summary'] = summary
-    utils_check_drift(ctx.logger,
-                      expected_configuration,
-                      current_configuration)
+
+    needs_update = False
+
+    networks = ctx.instance.runtime_properties.get('networks', [])
+    existing_networks = []
+    for device in server_obj.config.hardware.device:
+        if isinstance(device, vim.vm.device.VirtualEthernetCard):
+            defined = False
+            for network in networks:
+                if device.macAddress == network.get('mac'):
+                    defined = True
+                    existing_networks.append(network.get('name'))
+                    break
+            if not defined:
+                # not in defined networks...let's cause diff
+                existing_networks.append(uuid.uuid4())
+    # get new networks
+    new_networks = [
+        network.get('name') for network in ctx.node.properties.get(
+            'networking', {}).get('connect_networks', [])
+    ]
+    network_diff = utils_check_drift(ctx.logger,
+                                     existing_networks,
+                                     new_networks)
+    if network_diff:
+        ctx.instance.runtime_properties['network_update'] = True
+        needs_update = True
+
+    # get new memory/cpus from update
+    memory = ctx.node.properties.get('server', {}).get('memory')
+    cpus = ctx.node.properties.get('server', {}).get('cpus')
+    if (memory and
+            memory != expected_configuration['summary']['memorySizeMB']) or \
+            (cpus and cpus != expected_configuration['summary']['numCpu']):
+        ctx.instance.runtime_properties['spec_update'] = True
+        needs_update = True
+
+    # handled and expected possible update
+    if needs_update:
+        return True
+
+    # general case drift
+    return utils_check_drift(ctx.logger,
+                             expected_configuration,
+                             current_configuration)
+
+
+@op
+@with_server_client
+def update(server_client, **_):
+    spec_update = ctx.instance.runtime_properties.pop('spec_update', None)
+    network_update = \
+        ctx.instance.runtime_properties.pop('network_update', None)
+    if spec_update:
+        cpus = ctx.node.properties.get('server', {}).get('cpus')
+        memory = ctx.node.properties.get('server', {}).get('memory')
+        server_obj = server_client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+        server_client.resize_server(server_obj,
+                                    cpus=cpus,
+                                    memory=memory,
+                                    max_wait_time=300)
+        ctx.instance.runtime_properties['cpus'] = cpus
+        ctx.instance.runtime_properties['memory'] = memory
+        ctx.instance.runtime_properties['expected_configuration'][
+            'summary']['memorySizeMB'] = memory
+        ctx.instance.runtime_properties['expected_configuration'][
+            'summary']['numCpu'] = cpus
+    if network_update:
+        server_obj = server_client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+
+        # check existing networks [against runtime-props and reality]
+        networks = ctx.instance.runtime_properties.get('networks', [])
+        real_networks = []
+        for device in server_obj.config.hardware.device:
+            if isinstance(device, vim.vm.device.VirtualEthernetCard):
+                for network in networks:
+                    if device.macAddress == network.get('mac'):
+                        real_networks.append(network.get('name'))
+                        break
+        # doctor new networks provided from update
+        networking = ctx.node.properties.get('networking', {})
+        new_networks = handle_networks(networking)
+        new_network_names = [network.get('name') for network in new_networks]
+
+        # get networks to remove/add
+        to_add = []
+        to_remove = []
+        for network in real_networks:
+            if network not in new_network_names:
+                to_remove.append(network)
+        for network in new_network_names:
+            if network not in real_networks:
+                to_add.append(network)
+
+        # go through the nics to remove what is not intended
+        nics_for_remove = []
+        device_changes = []
+        netcnt = 0
+        for device in server_obj.config.hardware.device:
+            if isinstance(device, vim.vm.device.VirtualEthernetCard):
+                netcnt += 1
+                defined = False
+                for network in networks:
+                    if device.macAddress == network.get('mac'):
+                        defined = True
+                        if network.get('name') in to_remove:
+                            nics_for_remove.append(device)
+                        break
+                if not defined:
+                    # not in defined networks...
+                    nics_for_remove.append(device)
+        if nics_for_remove:
+            netcnt -= len(nics_for_remove)
+            for nic in nics_for_remove:
+                nicspec = vim.vm.device.VirtualDeviceSpec()
+                nicspec.device = nic
+                nicspec.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.remove
+                device_changes.append(nicspec)
+
+        datacenter_name = server_client.cfg['datacenter_name']
+        datacenter = server_client._get_obj_by_name(vim.Datacenter,
+                                                    datacenter_name)
+        # go through the new networks to add them
+        for network in new_networks:
+            if network.get('name') in to_add:
+                network['name'] = \
+                    server_client._get_connected_network_name(network)
+                nicspec, _ = \
+                    server_client._add_network(network, datacenter, netcnt)
+                device_changes.append(nicspec)
+                netcnt += 1
+
+        if device_changes:
+            vmconf = vim.vm.ConfigSpec()
+            vmconf.deviceChange = device_changes
+            task = server_obj.obj.ReconfigVM_Task(spec=vmconf)
+            server_client._wait_for_task(task)
+
+        # get server object again to update networks
+        server_obj = \
+            server_client._get_obj_by_id(
+                vim.VirtualMachine,
+                ctx.instance.runtime_properties[VSPHERE_SERVER_ID],
+                use_cache=False)
+        store_server_details(server_client, server_obj)
+
+        # update expected configuration after update
+        expected_configuration = {}
+        network = json.loads(json.dumps(server_obj.network,
+                                        cls=VmomiSupport.VmomiJSONEncoder,
+                                        sort_keys=True, indent=4))
+        summary = json.loads(json.dumps(server_obj.summary.config,
+                                        cls=VmomiSupport.VmomiJSONEncoder,
+                                        sort_keys=True, indent=4))
+        expected_configuration['network'] = network
+        expected_configuration['summary'] = summary
+
+        ctx.instance.runtime_properties[
+            'expected_configuration'] = expected_configuration
+
+        if new_networks:
+            # fetch new IP
+            default_ip = None
+            manager_network_ip = None
+            management_networks = \
+                [network['name'] for network
+                 in networking.get('connect_networks', [])
+                 if network.get('management', False)]
+            management_network_name = (management_networks[0]
+                                       if len(management_networks) == 1
+                                       else None)
+            # make sure that networks have IPs
+            while not server_obj.guest.net:
+                server_obj = \
+                    server_client._get_obj_by_id(
+                        vim.VirtualMachine,
+                        ctx.instance.runtime_properties[VSPHERE_SERVER_ID],
+                        use_cache=False)
+                time.sleep(10)
+            for network in server_obj.guest.net:
+                network_name = network.network
+                if not default_ip:
+                    default_ip = get_ip_from_vsphere_nic_ips(network)
+                same_net = network_name == management_network_name
+                if not manager_network_ip or (
+                        management_network_name and same_net):
+                    manager_network_ip = get_ip_from_vsphere_nic_ips(network)
+            ctx.instance.runtime_properties[IP] = manager_network_ip or \
+                default_ip
+        ctx.instance.update()
