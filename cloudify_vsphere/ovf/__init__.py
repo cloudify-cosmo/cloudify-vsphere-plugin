@@ -86,7 +86,9 @@ class OvfHandler(object):
         try:
             self.start_timer()
             for fileItem in self.spec.fileItem:
-                self.upload_disk(fileItem, lease, content)
+                # let's skip nvram file as vSphere will throw error 405
+                if 'nvram' not in fileItem.path:
+                    self.upload_disk(fileItem, lease, content)
             lease.Complete()
             self.logger.debug('Finished deploy successfully.')
         except vmodl.MethodFault as mfex:

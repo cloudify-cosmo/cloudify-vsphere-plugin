@@ -1,3 +1,5 @@
+2.20.2:
+  - CYBL-2073-Handle-NVRAM-File.
 2.20.1:
   - RND-537-deprecate-node-types.
   - Add Update support for Server/Storage.
