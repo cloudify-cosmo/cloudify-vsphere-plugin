@@ -262,20 +262,20 @@ def get_usb_physical_path(content, vm_host_name, device_name):
     container = content.viewManager.CreateContainerView(
         container=content.rootFolder, type=[vim.ComputeResource],
         recursive=True)
-    cluster_cont = container.view[0]
     for host in cv.view:
         # let's make sure that we are checking against the VM host
         if host.name != vm_host_name:
             continue
-        for resource_container in cluster_cont.host:
-            if host.name != resource_container.name:
-                continue
-            host_info = \
-                cluster_cont.environmentBrowser.QueryConfigTarget(host)
-            if len(host_info.usb) > 0:
-                for usb in host_info.usb:
-                    if usb.description == device_name:
-                        return usb.physicalPath
+        for cluster_cont in container.view:
+            for resource_container in cluster_cont.host:
+                if host.name != resource_container.name:
+                    continue
+                host_info = \
+                    cluster_cont.environmentBrowser.QueryConfigTarget(host)
+                if len(host_info.usb) > 0:
+                    for usb in host_info.usb:
+                        if usb.description == device_name:
+                            return usb.physicalPath
     container.Destroy()
     cv.Destroy()
 
