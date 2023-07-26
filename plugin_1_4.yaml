@@ -899,6 +899,10 @@ node_types:
           Cdrom image path
         type: string
         required: false
+      extra_config:
+        description: |
+          Extra config to set, key-value dictionary
+        default: {}
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config

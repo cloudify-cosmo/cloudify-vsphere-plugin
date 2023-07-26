@@ -560,6 +560,8 @@ node_types:
       cdrom_image:
         default: string
         required: false
+      extra_config:
+        default: {}
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
