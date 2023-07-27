@@ -86,7 +86,9 @@ class OvfHandler(object):
         try:
             self.start_timer()
             for fileItem in self.spec.fileItem:
-                self.upload_disk(fileItem, lease, content)
+                # let's skip nvram file as vSphere will throw error 405
+                if 'nvram' not in fileItem.path:
+                    self.upload_disk(fileItem, lease, content)
             lease.Complete()
             self.logger.debug('Finished deploy successfully.')
         except vmodl.MethodFault as mfex:
@@ -253,7 +255,7 @@ def extract_network_names(string):
 @op
 def create(ctx, connection_config, target, ovf_name, ovf_source,
            datastore_name, disk_provisioning, network_mappings,
-           memory, cpus, disk_size, cdrom_image):
+           memory, cpus, disk_size, cdrom_image, extra_config):
     esxi_node = target.get('host')
     vm_folder = target.get('folder')
     resource_pool = target.get('resource_pool')
@@ -353,7 +355,8 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
     vmconf.cpuHotAddEnabled = True
     vmconf.memoryHotAddEnabled = True
     vmconf.cpuHotRemoveEnabled = True
-    if len(not_mapped_networks) > 0 or disk_size or cdrom_image:
+    if len(not_mapped_networks) > 0 or disk_size or cdrom_image or \
+            extra_config:
         hardware_devices = created_vm.config.hardware.device
         device_changes = []
         ide_controller = None
@@ -412,6 +415,10 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
                 fileName=cdrom_image)
             cdrom_device.device = cdrom
             device_changes.append(cdrom_device)
+        if extra_config and isinstance(extra_config, dict):
+            for k in extra_config:
+                vmconf.extraConfig.append(
+                    vim.option.OptionValue(key=k, value=extra_config[k]))
         vmconf.deviceChange = device_changes
     task = created_vm.obj.ReconfigVM_Task(spec=vmconf)
     client._wait_for_task(task)

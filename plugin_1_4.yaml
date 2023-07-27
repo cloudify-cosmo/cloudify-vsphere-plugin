@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.1'
+    package_version: '2.20.2'
 
 data_types:
 
@@ -899,6 +899,11 @@ node_types:
           Cdrom image path
         type: string
         required: false
+      extra_config:
+        description: |
+          Extra config to set, key-value dictionary
+        type: dict
+        default: {}
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
