@@ -565,6 +565,7 @@ node_types:
         type: string
         required: false
       extra_config:
+        type: dict
         default: {}
       connection_config:
         default: {}

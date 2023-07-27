@@ -902,6 +902,7 @@ node_types:
       extra_config:
         description: |
           Extra config to set, key-value dictionary
+        type: dict
         default: {}
       connection_config:
         default: {}
