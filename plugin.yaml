@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.2'
+    package_version: '2.20.3'
 
 data_types:
 
@@ -562,6 +562,9 @@ node_types:
         required: false
       extra_config:
         default: {}
+      boot_firmware:
+        type: string
+        required: false
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
