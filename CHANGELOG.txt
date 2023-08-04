@@ -1,3 +1,5 @@
+2.20.3:
+  - Add boot_firmware support to OVF.
 2.20.2:
   - CYBL-2073-Handle-NVRAM-File.
 2.20.1:

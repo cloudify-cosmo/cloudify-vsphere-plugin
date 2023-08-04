@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.2'
+    package_version: '2.20.3'
 
 data_types:
 
@@ -904,6 +904,11 @@ node_types:
           Extra config to set, key-value dictionary
         type: dict
         default: {}
+      boot_firmware:
+        description: |
+          specify which boot firmware to use it can be [bios,efi]
+        type: string
+        required: false
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
