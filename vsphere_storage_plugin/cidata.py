@@ -91,3 +91,32 @@ def delete(rawvolume_client, **kwargs):
     rawvolume_client.delete_file(datacenter_id=datacenter_id,
                                  datacenter_name=datacenter_name,
                                  datastorepath=storage_path)
+
+
+@op
+@with_rawvolume_client
+def upload_iso(rawvolume_client,
+               datacenter_name,
+               allowed_datastores,
+               allowed_datastore_ids,
+               volume_prefix,
+               iso_file,
+               **_):
+    is_node_deprecated(ctx.node.type)
+    if ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
+        ctx.logger.info('Instance is already created.')
+        return
+    iso_disk = "{prefix}/{name}.iso".format(
+        prefix=volume_prefix, name=ctx.instance.id)
+    with open(iso_file, "rb") as file_data:
+        datacenter_id, storage_path = rawvolume_client.upload_file(
+            datacenter_name=datacenter_name,
+            allowed_datastores=allowed_datastores,
+            allowed_datastore_ids=allowed_datastore_ids,
+            remote_file=iso_disk,
+            data=file_data,
+            host=ctx.node.properties['connection_config']['host'],
+            port=ctx.node.properties['connection_config']['port'])
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_IMAGE] = storage_path
+    ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_path
+    ctx.instance.runtime_properties[DATACENTER_ID] = datacenter_id

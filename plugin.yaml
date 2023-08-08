@@ -720,6 +720,36 @@ node_types:
         postdelete:
           implementation: vsphere.cloudify_vsphere.devices.clean_device_properties
 
+
+  cloudify.vsphere.nodes.ISO:
+    derived_from: cloudify.nodes.vsphere.ISO
+
+  cloudify.nodes.vsphere.ISO:
+    derived_from: cloudify.nodes.Volume
+    properties:
+      datacenter_name:
+        type: string
+        required: false
+      allowed_datastores:
+        required: false
+      allowed_datastore_ids:
+        required: false
+      volume_prefix:
+        default: cloudinit
+      iso_file_path:
+        required: true
+      connection_config:
+        default: { }
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
+          inputs: { }
+        delete:
+          implementation: vsphere.vsphere_storage_plugin.cidata.delete
+          inputs: { }
+
 relationships:
 
   cloudify.vsphere.port_connected_to_network:

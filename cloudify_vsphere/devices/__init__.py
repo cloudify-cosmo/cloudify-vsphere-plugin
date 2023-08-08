@@ -580,9 +580,17 @@ def change_boot_order(ctx, **kwargs):
     """
         The task to change vm boot order:
         param: boot_order: list of devices to boot
+            valid values:
+                - cdrom
+                - disk
+                - ethernet
+                - floppy
         param: disk_keys: list of disk keys
             (optional - when empty and disk device is present in boot order the
-            first hdd disk key will be set a keys)
+            hdd disk keys will be set as a keys)
+        param: ethernet_keys: list of ethernet keys
+            (optional - when empty and ethernet device is present in boot order
+             the ethernet keys will be set as a keys)
     """
     boot_supported_devices = {
         "cdrom": {
