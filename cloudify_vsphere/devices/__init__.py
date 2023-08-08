@@ -564,3 +564,92 @@ def detach_pci_device(ctx, **kwargs):
         else:
             raise NonRecoverableError(
                 'PCI Device can\'t be detached while VM is running')
+
+
+def _get_device_keys(vm, device_type):
+    device_keys = []
+    for device in vm.config.hardware.device:
+        if isinstance(device, device_type):
+            # if 'Hard disk 1' in device.deviceInfo.label:
+            device_keys.append(device.key)
+    return device_keys
+
+
+@operation(resumable=True)
+def change_boot_order(ctx, **kwargs):
+    """
+        The task to change vm boot order:
+        param: boot_order: list of devices to boot
+        param: disk_keys: list of disk keys
+            (optional - when empty and disk device is present in boot order the
+            first hdd disk key will be set a keys)
+    """
+    boot_supported_devices = {
+        "cdrom": {
+            "device_type": vim.vm.device.VirtualCdrom,
+            "boot_obj": vim.vm.BootOptions.BootableCdromDevice,
+            "keys_required": False
+        },
+        "floppy": {
+            "device_type": vim.vm.device.VirtualFloppy,
+            "boot_obj": vim.vm.BootOptions.BootableFloppyDevice,
+            "keys_required": False
+        },
+        "disk": {
+            "device_type": vim.vm.device.VirtualDisk,
+            "boot_obj": vim.vm.BootOptions.BootableDiskDevice,
+            "keys_required": True
+        },
+        "ethernet": {
+            "device_type": vim.vm.device.VirtualEthernetCard,
+            "boot_obj": vim.vm.BootOptions.BootableEthernetDevice,
+            "keys_required": True
+        }
+    }
+    vsphere_server_id = ctx.target.instance.runtime_properties.get(
+        'vsphere_server_id')
+    connection_config_props = ctx.source.node.properties.get(
+        'connection_config')
+    cl = ServerClient()
+    cl.get(config=connection_config_props)
+    vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
+    boot_order = kwargs.get('boot_order', [])
+    boot_order_obj = []
+    for boot_option in boot_order:
+        boot_option = boot_option.lower()
+        if boot_option in boot_supported_devices.keys():
+            if boot_supported_devices[boot_option]["keys_required"]:
+                device_keys = kwargs.get('{0}_keys'.format(boot_option))
+                if not device_keys:
+                    ctx.logger.info(
+                        '{0}_keys does not provide by user'.format(boot_option)
+                    )
+                    device_type = \
+                        boot_supported_devices[boot_option]["device_type"]
+                    _get_device_keys(vm, device_type)
+                for device_key in device_keys:
+                    ctx.logger.info(
+                        'Add device: {0} with key {1} to boot order'.format(
+                            boot_option, device_key)
+                    )
+                    boot_order_obj.append(
+                        boot_supported_devices[boot_option]["boot_obj"](
+                            deviceKey=device_key)
+                    )
+            else:
+                ctx.logger.info(
+                    'Add device: {0} to boot order'.format(boot_option)
+                )
+                boot_order_obj.append(
+                    boot_supported_devices[boot_option]["boot_obj"]()
+                )
+        else:
+            ctx.logger.info(
+                'Device: {0} is not supported now'.format(boot_option))
+    vm_conf = vim.vm.ConfigSpec()
+    ctx.logger.info('Set boot order')
+    vm_conf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
+    task = vm.ReconfigVM_Task(vm_conf)
+    cl._wait_for_task(task, instance=ctx.source.instance)
+    vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
+    ctx.logger.info("Current boot order is: {0}".format(vm.config.bootOptions))
