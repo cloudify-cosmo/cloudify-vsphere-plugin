@@ -614,9 +614,9 @@ def change_boot_order(ctx, **kwargs):
             "keys_required": True
         }
     }
-    vsphere_server_id = ctx.target.instance.runtime_properties.get(
+    vsphere_server_id = ctx.instance.runtime_properties.get(
         'vsphere_server_id')
-    connection_config_props = ctx.source.node.properties.get(
+    connection_config_props = ctx.node.properties.get(
         'connection_config')
     cl = ServerClient()
     cl.get(config=connection_config_props)
@@ -634,7 +634,7 @@ def change_boot_order(ctx, **kwargs):
                     )
                     device_type = \
                         boot_supported_devices[boot_option]["device_type"]
-                    _get_device_keys(vm, device_type)
+                    _get_device_keys(vm.obj, device_type)
                 for device_key in device_keys:
                     ctx.logger.info(
                         'Add device: {0} with key {1} to boot order'.format(
@@ -657,7 +657,7 @@ def change_boot_order(ctx, **kwargs):
     vm_conf = vim.vm.ConfigSpec()
     ctx.logger.info('Set boot order')
     vm_conf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
-    task = vm.ReconfigVM_Task(vm_conf)
-    cl._wait_for_task(task, instance=ctx.source.instance)
+    task = vm.obj.ReconfigVM_Task(vm_conf)
+    cl._wait_for_task(task, instance=ctx.instance)
     vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
-    ctx.logger.info("Current boot order is: {0}".format(vm.config.bootOptions))
+    ctx.logger.info("Current boot order is: {0}".format(vm.obj.config.bootOptions))
