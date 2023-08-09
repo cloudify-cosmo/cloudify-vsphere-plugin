@@ -100,7 +100,7 @@ def upload_iso(rawvolume_client,
                allowed_datastores,
                allowed_datastore_ids,
                volume_prefix,
-               iso_file,
+               iso_file_path,
                **_):
     is_node_deprecated(ctx.node.type)
     if ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
@@ -108,7 +108,7 @@ def upload_iso(rawvolume_client,
         return
     iso_disk = "{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)
-    with open(iso_file, "rb") as file_data:
+    with open(iso_file_path, "rb") as file_data:
         datacenter_id, storage_path = rawvolume_client.upload_file(
             datacenter_name=datacenter_name,
             allowed_datastores=allowed_datastores,
