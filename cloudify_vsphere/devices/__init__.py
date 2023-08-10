@@ -634,7 +634,7 @@ def change_boot_order(ctx, **kwargs):
                     )
                     device_type = \
                         boot_supported_devices[boot_option]["device_type"]
-                    _get_device_keys(vm.obj, device_type)
+                    device_keys = _get_device_keys(vm.obj, device_type)
                 for device_key in device_keys:
                     ctx.logger.info(
                         'Add device: {0} with key {1} to boot order'.format(
