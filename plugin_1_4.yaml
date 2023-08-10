@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.3'
+    package_version: '2.20.4'
 
 data_types:
 
@@ -1138,6 +1138,52 @@ node_types:
           implementation: vsphere.cloudify_vsphere.devices.copy_device_properties
         postdelete:
           implementation: vsphere.cloudify_vsphere.devices.clean_device_properties
+
+  cloudify.vsphere.nodes.ISO:
+    derived_from: cloudify.nodes.vsphere.ISO
+
+  cloudify.nodes.vsphere.ISO:
+    derived_from: cloudify.nodes.Volume
+    properties:
+      datacenter_name:
+        description: >
+          datacenter name.
+        type: string
+        required: false
+      allowed_datastores:
+        description: >
+          Which ESX datastore(s) this image is allowed to be stored on.
+        required: false
+      allowed_datastore_ids:
+        description: >
+          Which ESX datastore id(s) this image is allowed to be stored on.
+          Field has priority over allowed_datastores.
+        required: false
+      volume_prefix:
+        default: cloudinit
+        description: >
+          Datastorage path for save volume
+      iso_file_path:
+        type: string
+        description: >
+          The path for the ISO to upload.
+        required: true
+      connection_config:
+        default: {}
+        type: cloudify.datatypes.vsphere.Config
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.vsphere_storage_plugin.cidata.create
+          inputs: {}
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        create:
+          implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
+          inputs: {}
+        delete:
+          implementation: vsphere.vsphere_storage_plugin.cidata.delete
+          inputs: {}
 
 relationships:
 

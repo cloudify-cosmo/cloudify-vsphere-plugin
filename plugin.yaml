@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.3'
+    package_version: '2.20.4'
 
 data_types:
 
@@ -737,18 +737,19 @@ node_types:
       volume_prefix:
         default: cloudinit
       iso_file_path:
+        type: string
         required: true
       connection_config:
-        default: { }
+        default: {}
         type: cloudify.datatypes.vsphere.Config
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
-          inputs: { }
+          inputs: {}
         delete:
           implementation: vsphere.vsphere_storage_plugin.cidata.delete
-          inputs: { }
+          inputs: {}
 
 relationships:
 
