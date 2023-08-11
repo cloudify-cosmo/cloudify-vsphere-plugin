@@ -658,3 +658,22 @@ def change_boot_order(cl, **kwargs):
     cl._wait_for_task(task, instance=ctx.instance)
     vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
     ctx.logger.info("Current boot order is: {0}".format(vm.obj.config.bootOptions))
+
+
+@operation(resumable=True)
+@with_server_client
+def remove_cdrom(cl, **kwargs):
+    vsphere_server_id = ctx.instance.runtime_properties.get(
+        'vsphere_server_id')
+    vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
+    cdrom_spec = None
+    for device in vm.obj.config.hardware.device:
+        if isinstance(device, vim.vm.device.VirtualCdrom):
+            cdrom_spec = vim.vm.device.VirtualDeviceSpec()
+            cdrom_spec.device = device
+            cdrom_spec.operation = vim.vm.device.VirtualDeviceSpec.Operation.remove
+            break
+    if cdrom_spec:
+        vm_conf = vim.vm.ConfigSpec(deviceChange=[cdrom_spec])
+        task = vm.obj.ReconfigVM_Task(vm_conf)
+        cl._wait_for_task(task, instance=ctx.instance)
