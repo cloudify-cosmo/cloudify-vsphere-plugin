@@ -26,6 +26,7 @@ from vsphere_plugin_common.clients.server import ServerClient
 from vsphere_plugin_common.clients.network import ControllerClient
 from vsphere_plugin_common import (
     run_deferred_task,
+    with_server_client,
     remove_runtime_properties)
 from vsphere_plugin_common.constants import (
     IP,
@@ -570,13 +571,13 @@ def _get_device_keys(vm, device_type):
     device_keys = []
     for device in vm.config.hardware.device:
         if isinstance(device, device_type):
-            # if 'Hard disk 1' in device.deviceInfo.label:
             device_keys.append(device.key)
     return device_keys
 
 
 @operation(resumable=True)
-def change_boot_order(ctx, **kwargs):
+@with_server_client
+def change_boot_order(cl, **kwargs):
     """
         The task to change vm boot order:
         param: boot_order: list of devices to boot
@@ -616,10 +617,6 @@ def change_boot_order(ctx, **kwargs):
     }
     vsphere_server_id = ctx.instance.runtime_properties.get(
         'vsphere_server_id')
-    connection_config_props = ctx.node.properties.get(
-        'connection_config')
-    cl = ServerClient()
-    cl.get(config=connection_config_props)
     vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
     boot_order = kwargs.get('boot_order', [])
     boot_order_obj = []
