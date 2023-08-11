@@ -91,6 +91,9 @@ def delete(rawvolume_client, **kwargs):
     rawvolume_client.delete_file(datacenter_id=datacenter_id,
                                  datacenter_name=datacenter_name,
                                  datastorepath=storage_path)
+    # clear the runtime after delete to support edge cases of failure
+    ctx.instance.runtime_properties.pop(VSPHERE_STORAGE_FILE_NAME, None)
+
 
 
 @op
