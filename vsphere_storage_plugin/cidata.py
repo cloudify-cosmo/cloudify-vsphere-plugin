@@ -95,7 +95,6 @@ def delete(rawvolume_client, **kwargs):
     ctx.instance.runtime_properties.pop(VSPHERE_STORAGE_FILE_NAME, None)
 
 
-
 @op
 @with_rawvolume_client
 def upload_iso(rawvolume_client,
