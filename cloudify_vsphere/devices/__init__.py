@@ -674,7 +674,6 @@ def remove_cdrom(ctx, **kwargs):
     cdrom_spec = None
     for device in vm.obj.config.hardware.device:
         if isinstance(device, vim.vm.device.VirtualCdrom):
-            # if 'Hard disk 1' in device.deviceInfo.label:
             cdrom_spec = vim.vm.device.VirtualDeviceSpec()
             cdrom_spec.device = device
             cdrom_spec.operation = vim.vm.device.VirtualDeviceSpec.Operation.remove
