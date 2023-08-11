@@ -570,7 +570,6 @@ def _get_device_keys(vm, device_type):
     device_keys = []
     for device in vm.config.hardware.device:
         if isinstance(device, device_type):
-            # if 'Hard disk 1' in device.deviceInfo.label:
             device_keys.append(device.key)
     return device_keys
 
