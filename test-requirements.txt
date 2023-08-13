@@ -1,8 +1,5 @@
 flake8
+nose
+nose-cov
+pytest
 mock
-# nose-testconfig==0.10
-nose==1.3.7
-nose-cov==1.6
-tox==3.15.0
-pylint==1.9.5
-pytest==4.6.3
