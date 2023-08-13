@@ -1,3 +1,5 @@
+2.20.4:
+  - Add change_boot_order operation and new ISO type -upload ISO to datastore-.
 2.20.3:
   - Add boot_firmware support to OVF.
 2.20.2:

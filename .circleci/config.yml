@@ -1,10 +1,20 @@
 version: 2.1
 
+unittest-post-steps: &unittest-post-steps
+  post-steps:
+    - store_test_results:
+        path: /home/circleci/project/nosetests.xml
+    - store_artifacts:
+        path: /home/circleci/project/coverage.xml
+        prefix: tests
+    - slack/notify_failed
+
 orbs:
   node: cloudify/public-unittest-orb@volatile
-  wagonorb: cloudify/wagon-bulder-orb@2.5.7
+  wagonorb: cloudify/wagon-bulder-orb@volatile
   releaseorb: cloudify/release-orb@volatile
   managerorb: cloudify/manager-orb@volatile
+  slack: cloudify/notify-slack@2
 
 checkout:
   post:
@@ -15,20 +25,62 @@ checkout:
         git checkout -qf FETCH_HEAD
       fi
 
-executors:
+jobs:
 
-  py36:
-    environment:
-      PYENV_VERSION: 3.6.5
+  unittest:
     docker:
-      - image: circleci/python:3.6
+      - image: cimg/python:3.6
+    steps:
+      - checkout
+      - run:
+          name: upgrade pip
+          command: pip install --upgrade pip
+      - run:
+          name: upgrade setuptools
+          command: pip install --upgrade setuptools
+      - run:
+          name: Git checkout
+          command: git checkout ${CIRCLE_BRANCH}
+      - run:
+          name: Add Submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: Install tox
+          command: pip install tox
+      - run:
+          name: Install flake8
+          command: pip install flake8
+      - run:
+          name: Install nose
+          command: pip install nose pytest mock nose-cov nose-exclude pyfakefs
+      - run:
+          name: Flake8
+          command: |
+            flake8 cloudify_vsphere
+            flake8 vsphere_network_plugin
+            flake8 vsphere_plugin_common
+            flake8 vsphere_server_plugin
+            flake8 vsphere_storage_plugin
+      - run:
+          name: Install current project
+          command: pip install -e .
+      - run:
+          name: nosetests
+          command: |
+            nosetests --exclude-dir=vsphere_plugin_common/tests/utils --cover-html --with-coverage --cover-package=vsphere_plugin_common --with-xunit --xunit-file=nosetests.xml --cover-xml --cover-xml-file=coverage.xml  vsphere_plugin_common
+            nosetests --cover-html --with-coverage --cover-package=vsphere_server_plugin --with-xunit --xunit-file=nosetests.xml --cover-xml --cover-xml-file=coverage.xml vsphere_server_plugin
+            nosetests --cover-html --with-coverage --cover-package=vsphere_network_plugin --with-xunit --xunit-file=nosetests.xml --cover-xml --cover-xml-file=coverage.xml vsphere_network_plugin
+            nosetests --cover-html --with-coverage --cover-package=vsphere_storage_plugin --with-xunit --xunit-file=nosetests.xml --cover-xml --cover-xml-file=coverage.xml vsphere_storage_plugin
+            nosetests --cover-html --with-coverage --cover-package=cloudify_vsphere --with-xunit --xunit-file=nosetests.xml --cover-xml --cover-xml-file=coverage.xml cloudify_vsphere
+            pytest -s vsphere_plugin_common/tests/utils/op_test.py
+
 
 workflows:
-  version: 2
+  version: 2.1
   tests:
     jobs:
       - node/check_py3_compat_job
-      - node/unittests_job
+      - unittest
       - node/validate_version_job
       - node/validate_documentation_job
       - wagonorb/wagon:
@@ -72,4 +124,4 @@ workflows:
     jobs:
       - node/check_py3_compat_job
       - node/validate_version_job
-      - node/unittests_job
+      - unittest

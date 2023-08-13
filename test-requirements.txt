@@ -1,11 +1,5 @@
-mock
-pyfakefs
-pytest
-pytest-cov
 flake8
 nose
-pep8
-nose-exclude
-nose
-
-networkx==1.9.1
+nose-cov
+pytest
+mock
