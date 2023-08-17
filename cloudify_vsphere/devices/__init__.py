@@ -21,7 +21,10 @@ from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
-from vsphere_plugin_common.utils import find_rels_by_type, is_node_deprecated, op
+from vsphere_plugin_common.utils import (
+    op,
+    find_rels_by_type,
+    is_node_deprecated)
 from vsphere_plugin_common.clients.server import ServerClient
 from vsphere_plugin_common.clients.network import ControllerClient
 from vsphere_plugin_common import (
