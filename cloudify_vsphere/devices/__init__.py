@@ -21,7 +21,7 @@ from cloudify import ctx
 from cloudify.decorators import operation
 from cloudify.exceptions import NonRecoverableError
 
-from vsphere_plugin_common.utils import find_rels_by_type, is_node_deprecated
+from vsphere_plugin_common.utils import find_rels_by_type, is_node_deprecated, op
 from vsphere_plugin_common.clients.server import ServerClient
 from vsphere_plugin_common.clients.network import ControllerClient
 from vsphere_plugin_common import (
@@ -575,9 +575,9 @@ def _get_device_keys(vm, device_type):
     return device_keys
 
 
-@operation(resumable=True)
+@op
 @with_server_client
-def change_boot_order(cl, **kwargs):
+def change_boot_order(ctx, server_client, **kwargs):
     """
         The task to change vm boot order:
         param: boot_order: list of devices to boot
@@ -617,7 +617,7 @@ def change_boot_order(cl, **kwargs):
     }
     vsphere_server_id = ctx.instance.runtime_properties.get(
         'vsphere_server_id')
-    vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
     boot_order = kwargs.get('boot_order', [])
     boot_order_obj = []
     for boot_option in boot_order:
@@ -655,18 +655,18 @@ def change_boot_order(cl, **kwargs):
     ctx.logger.info('Set boot order')
     vm_conf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
     task = vm.obj.ReconfigVM_Task(vm_conf)
-    cl._wait_for_task(task, instance=ctx.instance)
-    vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
+    server_client._wait_for_task(task, instance=ctx.instance)
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
     ctx.logger.info("Current boot order is: {0}".format(
         vm.obj.config.bootOptions))
 
 
-@operation(resumable=True)
+@op
 @with_server_client
-def remove_cdrom(cl, **kwargs):
+def remove_cdrom(ctx, server_client, **kwargs):
     vsphere_server_id = ctx.instance.runtime_properties.get(
         'vsphere_server_id')
-    vm = cl._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
     cdrom_spec = None
     for device in vm.obj.config.hardware.device:
         if isinstance(device, vim.vm.device.VirtualCdrom):
@@ -678,4 +678,4 @@ def remove_cdrom(cl, **kwargs):
     if cdrom_spec:
         vm_conf = vim.vm.ConfigSpec(deviceChange=[cdrom_spec])
         task = vm.obj.ReconfigVM_Task(vm_conf)
-        cl._wait_for_task(task, instance=ctx.instance)
+        server_client._wait_for_task(task, instance=ctx.instance)
