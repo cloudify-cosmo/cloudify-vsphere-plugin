@@ -19,7 +19,7 @@ from pyVmomi import vim
 
 from cloudify import ctx
 from cloudify.decorators import operation
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 from vsphere_plugin_common.utils import (
     op,
@@ -580,7 +580,8 @@ def _get_device_keys(vm, device_type):
 
 @op
 @with_server_client
-def change_boot_order(ctx, server_client, **kwargs):
+def change_boot_order(ctx, server_client, boot_order, 
+                      disk_keys=None, ethernet_keys=None, **_):
     """
         The task to change vm boot order:
         param: boot_order: list of devices to boot
@@ -621,13 +622,16 @@ def change_boot_order(ctx, server_client, **kwargs):
     vsphere_server_id = ctx.instance.runtime_properties.get(
         'vsphere_server_id')
     vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
-    boot_order = kwargs.get('boot_order', [])
     boot_order_obj = []
     for boot_option in boot_order:
         boot_option = boot_option.lower()
         if boot_option in boot_supported_devices.keys():
             if boot_supported_devices[boot_option]["keys_required"]:
-                device_keys = kwargs.get('{0}_keys'.format(boot_option))
+                if boot_option.lower() in "disk":
+                    device_keys = disk_keys
+                elif boot_option.lower() in "ethernet":
+                    device_keys = ethernet_keys
+
                 if not device_keys:
                     ctx.logger.info(
                         '{0}_keys does not provide by user'.format(boot_option)
@@ -660,13 +664,17 @@ def change_boot_order(ctx, server_client, **kwargs):
     task = vm.obj.ReconfigVM_Task(vm_conf)
     server_client._wait_for_task(task, instance=ctx.instance)
     vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
-    ctx.logger.info("Current boot order is: {0}".format(
-        vm.obj.config.bootOptions))
+    current_boot_order = vm.obj.config.bootOptions.bootOrder
+    ctx.logger.info("Current boot order is: {0}".format(current_boot_order))
+    boot_order_obj = [type(bo) for bo in boot_order_obj]
+    current_boot_order = [type(co) for co in current_boot_order]
+    if current_boot_order != boot_order_obj:
+        raise OperationRetry('Boot order is diffrent than expected')
 
 
 @op
 @with_server_client
-def remove_cdrom(ctx, server_client, **kwargs):
+def remove_cdrom(ctx, server_client, **_):
     vsphere_server_id = ctx.instance.runtime_properties.get(
         'vsphere_server_id')
     vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
