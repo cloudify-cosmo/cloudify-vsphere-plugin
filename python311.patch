@@ -1,0 +1,12 @@
+diff --git a/setup.py b/setup.py
+index 8deafd4..34ce67c 100755
+--- a/setup.py
++++ b/setup.py
+@@ -56,6 +56,6 @@ setup(
+         "netaddr>=0.7.19",
+         "cloudify-utilities-plugins-sdk>=0.0.61",
+         "requests",
+-        'deepdiff==3.3.0'
++        'deepdiff>=5.7.0'
+     ]
+ )
