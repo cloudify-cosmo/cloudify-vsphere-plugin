@@ -25,6 +25,7 @@ from cloudify.exceptions import (
     OperationRetry,
     NonRecoverableError)
 
+from cloudify_vsphere.devices import get_boot_order_obj
 # This package imports
 from . import VsphereClient
 from ..constants import (
@@ -543,6 +544,9 @@ class ServerClient(VsphereClient):
             retry=False,
             clone_vm=None,
             disk_provision_type=None,
+            boot_order=None,
+            disk_keys=None,
+            ethernet_keys=None,
             **_):
 
         self._logger.debug(
@@ -697,6 +701,11 @@ class ServerClient(VsphereClient):
         vmconf.memoryHotAddEnabled = True
         vmconf.cpuHotRemoveEnabled = True
         vmconf.deviceChange = devices
+        if boot_order:
+            boot_order_obj = get_boot_order_obj(
+                ctx=ctx, server_client=self, boot_order=boot_order,
+                disk_keys=disk_keys, ethernet_keys=ethernet_keys)
+            vmconf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
 
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec

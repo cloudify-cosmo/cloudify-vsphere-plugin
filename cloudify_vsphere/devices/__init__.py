@@ -578,25 +578,8 @@ def _get_device_keys(vm, device_type):
     return device_keys
 
 
-@op
-@with_server_client
-def change_boot_order(ctx, server_client, boot_order, 
-                      disk_keys=None, ethernet_keys=None, **_):
-    """
-        The task to change vm boot order:
-        param: boot_order: list of devices to boot
-            valid values:
-                - cdrom
-                - disk
-                - ethernet
-                - floppy
-        param: disk_keys: list of disk keys
-            (optional - when empty and disk device is present in boot order the
-            hdd disk keys will be set as a keys)
-        param: ethernet_keys: list of ethernet keys
-            (optional - when empty and ethernet device is present in boot order
-             the ethernet keys will be set as a keys)
-    """
+def get_boot_order_obj(ctx, server_client, boot_order,
+                       disk_keys=None, ethernet_keys=None):
     boot_supported_devices = {
         "cdrom": {
             "device_type": vim.vm.device.VirtualCdrom,
@@ -621,6 +604,7 @@ def change_boot_order(ctx, server_client, boot_order,
     }
     vsphere_server_id = ctx.instance.runtime_properties.get(
         'vsphere_server_id')
+    device_keys = None
     vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
     boot_order_obj = []
     for boot_option in boot_order:
@@ -658,8 +642,36 @@ def change_boot_order(ctx, server_client, boot_order,
         else:
             ctx.logger.info(
                 'Device: {0} is not supported now'.format(boot_option))
+    return boot_order_obj
+
+
+@op
+@with_server_client
+def change_boot_order(ctx, server_client, boot_order, 
+                      disk_keys=None, ethernet_keys=None, **_):
+    """
+        The task to change vm boot order:
+        param: boot_order: list of devices to boot
+            valid values:
+                - cdrom
+                - disk
+                - ethernet
+                - floppy
+        param: disk_keys: list of disk keys
+            (optional - when empty and disk device is present in boot order the
+            hdd disk keys will be set as a keys)
+        param: ethernet_keys: list of ethernet keys
+            (optional - when empty and ethernet device is present in boot order
+             the ethernet keys will be set as a keys)
+    """
+    boot_order_obj = get_boot_order_obj(
+        ctx=ctx, server_client=server_client, boot_order=boot_order,
+        disk_keys=disk_keys, ethernet_keys=ethernet_keys)
     vm_conf = vim.vm.ConfigSpec()
     ctx.logger.info('Set boot order')
+    vsphere_server_id = ctx.instance.runtime_properties.get(
+        'vsphere_server_id')
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
     vm_conf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
     task = vm.obj.ReconfigVM_Task(vm_conf)
     server_client._wait_for_task(task, instance=ctx.instance)

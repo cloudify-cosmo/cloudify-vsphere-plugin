@@ -27,6 +27,7 @@ from pyVmomi import vim, vmodl
 # Cloudify imports
 from cloudify.exceptions import NonRecoverableError
 
+from cloudify_vsphere.devices import get_boot_order_obj
 # This package imports
 from vsphere_plugin_common import with_server_client
 from vsphere_plugin_common.clients.server import ServerClient
@@ -255,7 +256,8 @@ def extract_network_names(string):
 @op
 def create(ctx, connection_config, target, ovf_name, ovf_source,
            datastore_name, disk_provisioning, network_mappings,
-           memory, cpus, disk_size, cdrom_image, extra_config, boot_firmware):
+           memory, cpus, disk_size, cdrom_image, extra_config,
+           boot_firmware, boot_order, disk_keys=None, ethernet_keys=None):
     esxi_node = target.get('host')
     vm_folder = target.get('folder')
     resource_pool = target.get('resource_pool')
@@ -356,7 +358,7 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
     vmconf.memoryHotAddEnabled = True
     vmconf.cpuHotRemoveEnabled = True
     if len(not_mapped_networks) > 0 or disk_size or cdrom_image or \
-            extra_config or boot_firmware:
+            extra_config or boot_firmware or boot_order:
         hardware_devices = created_vm.config.hardware.device
         device_changes = []
         ide_controller = None
@@ -422,6 +424,11 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
         vmconf.deviceChange = device_changes
         if boot_firmware and boot_firmware in ('efi', 'bios'):
             vmconf.firmware = boot_firmware
+        if boot_order:
+            boot_order_obj = get_boot_order_obj(
+                ctx=ctx, server_client=client, boot_order=boot_order,
+                disk_keys=disk_keys, ethernet_keys=ethernet_keys)
+            vmconf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
     task = created_vm.obj.ReconfigVM_Task(spec=vmconf)
     client._wait_for_task(task)
     client.start_server(created_vm)
