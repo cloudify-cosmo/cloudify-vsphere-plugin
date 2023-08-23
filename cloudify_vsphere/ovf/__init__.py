@@ -27,10 +27,9 @@ from pyVmomi import vim, vmodl
 # Cloudify imports
 from cloudify.exceptions import NonRecoverableError
 
-from cloudify_vsphere.devices import get_boot_order_obj
 # This package imports
 from vsphere_plugin_common import with_server_client
-from vsphere_plugin_common.clients.server import ServerClient
+from vsphere_plugin_common.clients.server import ServerClient, get_boot_order_obj
 from vsphere_plugin_common.utils import op
 from vsphere_plugin_common import (
     remove_runtime_properties,

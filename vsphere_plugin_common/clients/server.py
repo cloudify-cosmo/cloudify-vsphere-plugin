@@ -25,7 +25,6 @@ from cloudify.exceptions import (
     OperationRetry,
     NonRecoverableError)
 
-from cloudify_vsphere.devices import get_boot_order_obj
 # This package imports
 from . import VsphereClient
 from ..constants import (
@@ -1730,3 +1729,78 @@ class ServerClient(VsphereClient):
             task = vmware_resource.obj.Destroy()
             self._wait_for_task(task, max_wait_time=max_wait_time)
             self._logger.debug("Resource Pool is now deleted.")
+
+
+def _get_device_keys(vm, device_type):
+    device_keys = []
+    for device in vm.config.hardware.device:
+        if isinstance(device, device_type):
+            device_keys.append(device.key)
+    return device_keys
+
+
+def get_boot_order_obj(ctx, server_client, boot_order,
+                       disk_keys=None, ethernet_keys=None):
+    boot_supported_devices = {
+        "cdrom": {
+            "device_type": vim.vm.device.VirtualCdrom,
+            "boot_obj": vim.vm.BootOptions.BootableCdromDevice,
+            "keys_required": False
+        },
+        "floppy": {
+            "device_type": vim.vm.device.VirtualFloppy,
+            "boot_obj": vim.vm.BootOptions.BootableFloppyDevice,
+            "keys_required": False
+        },
+        "disk": {
+            "device_type": vim.vm.device.VirtualDisk,
+            "boot_obj": vim.vm.BootOptions.BootableDiskDevice,
+            "keys_required": True
+        },
+        "ethernet": {
+            "device_type": vim.vm.device.VirtualEthernetCard,
+            "boot_obj": vim.vm.BootOptions.BootableEthernetDevice,
+            "keys_required": True
+        }
+    }
+    vsphere_server_id = ctx.instance.runtime_properties.get(
+        'vsphere_server_id')
+    device_keys = None
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
+    boot_order_obj = []
+    for boot_option in boot_order:
+        boot_option = boot_option.lower()
+        if boot_option in boot_supported_devices.keys():
+            if boot_supported_devices[boot_option]["keys_required"]:
+                if boot_option.lower() in "disk":
+                    device_keys = disk_keys
+                elif boot_option.lower() in "ethernet":
+                    device_keys = ethernet_keys
+
+                if not device_keys:
+                    ctx.logger.info(
+                        '{0}_keys does not provide by user'.format(boot_option)
+                    )
+                    device_type = \
+                        boot_supported_devices[boot_option]["device_type"]
+                    device_keys = _get_device_keys(vm.obj, device_type)
+                for device_key in device_keys:
+                    ctx.logger.info(
+                        'Add device: {0} with key {1} to boot order'.format(
+                            boot_option, device_key)
+                    )
+                    boot_order_obj.append(
+                        boot_supported_devices[boot_option]["boot_obj"](
+                            deviceKey=device_key)
+                    )
+            else:
+                ctx.logger.info(
+                    'Add device: {0} to boot order'.format(boot_option)
+                )
+                boot_order_obj.append(
+                    boot_supported_devices[boot_option]["boot_obj"]()
+                )
+        else:
+            ctx.logger.info(
+                'Device: {0} is not supported now'.format(boot_option))
+    return boot_order_obj
