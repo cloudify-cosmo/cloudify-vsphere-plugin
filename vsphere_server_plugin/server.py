@@ -301,6 +301,9 @@ def create_new_server(server_client,
                       enable_start_vm=True,
                       postpone_delete_networks=False,
                       max_wait_time=300,
+                      boot_order=None,
+                      disk_keys=None,
+                      ethernet_keys=None,
                       **_):
 
     vm_name = get_vm_name(server, os_family)
@@ -344,7 +347,11 @@ def create_new_server(server_client,
         max_wait_time=max_wait_time,
         retry=ctx.operation.retry_number > 0,
         clone_vm=server.get('clone_vm'),
-        disk_provision_type=server.get('disk_provision_type'))
+        disk_provision_type=server.get('disk_provision_type'),
+        boot_order=boot_order,
+        disk_keys=disk_keys,
+        ethernet_keys=ethernet_keys
+    )
     ctx.logger.info('Created server called {name}'.format(name=vm_name))
     return server_obj
 
@@ -372,6 +379,9 @@ def create(server_client,
            vm_folder=None,
            extra_config=None,
            max_wait_time=300,
+           boot_order=None,
+           disk_keys=None,
+           ethernet_keys=None,
            **_):
     is_node_deprecated(ctx.node.type)
     if enable_start_vm:
@@ -418,7 +428,11 @@ def create(server_client,
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
             postpone_delete_networks=postpone_delete_networks,
-            max_wait_time=max_wait_time)
+            max_wait_time=max_wait_time,
+            boot_order=boot_order,
+            disk_keys=disk_keys,
+            ethernet_keys=ethernet_keys
+        )
 
     server_client.add_custom_values(server_obj, custom_attributes or {})
 
@@ -462,6 +476,9 @@ def start(server_client,
           vm_folder=None,
           extra_config=None,
           max_wait_time=300,
+          boot_order=None,
+          disk_keys=None,
+          ethernet_keys=None,
           **_):
 
     is_node_deprecated(ctx.node.type)
@@ -497,7 +514,11 @@ def start(server_client,
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
             postpone_delete_networks=postpone_delete_networks,
-            max_wait_time=max_wait_time)
+            max_wait_time=max_wait_time,
+            boot_order=boot_order,
+            disk_keys=disk_keys,
+            ethernet_keys=ethernet_keys
+        )
     else:
         server_client.update_server(server=server_obj,
                                     cdrom_image=cdrom_image,

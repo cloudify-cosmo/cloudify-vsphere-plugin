@@ -226,6 +226,29 @@ node_types:
         description: |
           Set minimal version of vm
         default: 13
+      boot_order:
+        description: |
+          The order of boot
+          Example:
+            - cdrom
+            - hdd
+            - ethernet
+          In above list will be provided, vsphere try to boot from cdrom,then 
+          from hdd (all disk_keys) and at the end from ethernet (ethernet_keys)
+        type: list
+        required: false
+      disk_keys:
+        type: list
+        required: false
+        description: |
+          The order of hdd boot - will be used only if boot_order provided.
+          If empty, the parameter will be generated based on vm properties (considering all hdd disks)
+      ethernet_keys:
+        type: list
+        required: false
+        description: |
+          The order of ethernet boot - will be used only if boot_order provided.
+          If empty, the parameter will be generated based on vm properties (considering all ethernet devices)
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
@@ -909,6 +932,29 @@ node_types:
           specify which boot firmware to use it can be [bios,efi]
         type: string
         required: false
+      boot_order:
+        description: |
+          The order of boot
+          Example:
+            - cdrom
+            - hdd
+            - ethernet
+          In above list will be provided, vsphere try to boot from cdrom,then 
+          from hdd (all disk_keys) and at the end from ethernet (ethernet_keys)
+        type: list
+        required: false
+      disk_keys:
+        type: list
+        required: false
+        description: |
+          The order of hdd boot - will be used only if boot_order provided.
+          If empty, the parameter will be generated based on vm properties (considering all hdd disks)
+      ethernet_keys:
+        type: list
+        required: false
+        description: |
+          The order of ethernet boot - will be used only if boot_order provided.
+          If empty, the parameter will be generated based on vm properties (considering all ethernet devices)
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config

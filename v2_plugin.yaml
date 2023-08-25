@@ -121,6 +121,15 @@ node_types:
         default: false
       minimal_vm_version:
         default: 13
+      boot_order:
+        type: list
+        required: false
+      disk_keys:
+        type: list
+        required: false
+      ethernet_keys:
+        type: list
+        required: false
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
@@ -569,6 +578,15 @@ node_types:
         default: {}
       boot_firmware:
         type: string
+        required: false
+      boot_order:
+        type: list
+        required: false
+      disk_keys:
+        type: list
+        required: false
+      ethernet_keys:
+        type: list
         required: false
       connection_config:
         default: {}
