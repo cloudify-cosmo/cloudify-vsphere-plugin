@@ -25,7 +25,9 @@ from vsphere_plugin_common.utils import (
     op,
     find_rels_by_type,
     is_node_deprecated)
-from vsphere_plugin_common.clients.server import ServerClient, get_boot_order_obj
+from vsphere_plugin_common.clients.server import (
+    ServerClient,
+    get_boot_order_obj)
 from vsphere_plugin_common.clients.network import ControllerClient
 from vsphere_plugin_common import (
     run_deferred_task,
@@ -572,7 +574,7 @@ def detach_pci_device(ctx, **kwargs):
 
 @op
 @with_server_client
-def change_boot_order(ctx, server_client, boot_order, 
+def change_boot_order(ctx, server_client, boot_order,
                       disk_keys=None, ethernet_keys=None, **_):
     """
         The task to change vm boot order:
