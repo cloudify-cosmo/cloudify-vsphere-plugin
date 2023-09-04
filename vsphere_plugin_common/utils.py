@@ -17,7 +17,11 @@ import re
 import logging
 
 from functools import wraps
-from inspect import getargspec
+try:
+    from inspect import getargspec
+except ImportError:
+    from inspect import getfullargspec as getargspec
+
 from deepdiff import DeepDiff
 
 from cloudify import ctx
