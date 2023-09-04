@@ -36,7 +36,12 @@ import time
 import yaml
 import atexit
 from copy import copy
-from collections import namedtuple, MutableMapping
+from collections import namedtuple
+try:
+    from collections import MutableMapping
+except ImportError:
+    from collections.abc import MutableMapping
+
 
 # Third party imports
 from pyVmomi import vim, vmodl
