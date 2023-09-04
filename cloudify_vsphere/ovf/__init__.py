@@ -427,7 +427,9 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
             vmconf.firmware = boot_firmware
         if boot_order:
             boot_order_obj = get_boot_order_obj(
-                ctx=ctx, server_client=client, boot_order=boot_order,
+                ctx=ctx, server_client=client,
+                server_id=ctx.instance.runtime_properties[VSPHERE_SERVER_ID],
+                boot_order=boot_order,
                 disk_keys=disk_keys, ethernet_keys=ethernet_keys)
             vmconf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
     task = created_vm.obj.ReconfigVM_Task(spec=vmconf)

@@ -27,7 +27,7 @@ from vsphere_plugin_common.utils import (
     is_node_deprecated)
 from vsphere_plugin_common.clients.server import (
     ServerClient,
-    get_boot_order_obj)
+    set_boot_order)
 from vsphere_plugin_common.clients.network import ControllerClient
 from vsphere_plugin_common import (
     run_deferred_task,
@@ -591,24 +591,11 @@ def change_boot_order(ctx, server_client, boot_order,
             (optional - when empty and ethernet device is present in boot order
              the ethernet keys will be set as a keys)
     """
-    boot_order_obj = get_boot_order_obj(
-        ctx=ctx, server_client=server_client, boot_order=boot_order,
-        disk_keys=disk_keys, ethernet_keys=ethernet_keys)
-    vm_conf = vim.vm.ConfigSpec()
-    ctx.logger.info('Set boot order')
     vsphere_server_id = ctx.instance.runtime_properties.get(
         'vsphere_server_id')
-    vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
-    vm_conf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
-    task = vm.obj.ReconfigVM_Task(vm_conf)
-    server_client._wait_for_task(task, instance=ctx.instance)
-    vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
-    current_boot_order = vm.obj.config.bootOptions.bootOrder
-    ctx.logger.info("Current boot order is: {0}".format(current_boot_order))
-    boot_order_obj = [type(bo) for bo in boot_order_obj]
-    current_boot_order = [type(co) for co in current_boot_order]
-    if current_boot_order != boot_order_obj:
-        raise OperationRetry('Boot order is different than expected')
+    set_boot_order(ctx=ctx, server_client=server_client,
+                   server_id=vsphere_server_id, boot_order=boot_order,
+                   disk_keys=disk_keys, ethernet_keys=ethernet_keys)
 
 
 @op

@@ -543,9 +543,6 @@ class ServerClient(VsphereClient):
             retry=False,
             clone_vm=None,
             disk_provision_type=None,
-            boot_order=None,
-            disk_keys=None,
-            ethernet_keys=None,
             **_):
 
         self._logger.debug(
@@ -700,11 +697,6 @@ class ServerClient(VsphereClient):
         vmconf.memoryHotAddEnabled = True
         vmconf.cpuHotRemoveEnabled = True
         vmconf.deviceChange = devices
-        if boot_order:
-            boot_order_obj = get_boot_order_obj(
-                ctx=ctx, server_client=self, boot_order=boot_order,
-                disk_keys=disk_keys, ethernet_keys=ethernet_keys)
-            vmconf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
 
         clonespec = vim.vm.CloneSpec()
         clonespec.location = relospec
@@ -1739,7 +1731,7 @@ def _get_device_keys(vm, device_type):
     return device_keys
 
 
-def get_boot_order_obj(ctx, server_client, boot_order,
+def get_boot_order_obj(ctx, server_client, server_id, boot_order,
                        disk_keys=None, ethernet_keys=None):
     boot_supported_devices = {
         "cdrom": {
@@ -1763,10 +1755,11 @@ def get_boot_order_obj(ctx, server_client, boot_order,
             "keys_required": True
         }
     }
-    vsphere_server_id = ctx.instance.runtime_properties.get(
-        'vsphere_server_id')
     device_keys = None
-    vm = server_client._get_obj_by_id(vim.VirtualMachine, vsphere_server_id)
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, server_id)
+    if not vm:
+        raise NonRecoverableError(
+            'VM with id {0} does not exist'.format(server_id))
     boot_order_obj = []
     for boot_option in boot_order:
         boot_option = boot_option.lower()
@@ -1804,3 +1797,24 @@ def get_boot_order_obj(ctx, server_client, boot_order,
             ctx.logger.info(
                 'Device: {0} is not supported now'.format(boot_option))
     return boot_order_obj
+
+
+def set_boot_order(ctx, server_client, server_id, boot_order,
+                   disk_keys=None, ethernet_keys=None, **_):
+    boot_order_obj = get_boot_order_obj(
+        ctx=ctx, server_client=server_client, server_id=server_id,
+        boot_order=boot_order,
+        disk_keys=disk_keys, ethernet_keys=ethernet_keys)
+    vm_conf = vim.vm.ConfigSpec()
+    ctx.logger.info('Set boot order')
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, server_id)
+    vm_conf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
+    task = vm.obj.ReconfigVM_Task(vm_conf)
+    server_client._wait_for_task(task, instance=ctx.instance)
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, server_id)
+    current_boot_order = vm.obj.config.bootOptions.bootOrder
+    ctx.logger.info("Current boot order is: {0}".format(current_boot_order))
+    boot_order_obj = [type(bo) for bo in boot_order_obj]
+    current_boot_order = [type(co) for co in current_boot_order]
+    if current_boot_order != boot_order_obj:
+        raise OperationRetry('Boot order is different than expected')
