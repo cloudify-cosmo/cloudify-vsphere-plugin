@@ -712,7 +712,11 @@ class ServerClient(VsphereClient):
                 clonespec.extraConfig.append(
                     vim.option.OptionValue(key=k, value=extra_config[k]))
 
-        if adaptermaps:
+        # if we pass 'none' value from the node properties inside os_family
+        # that means no OS on the VM template/clone
+        # this customization for guestOS would fail as no vm-tools
+        # and this would just skip it
+        if os_type != 'none' and adaptermaps:
             self._logger.debug(
                 'Preparing OS customization spec for {server}'.format(
                     server=vm_name,
