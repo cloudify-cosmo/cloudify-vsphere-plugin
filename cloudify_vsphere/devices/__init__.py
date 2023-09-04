@@ -19,7 +19,7 @@ from pyVmomi import vim
 
 from cloudify import ctx
 from cloudify.decorators import operation
-from cloudify.exceptions import NonRecoverableError, OperationRetry
+from cloudify.exceptions import NonRecoverableError
 
 from vsphere_plugin_common.utils import (
     op,

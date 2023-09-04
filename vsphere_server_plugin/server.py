@@ -347,8 +347,7 @@ def create_new_server(server_client,
         max_wait_time=max_wait_time,
         retry=ctx.operation.retry_number > 0,
         clone_vm=server.get('clone_vm'),
-        disk_provision_type=server.get('disk_provision_type')
-    )
+        disk_provision_type=server.get('disk_provision_type'))
     ctx.logger.info('Created server called {name}'.format(name=vm_name))
     return server_obj
 
@@ -425,8 +424,7 @@ def create(server_client,
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
             postpone_delete_networks=postpone_delete_networks,
-            max_wait_time=max_wait_time
-        )
+            max_wait_time=max_wait_time)
 
     server_client.add_custom_values(server_obj, custom_attributes or {})
 
@@ -444,7 +442,7 @@ def create(server_client,
         ctx.instance.update()
     if boot_order:
         if enable_start_vm:
-            ctx.logger.warn('VM have to been restarted to apply boot order.')
+            ctx.logger.warn('VM have to be restarted to apply boot order.')
         set_boot_order(ctx=ctx, server_client=server_client,
                        server_id=server_obj.id,
                        boot_order=boot_order,
@@ -513,8 +511,7 @@ def start(server_client,
             extra_config=extra_config,
             enable_start_vm=enable_start_vm,
             postpone_delete_networks=postpone_delete_networks,
-            max_wait_time=max_wait_time
-        )
+            max_wait_time=max_wait_time)
     else:
         server_client.update_server(server=server_obj,
                                     cdrom_image=cdrom_image,
