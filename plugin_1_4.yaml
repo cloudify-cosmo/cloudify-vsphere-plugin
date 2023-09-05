@@ -117,6 +117,11 @@ data_types:
             - thin
         type: string
         required: false
+      disk_size:
+        description: >
+          Disk size in GBs.
+        type: integer
+        required: false
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
@@ -233,7 +238,7 @@ node_types:
             - cdrom
             - hdd
             - ethernet
-          In above list will be provided, vsphere try to boot from cdrom,then 
+          In above list will be provided, vsphere try to boot from cdrom,then
           from hdd (all disk_keys) and at the end from ethernet (ethernet_keys)
         type: list
         required: false
@@ -939,7 +944,7 @@ node_types:
             - cdrom
             - hdd
             - ethernet
-          In above list will be provided, vsphere try to boot from cdrom,then 
+          In above list will be provided, vsphere try to boot from cdrom,then
           from hdd (all disk_keys) and at the end from ethernet (ethernet_keys)
         type: list
         required: false

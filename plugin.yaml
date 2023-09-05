@@ -63,6 +63,9 @@ data_types:
       disk_provision_type:
         type: string
         required: false
+      disk_size:
+        type: integer
+        required: false
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:

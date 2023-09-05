@@ -347,7 +347,8 @@ def create_new_server(server_client,
         max_wait_time=max_wait_time,
         retry=ctx.operation.retry_number > 0,
         clone_vm=server.get('clone_vm'),
-        disk_provision_type=server.get('disk_provision_type'))
+        disk_provision_type=server.get('disk_provision_type'),
+        disk_size=server.get('disk_size'))
     ctx.logger.info('Created server called {name}'.format(name=vm_name))
     return server_obj
 

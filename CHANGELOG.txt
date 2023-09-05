@@ -3,6 +3,7 @@
   - add support of changing boot order during vm creation
   - boot_order, disk_keys, ethernet_keys to properties of node
     cloudify.nodes.vsphere.OvfDeployment & cloudify.nodes.vsphere.Server
+  - add disk_size property to server node to control disk size
 2.20.4:
   - Add change_boot_order operation and new ISO type -upload ISO to datastore-.
 2.20.3:

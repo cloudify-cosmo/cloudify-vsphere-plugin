@@ -543,6 +543,7 @@ class ServerClient(VsphereClient):
             retry=False,
             clone_vm=None,
             disk_provision_type=None,
+            disk_size=None,
             **_):
 
         self._logger.debug(
@@ -680,6 +681,17 @@ class ServerClient(VsphereClient):
         devices = self._update_vm(template_vm,
                                   cdrom_image=cdrom_image,
                                   remove_networks=not postpone_delete_networks)
+
+        # modify disk size if passed
+        if disk_size:
+            for device in template_vm.config.hardware.device:
+                if isinstance(device, vim.vm.device.VirtualDisk):
+                    diskspec = vim.vm.device.VirtualDeviceSpec()
+                    diskspec.operation = \
+                        vim.vm.device.VirtualDeviceSpec.Operation.edit
+                    diskspec.device = device
+                    diskspec.device.capacityInKB = disk_size * 1024 * 1024
+                    devices.append(diskspec)
 
         port_groups, distributed_port_groups = self._get_port_group_names()
 
