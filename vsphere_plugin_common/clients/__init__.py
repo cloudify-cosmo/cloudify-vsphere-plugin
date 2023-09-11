@@ -935,7 +935,14 @@ class VsphereClient(object):
         cloudify_host_dict = {cloudify_host.obj._GetMoId(): cloudify_host
                               for cloudify_host in self._get_hosts()}
 
-        cloudify_hosts = [cloudify_host_dict[id] for id in vmware_host_ids]
+        # some hosts might be disconnected so they won't have valid dicts
+        # though they are visible as part of vmware_hosts
+        cloudify_hosts = []
+        for id in vmware_host_ids:
+            try:
+                cloudify_hosts.append(cloudify_host_dict[id])
+            except KeyError:
+                continue
 
         return cloudify_hosts
 
