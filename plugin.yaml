@@ -765,6 +765,8 @@ node_types:
         type: cloudify.datatypes.vsphere.Config
       use_external_resource:
         default: false
+      force_delete:
+        default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         create:

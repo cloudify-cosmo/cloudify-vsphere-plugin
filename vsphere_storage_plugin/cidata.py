@@ -79,20 +79,23 @@ def create(rawvolume_client,
 
 @op
 @with_rawvolume_client
-def delete(rawvolume_client, **kwargs):
+def delete(rawvolume_client, use_external_resource, force_delete, **kwargs):
     storage_path = ctx.instance.runtime_properties.get(
         VSPHERE_STORAGE_FILE_NAME)
     if not storage_path:
         return
-    # backward compatibility with pre 2.16.1 version
-    datacenter_name = kwargs.get('datacenter_name')
-    # updated version with save selected datacenter
-    datacenter_id = ctx.instance.runtime_properties.get(DATACENTER_ID)
-    rawvolume_client.delete_file(datacenter_id=datacenter_id,
-                                 datacenter_name=datacenter_name,
-                                 datastorepath=storage_path)
-    # clear the runtime after delete to support edge cases of failure
-    ctx.instance.runtime_properties.pop(VSPHERE_STORAGE_FILE_NAME, None)
+    if use_external_resource and not force_delete:
+        ctx.logger.info('Skip to delete external resource')
+    else:
+        # backward compatibility with pre 2.16.1 version
+        datacenter_name = kwargs.get('datacenter_name')
+        # updated version with save selected datacenter
+        datacenter_id = ctx.instance.runtime_properties.get(DATACENTER_ID)
+        rawvolume_client.delete_file(datacenter_id=datacenter_id,
+                                     datacenter_name=datacenter_name,
+                                     datastorepath=storage_path)
+        # clear the runtime after delete to support edge cases of failure
+        ctx.instance.runtime_properties.pop(VSPHERE_STORAGE_FILE_NAME, None)
 
 
 @op
@@ -122,7 +125,7 @@ def upload_iso(rawvolume_client,
                 host=ctx.node.properties['connection_config']['host'],
                 port=ctx.node.properties['connection_config']['port'])
     else:
-        datacenter_id, storage_path = rawvolume_client.upload_file(
+        datacenter_id, storage_path = rawvolume_client.file_exist_in_vsphere(
             datacenter_name=datacenter_name,
             allowed_datastores=allowed_datastores,
             allowed_datastore_ids=allowed_datastore_ids,

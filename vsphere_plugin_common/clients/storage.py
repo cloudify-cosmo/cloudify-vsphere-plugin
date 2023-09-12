@@ -24,7 +24,7 @@ from pyVmomi import vim
 
 # Cloudify imports
 from cloudify import ctx
-from cloudify.exceptions import NonRecoverableError
+from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from . import VsphereClient
@@ -150,10 +150,11 @@ class RawVolumeClient(VsphereClient):
                         available=text_type([datastore.name
                                              for datastore in datastores])))
 
+        path_file = remote_file.split(' ')[-1]
         params = {"dsName": ds.name,
                   "dcPath": dc.name}
-        http_url = 'https://{host}:{port}/folder/'.format(
-            host=host, port=text_type(port), remote_file=remote_file)
+        http_url = 'https://{host}:{port}/folder/{remote_file}'.format(
+            host=host, port=text_type(port), remote_file=path_file)
 
         # Get the cookie built from the current session
         client_cookie = self.si._stub.cookie
@@ -169,22 +170,21 @@ class RawVolumeClient(VsphereClient):
         cookie = dict()
         cookie[cookie_name] = cookie_text
 
-        response = requests.get(
+        response = requests.head(
             http_url,
             params=params,
             headers={'Content-Type': 'application/octet-stream'},
             cookies=cookie,
             verify=False)
-        response.raise_for_status()
-        ctx.logger.info(response.json())
-        if remote_file in response.json():
-            raise NonRecoverableError
-        # try:
-        # except Exception as e:
-        #     ctx.logger.error('Cannot get file: {}'.format(str(e)))
-        #     raise NonRecoverableError(
-        #         "Unable to get file ISO: {iso}".format(iso=remote_file))
-        return dc.id, remote_file
+        if response.status_code == 200:
+            return dc.id, remote_file
+        elif response.status_code == 404:
+            raise NonRecoverableError(
+                "Vsphere file: {0} does not exist.".format(remote_file))
+        else:
+            raise OperationRetry(
+                'Cannot access. Error: {0}'.format(response.status_code))
+
 
 class StorageClient(VsphereClient):
 
