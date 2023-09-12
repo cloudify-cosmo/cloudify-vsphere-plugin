@@ -1222,13 +1222,21 @@ node_types:
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
+      use_external_resource:
+        default: false
+        description: >
+          Use existing image (must be preuploaded to vsphere)
+      force_delete:
+        default: false
+        description: >
+          Delete image if external resource
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
           inputs: {}
         delete:
-          implementation: vsphere.vsphere_storage_plugin.cidata.delete
+          implementation: vsphere.vsphere_storage_plugin.cidata.delete_iso
           inputs: {}
 
 relationships:
