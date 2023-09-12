@@ -97,7 +97,10 @@ def delete(rawvolume_client, **kwargs):
 
 @op
 @with_rawvolume_client
-def delete_iso(rawvolume_client, use_external_resource, force_delete, **kwargs):
+def delete_iso(rawvolume_client,
+               use_external_resource,
+               force_delete,
+               **kwargs):
     storage_path = ctx.instance.runtime_properties.get(
         VSPHERE_STORAGE_FILE_NAME)
     if not storage_path:
@@ -114,6 +117,7 @@ def delete_iso(rawvolume_client, use_external_resource, force_delete, **kwargs):
                                      datastorepath=storage_path)
         # clear the runtime after delete to support edge cases of failure
         ctx.instance.runtime_properties.pop(VSPHERE_STORAGE_FILE_NAME, None)
+
 
 @op
 @with_rawvolume_client
