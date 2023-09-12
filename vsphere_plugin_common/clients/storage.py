@@ -114,6 +114,77 @@ class RawVolumeClient(VsphereClient):
         return dc.id, "[{datastore}] {file_name}".format(
             datastore=ds.name, file_name=remote_file)
 
+    def file_exist_in_vsphere(self, datacenter_name, allowed_datastores,
+                              allowed_datastore_ids, remote_file, host, port):
+        dc = self._get_obj_by_name(vim.Datacenter, datacenter_name)
+        if not dc:
+            raise NonRecoverableError(
+                "Unable to get datacenter: {datacenter}"
+                .format(datacenter=text_type(datacenter_name)))
+        self._logger.debug(
+            "Will check storage with IDs: {ids}; and names: {names}"
+            .format(ids=text_type(allowed_datastore_ids),
+                    names=text_type(allowed_datastores)))
+
+        datastores = self._get_datastores()
+        ds = None
+        if not allowed_datastores and not allowed_datastore_ids and datastores:
+            ds = datastores[0]
+        else:
+            # select by datastore ids
+            if allowed_datastore_ids:
+                for datastore in datastores:
+                    if datastore.id in allowed_datastore_ids:
+                        ds = datastore
+                        break
+            # select by datastore names
+            if not ds and allowed_datastores:
+                for datastore in datastores:
+                    if datastore.name in allowed_datastores:
+                        ds = datastore
+                        break
+        if not ds:
+            raise NonRecoverableError(
+                "Unable to get datastore {allowed} in {available}"
+                .format(allowed=text_type(allowed_datastores),
+                        available=text_type([datastore.name
+                                             for datastore in datastores])))
+
+        params = {"dsName": ds.name,
+                  "dcPath": dc.name}
+        http_url = 'https://{host}:{port}/folder/'.format(
+            host=host, port=text_type(port), remote_file=remote_file)
+
+        # Get the cookie built from the current session
+        client_cookie = self.si._stub.cookie
+        # Break apart the cookie into it's component parts - This is more than
+        # is needed, but a good example of how to break apart the cookie
+        # anyways. The verbosity makes it clear what is happening.
+        cookie_name = client_cookie.split("=", 1)[0]
+        cookie_value = client_cookie.split("=", 1)[1].split(";", 1)[0]
+        cookie_path = client_cookie.split("=", 1)[1].split(";", 1)[1].split(
+            ";", 1)[0].lstrip()
+        cookie_text = " " + cookie_value + "; $" + cookie_path
+        # Make a cookie
+        cookie = dict()
+        cookie[cookie_name] = cookie_text
+
+        response = requests.get(
+            http_url,
+            params=params,
+            headers={'Content-Type': 'application/octet-stream'},
+            cookies=cookie,
+            verify=False)
+        response.raise_for_status()
+        ctx.logger.info(response.json())
+        if remote_file in response.json():
+            raise NonRecoverableError
+        # try:
+        # except Exception as e:
+        #     ctx.logger.error('Cannot get file: {}'.format(str(e)))
+        #     raise NonRecoverableError(
+        #         "Unable to get file ISO: {iso}".format(iso=remote_file))
+        return dc.id, remote_file
 
 class StorageClient(VsphereClient):
 

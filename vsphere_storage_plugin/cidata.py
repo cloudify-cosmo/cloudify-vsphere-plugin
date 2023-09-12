@@ -103,20 +103,30 @@ def upload_iso(rawvolume_client,
                allowed_datastore_ids,
                volume_prefix,
                iso_file_path,
+               use_external_resource,
                **_):
     is_node_deprecated(ctx.node.type)
     if ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
         ctx.logger.info('Instance is already created.')
         return
-    iso_disk = "{prefix}/{name}.iso".format(
-        prefix=volume_prefix, name=ctx.instance.id)
-    with open(iso_file_path, "rb") as file_data:
+    if not use_external_resource:
+        iso_disk = "{prefix}/{name}.iso".format(
+            prefix=volume_prefix, name=ctx.instance.id)
+        with open(iso_file_path, "rb") as file_data:
+            datacenter_id, storage_path = rawvolume_client.upload_file(
+                datacenter_name=datacenter_name,
+                allowed_datastores=allowed_datastores,
+                allowed_datastore_ids=allowed_datastore_ids,
+                remote_file=iso_disk,
+                data=file_data,
+                host=ctx.node.properties['connection_config']['host'],
+                port=ctx.node.properties['connection_config']['port'])
+    else:
         datacenter_id, storage_path = rawvolume_client.upload_file(
             datacenter_name=datacenter_name,
             allowed_datastores=allowed_datastores,
             allowed_datastore_ids=allowed_datastore_ids,
-            remote_file=iso_disk,
-            data=file_data,
+            remote_file=iso_file_path,
             host=ctx.node.properties['connection_config']['host'],
             port=ctx.node.properties['connection_config']['port'])
     ctx.instance.runtime_properties[VSPHERE_STORAGE_IMAGE] = storage_path

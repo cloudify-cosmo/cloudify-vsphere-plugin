@@ -765,16 +765,18 @@ node_types:
         type: string
         required: true
       connection_config:
-        default: {}
+        default: { }
         type: cloudify.datatypes.vsphere.Config
+      use_external_resource:
+        default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
-          inputs: {}
+          inputs: { }
         delete:
           implementation: vsphere.vsphere_storage_plugin.cidata.delete
-          inputs: {}
+          inputs: { }
 
 relationships:
 

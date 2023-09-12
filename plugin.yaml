@@ -763,6 +763,8 @@ node_types:
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
+      use_external_resource:
+        default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
