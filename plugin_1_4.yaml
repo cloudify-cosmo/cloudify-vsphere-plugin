@@ -1225,11 +1225,6 @@ node_types:
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
-          implementation: vsphere.vsphere_storage_plugin.cidata.create
-          inputs: {}
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        create:
           implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
           inputs: {}
         delete:
