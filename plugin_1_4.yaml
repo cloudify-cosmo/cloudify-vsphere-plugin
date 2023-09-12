@@ -1218,6 +1218,7 @@ node_types:
         type: string
         description: >
           The path for the ISO to upload.
+        required: true
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
