@@ -773,7 +773,7 @@ node_types:
           implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
           inputs: {}
         delete:
-          implementation: vsphere.vsphere_storage_plugin.cidata.delete
+          implementation: vsphere.vsphere_storage_plugin.cidata.delete_iso
           inputs: {}
 
 relationships:
