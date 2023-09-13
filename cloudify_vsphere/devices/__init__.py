@@ -412,13 +412,19 @@ def attach_serial_port(ctx, **kwargs):
         task = vm.obj.ReconfigVM_Task(spec=config_spec)
         cl._wait_for_task(task, instance=ctx.source.instance)
         temp_start_server(cl, vm, ctx.target.instance)
-        ctx.source.instance.runtime_properties['__attached'] = True
-        ctx.source.instance.runtime_properties.dirty = True
-        ctx.source.instance.update()
     else:
-        raise NonRecoverableError(
-            'Serial Port can\'t be attached while VM is running')
+        if vm.obj.summary.runtime.powerState.lower() == "poweredon":
+            raise NonRecoverableError(
+                'Serial Port can\'t be attached while VM is running')
+        else:
+            ctx.logger.info(
+                'VM is poweredoff and will not be started automatically')
+            task = vm.obj.ReconfigVM_Task(spec=config_spec)
+            cl._wait_for_task(task, instance=ctx.source.instance)
 
+    ctx.source.instance.runtime_properties['__attached'] = True
+    ctx.source.instance.runtime_properties.dirty = True
+    ctx.source.instance.update()
 
 @operation(resumable=True)
 def detach_serial_port(ctx, **kwargs):
