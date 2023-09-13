@@ -543,6 +543,7 @@ class ServerClient(VsphereClient):
             retry=False,
             clone_vm=None,
             disk_provision_type=None,
+            disk_size=None,
             **_):
 
         self._logger.debug(
@@ -681,6 +682,17 @@ class ServerClient(VsphereClient):
                                   cdrom_image=cdrom_image,
                                   remove_networks=not postpone_delete_networks)
 
+        # modify disk size if passed
+        if disk_size:
+            for device in template_vm.config.hardware.device:
+                if isinstance(device, vim.vm.device.VirtualDisk):
+                    diskspec = vim.vm.device.VirtualDeviceSpec()
+                    diskspec.operation = \
+                        vim.vm.device.VirtualDeviceSpec.Operation.edit
+                    diskspec.device = device
+                    diskspec.device.capacityInKB = disk_size * 1024 * 1024
+                    devices.append(diskspec)
+
         port_groups, distributed_port_groups = self._get_port_group_names()
 
         netcnt = 0
@@ -712,7 +724,11 @@ class ServerClient(VsphereClient):
                 clonespec.extraConfig.append(
                     vim.option.OptionValue(key=k, value=extra_config[k]))
 
-        if adaptermaps:
+        # if we pass 'none' value from the node properties inside os_family
+        # that means no OS on the VM template/clone
+        # this customization for guestOS would fail as no vm-tools
+        # and this would just skip it
+        if os_type != 'none' and adaptermaps:
             self._logger.debug(
                 'Preparing OS customization spec for {server}'.format(
                     server=vm_name,
@@ -1721,3 +1737,100 @@ class ServerClient(VsphereClient):
             task = vmware_resource.obj.Destroy()
             self._wait_for_task(task, max_wait_time=max_wait_time)
             self._logger.debug("Resource Pool is now deleted.")
+
+
+def _get_device_keys(vm, device_type):
+    device_keys = []
+    for device in vm.config.hardware.device:
+        if isinstance(device, device_type):
+            device_keys.append(device.key)
+    return device_keys
+
+
+def get_boot_order_obj(ctx, server_client, server_id, boot_order,
+                       disk_keys=None, ethernet_keys=None):
+    boot_supported_devices = {
+        "cdrom": {
+            "device_type": vim.vm.device.VirtualCdrom,
+            "boot_obj": vim.vm.BootOptions.BootableCdromDevice,
+            "keys_required": False
+        },
+        "floppy": {
+            "device_type": vim.vm.device.VirtualFloppy,
+            "boot_obj": vim.vm.BootOptions.BootableFloppyDevice,
+            "keys_required": False
+        },
+        "disk": {
+            "device_type": vim.vm.device.VirtualDisk,
+            "boot_obj": vim.vm.BootOptions.BootableDiskDevice,
+            "keys_required": True
+        },
+        "ethernet": {
+            "device_type": vim.vm.device.VirtualEthernetCard,
+            "boot_obj": vim.vm.BootOptions.BootableEthernetDevice,
+            "keys_required": True
+        }
+    }
+    device_keys = None
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, server_id)
+    if not vm:
+        raise NonRecoverableError(
+            'VM with id {0} does not exist'.format(server_id))
+    boot_order_obj = []
+    for boot_option in boot_order:
+        boot_option = boot_option.lower()
+        if boot_option in boot_supported_devices.keys():
+            if boot_supported_devices[boot_option]["keys_required"]:
+                if boot_option.lower() in "disk":
+                    device_keys = disk_keys
+                elif boot_option.lower() in "ethernet":
+                    device_keys = ethernet_keys
+
+                if not device_keys:
+                    ctx.logger.info(
+                        '{0}_keys does not provide by user'.format(boot_option)
+                    )
+                    device_type = \
+                        boot_supported_devices[boot_option]["device_type"]
+                    device_keys = _get_device_keys(vm.obj, device_type)
+                for device_key in device_keys:
+                    ctx.logger.info(
+                        'Add device: {0} with key {1} to boot order'.format(
+                            boot_option, device_key)
+                    )
+                    boot_order_obj.append(
+                        boot_supported_devices[boot_option]["boot_obj"](
+                            deviceKey=device_key)
+                    )
+            else:
+                ctx.logger.info(
+                    'Add device: {0} to boot order'.format(boot_option)
+                )
+                boot_order_obj.append(
+                    boot_supported_devices[boot_option]["boot_obj"]()
+                )
+        else:
+            ctx.logger.info(
+                'Device: {0} is not supported now'.format(boot_option))
+    return boot_order_obj
+
+
+def set_boot_order(ctx, server_client, server_id, boot_order,
+                   disk_keys=None, ethernet_keys=None, **_):
+    boot_order_obj = get_boot_order_obj(
+        ctx=ctx, server_client=server_client, server_id=server_id,
+        boot_order=boot_order,
+        disk_keys=disk_keys, ethernet_keys=ethernet_keys)
+    vm_conf = vim.vm.ConfigSpec()
+    ctx.logger.info('Set boot order')
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, server_id)
+    vm_conf.bootOptions = vim.vm.BootOptions(bootOrder=boot_order_obj)
+    task = vm.obj.ReconfigVM_Task(vm_conf)
+    server_client._wait_for_task(task, instance=ctx.instance)
+    vm = server_client._get_obj_by_id(vim.VirtualMachine, server_id)
+    current_boot_order = vm.obj.config.bootOptions.bootOrder
+    ctx.logger.info("Current boot order is: {0}".format(current_boot_order))
+    boot_order_obj = [type(bo) for bo in boot_order_obj]
+    current_boot_order = [type(co) for co in current_boot_order]
+    if current_boot_order != boot_order_obj:
+        raise OperationRetry('Boot order is different than expected')

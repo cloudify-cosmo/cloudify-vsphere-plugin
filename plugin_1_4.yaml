@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.4'
+    package_version: '2.20.5'
 
 data_types:
 
@@ -117,6 +117,11 @@ data_types:
             - thin
         type: string
         required: false
+      disk_size:
+        description: >
+          Disk size in GBs.
+        type: integer
+        required: false
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
@@ -226,6 +231,29 @@ node_types:
         description: |
           Set minimal version of vm
         default: 13
+      boot_order:
+        description: |
+          The order of boot
+          Example:
+            - cdrom
+            - hdd
+            - ethernet
+          In above list will be provided, vsphere try to boot from cdrom,then
+          from hdd (all disk_keys) and at the end from ethernet (ethernet_keys)
+        type: list
+        required: false
+      disk_keys:
+        type: list
+        required: false
+        description: |
+          The order of hdd boot - will be used only if boot_order provided.
+          If empty, the parameter will be generated based on vm properties (considering all hdd disks)
+      ethernet_keys:
+        type: list
+        required: false
+        description: |
+          The order of ethernet boot - will be used only if boot_order provided.
+          If empty, the parameter will be generated based on vm properties (considering all ethernet devices)
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
@@ -909,6 +937,29 @@ node_types:
           specify which boot firmware to use it can be [bios,efi]
         type: string
         required: false
+      boot_order:
+        description: |
+          The order of boot
+          Example:
+            - cdrom
+            - hdd
+            - ethernet
+          In above list will be provided, vsphere try to boot from cdrom,then
+          from hdd (all disk_keys) and at the end from ethernet (ethernet_keys)
+        type: list
+        required: false
+      disk_keys:
+        type: list
+        required: false
+        description: |
+          The order of hdd boot - will be used only if boot_order provided.
+          If empty, the parameter will be generated based on vm properties (considering all hdd disks)
+      ethernet_keys:
+        type: list
+        required: false
+        description: |
+          The order of ethernet boot - will be used only if boot_order provided.
+          If empty, the parameter will be generated based on vm properties (considering all ethernet devices)
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -1171,18 +1222,21 @@ node_types:
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
-    interfaces:
-      cloudify.interfaces.lifecycle:
-        create:
-          implementation: vsphere.vsphere_storage_plugin.cidata.create
-          inputs: {}
+      use_external_resource:
+        default: false
+        description: >
+          Use existing image (must be preuploaded to vsphere)
+      force_delete:
+        default: false
+        description: >
+          Delete image if external resource
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
           inputs: {}
         delete:
-          implementation: vsphere.vsphere_storage_plugin.cidata.delete
+          implementation: vsphere.vsphere_storage_plugin.cidata.delete_iso
           inputs: {}
 
 relationships:

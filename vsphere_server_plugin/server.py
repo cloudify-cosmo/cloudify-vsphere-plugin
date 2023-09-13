@@ -27,7 +27,10 @@ from cloudify.exceptions import NonRecoverableError, OperationRetry
 
 # This package imports
 from vsphere_plugin_common import with_server_client
-from vsphere_plugin_common.clients.server import get_ip_from_vsphere_nic_ips
+from vsphere_plugin_common.clients.server import (
+    get_ip_from_vsphere_nic_ips,
+    set_boot_order
+)
 from vsphere_plugin_common.utils import (
     op,
     is_node_deprecated,
@@ -344,7 +347,8 @@ def create_new_server(server_client,
         max_wait_time=max_wait_time,
         retry=ctx.operation.retry_number > 0,
         clone_vm=server.get('clone_vm'),
-        disk_provision_type=server.get('disk_provision_type'))
+        disk_provision_type=server.get('disk_provision_type'),
+        disk_size=server.get('disk_size'))
     ctx.logger.info('Created server called {name}'.format(name=vm_name))
     return server_obj
 
@@ -372,6 +376,9 @@ def create(server_client,
            vm_folder=None,
            extra_config=None,
            max_wait_time=300,
+           boot_order=None,
+           disk_keys=None,
+           ethernet_keys=None,
            **_):
     is_node_deprecated(ctx.node.type)
     if enable_start_vm:
@@ -434,6 +441,14 @@ def create(server_client,
         del ctx.instance.runtime_properties['_keys_for_remove']
         ctx.instance.runtime_properties.dirty = True
         ctx.instance.update()
+    if boot_order:
+        if enable_start_vm:
+            ctx.logger.warn('VM have to be restarted to apply boot order.')
+        set_boot_order(ctx=ctx, server_client=server_client,
+                       server_id=server_obj.id,
+                       boot_order=boot_order,
+                       disk_keys=disk_keys,
+                       ethernet_keys=ethernet_keys)
     store_server_details(server_client, server_obj)
     ctx.instance.runtime_properties.dirty = True
     ctx.instance.update()

@@ -10,7 +10,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.4'
+    package_version: '2.20.5'
 
 data_types:
 
@@ -67,6 +67,9 @@ data_types:
       disk_provision_type:
         type: string
         required: false
+      disk_size:
+        type: integer
+        required: false
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
@@ -121,6 +124,15 @@ node_types:
         default: false
       minimal_vm_version:
         default: 13
+      boot_order:
+        type: list
+        required: false
+      disk_keys:
+        type: list
+        required: false
+      ethernet_keys:
+        type: list
+        required: false
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
@@ -570,6 +582,15 @@ node_types:
       boot_firmware:
         type: string
         required: false
+      boot_order:
+        type: list
+        required: false
+      disk_keys:
+        type: list
+        required: false
+      ethernet_keys:
+        type: list
+        required: false
       connection_config:
         default: {}
         type: cloudify.datatypes.vsphere.Config
@@ -744,16 +765,20 @@ node_types:
         type: string
         required: true
       connection_config:
-        default: {}
+        default: { }
         type: cloudify.datatypes.vsphere.Config
+      use_external_resource:
+        default: false
+      force_delete:
+        default: false
     interfaces:
       cloudify.interfaces.lifecycle:
         create:
           implementation: vsphere.vsphere_storage_plugin.cidata.upload_iso
-          inputs: {}
+          inputs: { }
         delete:
-          implementation: vsphere.vsphere_storage_plugin.cidata.delete
-          inputs: {}
+          implementation: vsphere.vsphere_storage_plugin.cidata.delete_iso
+          inputs: { }
 
 relationships:
 
