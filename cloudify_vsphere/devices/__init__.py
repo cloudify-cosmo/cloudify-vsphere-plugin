@@ -426,6 +426,7 @@ def attach_serial_port(ctx, **kwargs):
     ctx.source.instance.runtime_properties.dirty = True
     ctx.source.instance.update()
 
+
 @operation(resumable=True)
 def detach_serial_port(ctx, **kwargs):
     vsphere_server_id = ctx.target.instance.runtime_properties.get(
@@ -466,7 +467,6 @@ def detach_serial_port(ctx, **kwargs):
                 task = vm.obj.ReconfigVM_Task(spec=config_spec)
                 cl._wait_for_task(task, instance=ctx.source.instance)
         del ctx.source.instance.runtime_properties['__attached']
-
 
 
 def get_pci_device(content, vm_host_name, device_name):
@@ -550,7 +550,6 @@ def attach_pci_device(ctx, **kwargs):
     ctx.source.instance.runtime_properties['__attached'] = True
     ctx.source.instance.runtime_properties.dirty = True
     ctx.source.instance.update()
-
 
 
 @operation(resumable=True)
