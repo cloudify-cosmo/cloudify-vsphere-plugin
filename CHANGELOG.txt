@@ -1,3 +1,5 @@
+2.20.6:
+  - Add support to attaching/detaching PCI/Serial on turned off machine already
 2.20.5:
   - Fix cdrom_image type instead of default in plugin yaml.
   - add support of changing boot order during vm creation
