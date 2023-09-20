@@ -721,7 +721,7 @@ class ServerClient(VsphereClient):
             self._logger.debug('Extra config: {config}'
                                .format(config=text_type(extra_config)))
             for k in extra_config:
-                clonespec.extraConfig.append(
+                vmconf.extraConfig.append(
                     vim.option.OptionValue(key=k, value=extra_config[k]))
 
         # if we pass 'none' value from the node properties inside os_family

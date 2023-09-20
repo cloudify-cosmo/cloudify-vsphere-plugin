@@ -1,3 +1,5 @@
+2.20.7:
+  - Fix Extra_config when creating new server.
 2.20.6:
   - Add support for attaching/detaching PCI/Serial on turned off machine already
 2.20.5:
