@@ -66,6 +66,15 @@ data_types:
       disk_size:
         type: integer
         required: false
+      cpu_hot_add:
+        type: boolean
+        default: true
+      cpu_hot_remove:
+        type: boolean
+        default: true
+      memory_hot_add:
+        type: boolean
+        default: true
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:

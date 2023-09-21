@@ -544,6 +544,9 @@ class ServerClient(VsphereClient):
             clone_vm=None,
             disk_provision_type=None,
             disk_size=None,
+            cpu_hot_add=True,
+            cpu_hot_remove=True,
+            memory_hot_add=True,
             **_):
 
         self._logger.debug(
@@ -705,9 +708,9 @@ class ServerClient(VsphereClient):
         vmconf = vim.vm.ConfigSpec()
         vmconf.numCPUs = cpus
         vmconf.memoryMB = memory
-        vmconf.cpuHotAddEnabled = True
-        vmconf.memoryHotAddEnabled = True
-        vmconf.cpuHotRemoveEnabled = True
+        vmconf.cpuHotAddEnabled = cpu_hot_add
+        vmconf.memoryHotAddEnabled = memory_hot_add
+        vmconf.cpuHotRemoveEnabled = cpu_hot_remove
         vmconf.deviceChange = devices
 
         clonespec = vim.vm.CloneSpec()
