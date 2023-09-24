@@ -10,7 +10,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.6'
+    package_version: '2.20.7'
 
 data_types:
 
@@ -70,6 +70,15 @@ data_types:
       disk_size:
         type: integer
         required: false
+      cpu_hot_add:
+        type: boolean
+        default: true
+      cpu_hot_remove:
+        type: boolean
+        default: true
+      memory_hot_add:
+        type: boolean
+        default: true
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:

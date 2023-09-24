@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.6'
+    package_version: '2.20.7'
 
 data_types:
 
@@ -122,6 +122,21 @@ data_types:
           Disk size in GBs.
         type: integer
         required: false
+      cpu_hot_add:
+        description: >
+          control whether to have cpu_hot_add enabled or not.
+        type: boolean
+        default: true
+      cpu_hot_remove:
+        description: >
+          control whether to have cpu_hot_remove enabled or not.
+        type: boolean
+        default: true
+      memory_hot_add:
+        description: >
+          control whether to have memory_hot_add enabled or not.
+        type: boolean
+        default: true
 
   cloudify.datatypes.vsphere.NetworkingProperties:
     properties:
