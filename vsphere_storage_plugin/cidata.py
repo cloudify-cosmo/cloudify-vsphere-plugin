@@ -19,7 +19,11 @@ import cloudify_common_sdk.iso9660 as iso9660
 from cloudify import ctx
 
 # This package imports
-from vsphere_plugin_common.utils import op, is_node_deprecated
+from vsphere_plugin_common.utils import (
+    op,
+    is_node_deprecated,
+    get_plugin_properties
+)
 from vsphere_plugin_common import with_rawvolume_client
 from vsphere_plugin_common.constants import (
     VSPHERE_STORAGE_IMAGE,
@@ -64,14 +68,24 @@ def create(rawvolume_client,
 
     iso_disk = "{prefix}/{name}.iso".format(
         prefix=volume_prefix, name=ctx.instance.id)
+
+    # handle the logic of ctx.plugin.properties
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.node.properties['connection_config']
+    if connection_config:
+        vsphere_config.update(connection_config)
+    host = vsphere_config.get('host')
+    port = vsphere_config.get('port')
+
     datacenter_id, storage_path = rawvolume_client.upload_file(
         datacenter_name=datacenter_name,
         allowed_datastores=allowed_datastores,
         allowed_datastore_ids=allowed_datastore_ids,
         remote_file=iso_disk,
         data=outiso,
-        host=ctx.node.properties['connection_config']['host'],
-        port=ctx.node.properties['connection_config']['port'])
+        host=host,
+        port=port)
     ctx.instance.runtime_properties[VSPHERE_STORAGE_IMAGE] = storage_path
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_path
     ctx.instance.runtime_properties[DATACENTER_ID] = datacenter_id
@@ -133,6 +147,14 @@ def upload_iso(rawvolume_client,
     if ctx.instance.runtime_properties.get(VSPHERE_STORAGE_FILE_NAME):
         ctx.logger.info('Instance is already created.')
         return
+    # handle the logic of ctx.plugin.properties
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.node.properties['connection_config']
+    if connection_config:
+        vsphere_config.update(connection_config)
+    host = vsphere_config.get('host')
+    port = vsphere_config.get('port')
     if not use_external_resource:
         iso_disk = "{prefix}/{name}.iso".format(
             prefix=volume_prefix, name=ctx.instance.id)
@@ -143,16 +165,16 @@ def upload_iso(rawvolume_client,
                 allowed_datastore_ids=allowed_datastore_ids,
                 remote_file=iso_disk,
                 data=file_data,
-                host=ctx.node.properties['connection_config']['host'],
-                port=ctx.node.properties['connection_config']['port'])
+                host=host,
+                port=port)
     else:
         datacenter_id, storage_path = rawvolume_client.file_exist_in_vsphere(
             datacenter_name=datacenter_name,
             allowed_datastores=allowed_datastores,
             allowed_datastore_ids=allowed_datastore_ids,
             remote_file=iso_file_path,
-            host=ctx.node.properties['connection_config']['host'],
-            port=ctx.node.properties['connection_config']['port'])
+            host=host,
+            port=port)
     ctx.instance.runtime_properties[VSPHERE_STORAGE_IMAGE] = storage_path
     ctx.instance.runtime_properties[VSPHERE_STORAGE_FILE_NAME] = storage_path
     ctx.instance.runtime_properties[DATACENTER_ID] = datacenter_id

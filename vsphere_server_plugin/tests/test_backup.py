@@ -24,6 +24,17 @@ from vsphere_plugin_common.constants import DELETE_NODE_ACTION
 import vsphere_server_plugin.server as server
 
 
+class SpecialMockCloudifyContext(MockCloudifyContext):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._plugin = mock.MagicMock(properties={})
+
+    @property
+    def plugin(self):
+        return self._plugin
+
+
 class BackupServerTest(unittest.TestCase):
 
     def tearDown(self):
@@ -31,7 +42,7 @@ class BackupServerTest(unittest.TestCase):
         super(BackupServerTest, self).tearDown()
 
     def _gen_ctx(self):
-        _ctx = MockCloudifyContext(
+        _ctx = SpecialMockCloudifyContext(
             'node_name',
             properties={
                 "connection_config": {

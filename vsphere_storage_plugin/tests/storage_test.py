@@ -14,7 +14,7 @@
 
 import unittest
 
-from mock import Mock, patch
+from mock import Mock, patch, MagicMock
 
 from cloudify.exceptions import NonRecoverableError, OperationRetry
 from cloudify.state import current_ctx
@@ -25,11 +25,22 @@ from vsphere_plugin_common.constants import DELETE_NODE_ACTION
 from vsphere_storage_plugin import storage
 
 
+class SpecialMockCloudifyContext(MockCloudifyContext):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._plugin = MagicMock(properties={})
+
+    @property
+    def plugin(self):
+        return self._plugin
+
+
 class VsphereStorageTest(unittest.TestCase):
 
     def setUp(self):
         super(VsphereStorageTest, self).setUp()
-        self.mock_ctx = MockCloudifyContext(
+        self.mock_ctx = SpecialMockCloudifyContext(
             'node_name',
             properties={},
             runtime_properties={}

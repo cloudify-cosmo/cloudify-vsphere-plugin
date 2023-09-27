@@ -24,7 +24,8 @@ from cloudify.exceptions import NonRecoverableError
 from vsphere_plugin_common.utils import (
     op,
     find_rels_by_type,
-    is_node_deprecated)
+    is_node_deprecated,
+    get_plugin_properties)
 from vsphere_plugin_common.clients.server import (
     ServerClient,
     set_boot_order)
@@ -115,8 +116,14 @@ def attach_scsi_controller(ctx, **kwargs):
     ctx.logger.debug("Source {0}".format(repr(scsi_properties)))
     ctx.logger.debug("Target {0}".format(repr(hostvm_properties)))
 
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
+
     cl = ControllerClient()
-    cl.get(config=ctx.source.node.properties.get("connection_config"))
+    cl.get(config=vsphere_config)
 
     run_deferred_task(cl, ctx.source.instance)
 
@@ -142,8 +149,14 @@ def attach_ethernet_card(ctx, **kwargs):
         ctx.logger.info("Controller attached with {buskey} key.".format(
             buskey=ctx.source.instance.runtime_properties['busKey']))
         return
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
+
     attachment = _attach_ethernet_card(
-        ctx.source.node.properties.get("connection_config"),
+        vsphere_config,
         ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
         controller_without_connected_networks(
             ctx.source.instance.runtime_properties),
@@ -162,8 +175,13 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
     if ctx.target.instance.id not in \
             ctx.source.instance.runtime_properties.get(
                 VSPHERE_SERVER_CONNECTED_NICS, []):
+        vsphere_config = get_plugin_properties(
+            getattr(ctx.plugin, 'properties', {}))
+        connection_config = ctx.target.node.properties.get('connection_config')
+        if connection_config:
+            vsphere_config.update(connection_config)
         attachment = _attach_ethernet_card(
-            ctx.target.node.properties.get("connection_config"),
+            vsphere_config,
             ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
             controller_without_connected_networks(
                 ctx.target.instance.runtime_properties),
@@ -171,8 +189,13 @@ def attach_server_to_ethernet_card(ctx, **kwargs):
         ctx.target.instance.runtime_properties.update(attachment)
         ctx.target.instance.runtime_properties.dirty = True
         ctx.target.instance.update()
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
     ip = _get_card_ip(
-        ctx.source.node.properties.get("connection_config"),
+        vsphere_config,
         ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
         ctx.target.instance.runtime_properties.get('name'))
     ctx.source.instance.runtime_properties[IP] = ip
@@ -185,8 +208,13 @@ def detach_controller(ctx, **kwargs):
     if 'busKey' not in ctx.source.instance.runtime_properties:
         ctx.logger.info("Controller was not attached, skipping.")
         return
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
     _detach_controller(
-        ctx.source.node.properties.get("connection_config"),
+        vsphere_config,
         ctx.target.instance.runtime_properties.get(VSPHERE_SERVER_ID),
         ctx.source.instance.runtime_properties.get('busKey'),
         instance=ctx.source.instance)
@@ -202,8 +230,13 @@ def detach_server_from_controller(ctx, **kwargs):
     if 'busKey' not in ctx.target.instance.runtime_properties:
         ctx.logger.info("Controller was not attached, skipping.")
         return
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.target.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
     _detach_controller(
-        ctx.target.node.properties.get("connection_config"),
+        vsphere_config,
         ctx.source.instance.runtime_properties.get(VSPHERE_SERVER_ID),
         ctx.target.instance.runtime_properties.get('busKey'),
         instance=ctx.target.instance)
@@ -300,11 +333,16 @@ def attach_usb_device(ctx, **kwargs):
         return
     vsphere_server_id = ctx.target.instance.runtime_properties.get(
         'vsphere_server_id')
-    connection_config_props = ctx.source.node.properties.get(
-        'connection_config')
+
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
+
     device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=connection_config_props)
+    cl.get(config=vsphere_config)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
                            vsphere_server_id)
     device_name = get_usb_physical_path(cl.si.content,
@@ -357,11 +395,14 @@ def attach_usb_device(ctx, **kwargs):
 def detach_usb_device(ctx, **kwargs):
     vsphere_server_id = ctx.target.instance.runtime_properties.get(
         'vsphere_server_id')
-    connection_config_props = ctx.source.node.properties.get(
-        'connection_config')
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
     device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=connection_config_props)
+    cl.get(config=vsphere_config)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
                            vsphere_server_id)
     usb_device = None
@@ -389,11 +430,14 @@ def attach_serial_port(ctx, **kwargs):
         return
     vsphere_server_id = ctx.target.instance.runtime_properties.get(
         'vsphere_server_id')
-    connection_config_props = ctx.source.node.properties.get(
-        'connection_config')
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
     device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=connection_config_props)
+    cl.get(config=vsphere_config)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
                            vsphere_server_id)
     device_changes = []
@@ -431,11 +475,14 @@ def attach_serial_port(ctx, **kwargs):
 def detach_serial_port(ctx, **kwargs):
     vsphere_server_id = ctx.target.instance.runtime_properties.get(
         'vsphere_server_id')
-    connection_config_props = ctx.source.node.properties.get(
-        'connection_config')
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
     device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=connection_config_props)
+    cl.get(config=vsphere_config)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
                            vsphere_server_id)
     serial_port = None
@@ -501,11 +548,14 @@ def attach_pci_device(ctx, **kwargs):
         return
     vsphere_server_id = ctx.target.instance.runtime_properties.get(
         'vsphere_server_id')
-    connection_config_props = ctx.source.node.properties.get(
-        'connection_config')
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
     device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=connection_config_props)
+    cl.get(config=vsphere_config)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
                            vsphere_server_id)
     pci_device = get_pci_device(cl.si.content,
@@ -556,11 +606,14 @@ def attach_pci_device(ctx, **kwargs):
 def detach_pci_device(ctx, **kwargs):
     vsphere_server_id = ctx.target.instance.runtime_properties.get(
         'vsphere_server_id')
-    connection_config_props = ctx.source.node.properties.get(
-        'connection_config')
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.source.node.properties.get('connection_config')
+    if connection_config:
+        vsphere_config.update(connection_config)
     device_name_from_props = ctx.source.node.properties.get('device_name')
     cl = ServerClient()
-    cl.get(config=connection_config_props)
+    cl.get(config=vsphere_config)
     vm = cl._get_obj_by_id(vim.VirtualMachine,
                            vsphere_server_id)
     pci_details = get_pci_device(cl.si.content,

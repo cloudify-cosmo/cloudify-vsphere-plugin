@@ -14,7 +14,7 @@
 
 import unittest
 
-from mock import Mock, patch
+from mock import Mock, patch, MagicMock
 
 from cloudify.state import current_ctx
 from cloudify.mocks import MockCloudifyContext
@@ -23,11 +23,22 @@ from vsphere_plugin_common.constants import DELETE_NODE_ACTION
 from vsphere_storage_plugin import cidata
 
 
+class SpecialMockCloudifyContext(MockCloudifyContext):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._plugin = MagicMock(properties={})
+
+    @property
+    def plugin(self):
+        return self._plugin
+
+
 class VsphereCIDataTest(unittest.TestCase):
 
     def setUp(self):
         super(VsphereCIDataTest, self).setUp()
-        self.mock_ctx = MockCloudifyContext(
+        self.mock_ctx = SpecialMockCloudifyContext(
             'node_name',
             properties={},
             runtime_properties={}
