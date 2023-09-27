@@ -7,6 +7,45 @@ plugins:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
     package_version: '2.20.8'
+    properties_description: |
+      Manage vSphere resources.
+    properties:
+      username:
+        type: string
+        display_label: vSphere username.
+        description: vSphere username.
+      host:
+        type: string
+        display_label: vCenter hostname or IP address.
+        description: vCenter hostname or IP address.
+      password:
+        type: string
+        display_label: vCenter password.
+        description: vCenter password.
+      datacenter_name:
+        type: string
+        display_label: datacenter name.
+        description: datacenter name.
+      auto_placement:
+        type: string
+        display_label: Auto Placement flag.
+        description: auto-placement logic from the plugin.
+      resource_pool_name:
+        type: string
+        display_label: Name of a resource pool.
+        description: Name of a resource pool.
+      port:
+        type: integer
+        display_label: vCenter port for SDK.
+        description: vCenter port for SDK.
+      allow_insecure:
+        type: boolean
+        display_label: Allow insecure connections.
+        description: Whether to allow insecure connections.
+      certificate_path:
+        type: string
+        display_label: Certificate path for the vCenter.
+        description: The path to the PEM encoded certificate for the vCenter.
 
 data_types:
 

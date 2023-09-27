@@ -16,7 +16,7 @@
 import cloudify.exceptions as cfy_exc
 
 from .server import get_server_by_context
-from vsphere_plugin_common.utils import op
+from vsphere_plugin_common.utils import op, get_plugin_properties
 from vsphere_plugin_common import with_server_client
 
 
@@ -41,7 +41,11 @@ def _power_operation(operation_name,
 
 @op
 def power_on(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config,
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    if connection_config:
+        vsphere_config.update(connection_config)
+    return _power_operation(vsphere_config,
                             'start_server',
                             ctx,
                             server,
@@ -50,7 +54,11 @@ def power_on(max_wait_time, ctx, server, connection_config):
 
 @op
 def power_off(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config,
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    if connection_config:
+        vsphere_config.update(connection_config)
+    return _power_operation(vsphere_config,
                             'stop_server',
                             ctx,
                             server,
@@ -59,7 +67,11 @@ def power_off(max_wait_time, ctx, server, connection_config):
 
 @op
 def shut_down(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config,
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    if connection_config:
+        vsphere_config.update(connection_config)
+    return _power_operation(vsphere_config,
                             'shutdown_server_guest',
                             ctx,
                             server,
@@ -68,14 +80,22 @@ def shut_down(max_wait_time, ctx, server, connection_config):
 
 @op
 def reboot(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config, 'reboot_server',
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    if connection_config:
+        vsphere_config.update(connection_config)
+    return _power_operation(vsphere_config, 'reboot_server',
                             ctx, server,
                             kwargs={'max_wait_time': max_wait_time},)
 
 
 @op
 def reset(max_wait_time, ctx, server, connection_config):
-    return _power_operation(connection_config,
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    if connection_config:
+        vsphere_config.update(connection_config)
+    return _power_operation(vsphere_config,
                             'reset_server',
                             ctx,
                             server,

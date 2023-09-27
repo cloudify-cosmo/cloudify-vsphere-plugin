@@ -32,7 +32,7 @@ from vsphere_plugin_common import with_server_client
 from vsphere_plugin_common.clients.server import (
     ServerClient,
     get_boot_order_obj)
-from vsphere_plugin_common.utils import op
+from vsphere_plugin_common.utils import op, get_plugin_properties
 from vsphere_plugin_common import (
     remove_runtime_properties,
 )
@@ -262,12 +262,19 @@ def create(ctx, connection_config, target, ovf_name, ovf_source,
     esxi_node = target.get('host')
     vm_folder = target.get('folder')
     resource_pool = target.get('resource_pool')
+
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.node.properties['connection_config']
+    if connection_config:
+        vsphere_config.update(connection_config)
+
     client = ServerClient(ctx_logger=ctx.logger).get(
-        config=connection_config)
+        config=vsphere_config)
     datacenter = client.si.content.rootFolder.childEntity[0]
 
     if not resource_pool:
-        resource_pool = connection_config.get("resource_pool_name")
+        resource_pool = vsphere_config.get("resource_pool_name")
 
     resource_pool = get_obj_in_list(resource_pool,
                                     client._get_resource_pools())

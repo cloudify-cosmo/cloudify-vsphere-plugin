@@ -14,7 +14,7 @@
 
 import unittest
 
-from mock import Mock, patch
+from mock import Mock, patch, MagicMock
 from pyVmomi import vim
 
 from cloudify.state import current_ctx
@@ -24,11 +24,22 @@ from vsphere_plugin_common.constants import DELETE_NODE_ACTION
 import cloudify_vsphere.contentlibrary.deployment as deployment
 
 
+class SpecialMockCloudifyContext(MockCloudifyContext):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._plugin = MagicMock(properties={})
+
+    @property
+    def plugin(self):
+        return self._plugin
+
+
 class ContentDeploymentTest(unittest.TestCase):
 
     def setUp(self):
         super(ContentDeploymentTest, self).setUp()
-        self.mock_ctx = MockCloudifyContext(
+        self.mock_ctx = SpecialMockCloudifyContext(
             'node_name',
             properties={
                 "connection_config": {

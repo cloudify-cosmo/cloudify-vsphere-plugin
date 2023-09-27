@@ -220,3 +220,11 @@ def is_node_deprecated(node_type):
     if re.match(pattern, node_type):
         ctx.logger.error('The node {} is deprecated,'
                          'please update your node'.format(node_type))
+
+
+def get_plugin_properties(plugin_properties):
+    final_props = {}
+    for k, v in list(plugin_properties.items()):
+        if 'value' in v:
+            final_props[k] = v.get('value')
+    return final_props

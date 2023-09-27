@@ -32,6 +32,7 @@ from .clients import VsphereClient  # noqa
 from .clients.server import ServerClient
 from .clients.network import NetworkClient
 from .clients.storage import StorageClient, RawVolumeClient
+from .utils import get_plugin_properties
 
 
 def remove_runtime_properties():
@@ -53,8 +54,15 @@ def _with_client(client_name, client):
     def decorator(f):
         @wraps(f)
         def wrapper(connection_config, *args, **kwargs):
+            # handle the logic of ctx.plugin.properties
+            vsphere_config = get_plugin_properties(
+                getattr(ctx.plugin, 'properties', {}))
+
+            if connection_config:
+                vsphere_config.update(connection_config)
+
             kwargs[client_name] = client(
-                ctx_logger=ctx.logger).get(config=connection_config)
+                ctx_logger=ctx.logger).get(config=vsphere_config)
             if not hasattr(f, '__wrapped__'):
                 # don't pass connection_config to the real operation
                 kwargs.pop('connection_config', None)

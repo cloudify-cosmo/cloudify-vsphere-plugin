@@ -23,7 +23,11 @@ from . import ContentLibrary
 
 # This package imports
 from vsphere_plugin_common import with_server_client
-from vsphere_plugin_common.utils import op, is_node_deprecated
+from vsphere_plugin_common.utils import (
+    op,
+    is_node_deprecated,
+    get_plugin_properties
+)
 from vsphere_plugin_common import (
     remove_runtime_properties,
 )
@@ -48,7 +52,13 @@ def create(ctx, connection_config, library_name, template_name, target,
                 vm_name=repr(runtime_properties.get(CONTENT_LIBRARY_VM_NAME))))
         return
 
-    content = ContentLibrary(connection_config)
+    vsphere_config = get_plugin_properties(
+        getattr(ctx.plugin, 'properties', {}))
+    connection_config = ctx.node.properties['connection_config']
+    if connection_config:
+        vsphere_config.update(connection_config)
+
+    content = ContentLibrary(vsphere_config)
     library = content.content_library_get(library_name)
     content_library_id = library["id"]
     runtime_properties[CONTENT_LIBRARY_ID] = content_library_id

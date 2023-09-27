@@ -25,6 +25,17 @@ from cloudify.exceptions import NonRecoverableError
 from cloudify_vsphere import devices
 
 
+class SpecialMockCloudifyContext(MockCloudifyContext):
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._plugin = MagicMock(properties={})
+
+    @property
+    def plugin(self):
+        return self._plugin
+
+
 class VsphereControllerTest(unittest.TestCase):
 
     def tearDown(self):
@@ -32,7 +43,7 @@ class VsphereControllerTest(unittest.TestCase):
         super(VsphereControllerTest, self).tearDown()
 
     def _gen_ctx(self):
-        _ctx = MockCloudifyContext(
+        _ctx = SpecialMockCloudifyContext(
             'node_name',
             properties={},
             runtime_properties={}
@@ -45,18 +56,18 @@ class VsphereControllerTest(unittest.TestCase):
         return _ctx
 
     def _gen_relation_ctx(self):
-        _target = MockCloudifyContext(
+        _target = SpecialMockCloudifyContext(
             'target',
             properties={},
             runtime_properties={}
         )
-        _source = MockCloudifyContext(
+        _source = SpecialMockCloudifyContext(
             'source',
             properties={},
             runtime_properties={}
         )
 
-        _ctx = MockCloudifyContext(
+        _ctx = SpecialMockCloudifyContext(
             target=_target,
             source=_source
         )
