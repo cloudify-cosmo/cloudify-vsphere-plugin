@@ -1,3 +1,5 @@
+2.20.9:
+  - add certificate_data to connection config.
 2.20.8:
   - add plugin_1_5.yaml and handle ctx.plugin properties.
 2.20.7:
