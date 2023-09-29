@@ -216,18 +216,19 @@ class VsphereClient(object):
         port = cfg['port']
 
         certificate_path = cfg.get('certificate_path')
+        certificate_data = cfg.get('certificate_data')
         # Until the next major release this will have limited effect, but is
         # in place to allow a clear path to the next release for users
         allow_insecure = cfg.get('allow_insecure', False)
         ssl_context = None
 
-        if certificate_path and allow_insecure:
+        if (certificate_path or certificate_data) and allow_insecure:
             raise NonRecoverableError(
                 'Cannot connect when certificate_path and allow_insecure '
                 'are both set. Unable to determine whether connection should '
                 'be secure or insecure.'
             )
-        elif certificate_path:
+        elif certificate_path or certificate_data:
             if not hasattr(ssl, '_create_default_https_context'):
                 raise NonRecoverableError(
                     'Cannot create secure connection with this version of '
@@ -235,19 +236,22 @@ class VsphereClient(object):
                     '2.7.9 and has been confirmed to work on at least 2.7.12.'
                 )
 
-            if not os.path.exists(certificate_path):
+            if certificate_path and not os.path.exists(certificate_path):
                 raise NonRecoverableError(
                     'Certificate was not found in {path}.'.format(
                         path=certificate_path,
                     )
                 )
-            elif not os.path.isfile(certificate_path):
+            elif certificate_path and not os.path.isfile(certificate_path):
                 raise NonRecoverableError(
                     'Found directory at {path}, but the certificate_path '
                     'must be a file.'.format(
                         path=certificate_path,
                     )
                 )
+            if certificate_data and not certificate_data.startswith(
+                    '-----BEGIN CERTIFICATE-----'):
+                raise NonRecoverableError('certificate_data is not valid')
             try:
                 # We want to load the cert into the existing default context
                 # in case any other python modules have already defined their
@@ -260,7 +264,12 @@ class VsphereClient(object):
                         'modules are disabling verification on the default '
                         'SSL context.'
                     )
-                ssl_context.load_verify_locations(certificate_path)
+                # we will give priority to certificate_data if passed
+                if certificate_data:
+                    ssl_context.load_verify_locations(
+                        ca_data=certificate_data)
+                else:
+                    ssl_context.load_verify_locations(certificate_path)
             except ssl.SSLError as err:
                 if 'unknown error' in text_type(err).lower() or \
                         'no certificate or crl found' in \
