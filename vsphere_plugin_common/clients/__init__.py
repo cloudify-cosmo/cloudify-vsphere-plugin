@@ -267,7 +267,7 @@ class VsphereClient(object):
                 # we will give priority to certificate_data if passed
                 if certificate_data:
                     ssl_context.load_verify_locations(
-                        ca_data=certificate_data)
+                        cadata=certificate_data)
                 else:
                     ssl_context.load_verify_locations(certificate_path)
             except ssl.SSLError as err:

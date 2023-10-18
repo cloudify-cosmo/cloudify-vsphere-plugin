@@ -1,3 +1,5 @@
+2.20.10:
+  - fix typo in argument name for load_verify_locations.
 2.20.9:
   - add certificate_data to connection config.
 2.20.8:
