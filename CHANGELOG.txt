@@ -1,3 +1,5 @@
+2.20.11:
+  - adjust python 3.11 patch.
 2.20.10:
   - fix typo in argument name for load_verify_locations.
 2.20.9:
