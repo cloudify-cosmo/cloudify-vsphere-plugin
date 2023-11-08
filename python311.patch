@@ -1,10 +1,36 @@
+diff --git a/constraints.txt b/constraints.txt
+index a07439a..eb7c74c 100644
+--- a/constraints.txt
++++ b/constraints.txt
+@@ -4,5 +4,4 @@ pyyaml>=6.0
+ rsa==4.5
+ cryptography==3.2.1
+ decorator>=4.4.2
+-urllib3===1.24.3
+ smmap<3.0.5,>=3.0.1
+\ No newline at end of file
+diff --git a/dev-requirements.txt b/dev-requirements.txt
+index e69de29..378fcb9 100644
+--- a/dev-requirements.txt
++++ b/dev-requirements.txt
+@@ -0,0 +1,2 @@
++-e fusion-common
++-e cloudify-utilities-plugins-sdk
+\ No newline at end of file
 diff --git a/setup.py b/setup.py
-index 8deafd4..34ce67c 100755
+index 8deafd4..45c5c14 100755
 --- a/setup.py
 +++ b/setup.py
-@@ -56,6 +56,6 @@ setup(
+@@ -51,11 +51,11 @@ setup(
+     license='LICENSE',
+     description='Cloudify plugin for vSphere infrastructure.',
+     install_requires=[
+-        "cloudify-common>=4.5",
++        "fusion-common",
+         "pyvmomi>=6.7.3,<8.0.0",
          "netaddr>=0.7.19",
-         "cloudify-utilities-plugins-sdk>=0.0.61",
+-        "cloudify-utilities-plugins-sdk>=0.0.61",
++        "cloudify-utilities-plugins-sdk",
          "requests",
 -        'deepdiff==3.3.0'
 +        'deepdiff>=5.7.0'
