@@ -223,6 +223,11 @@ def check_drift(storage_client, **_):
     ctx.logger.info(
         'Checking drift state for {resource_name}.'.format(
             resource_name=resource_name))
+
+    # if external we want to mark it as no drift , so we won't trigger upate
+    if ctx.node.properties.get('use_external_resource', False):
+        return False
+
     # get new storage_size from update
     storage_size = ctx.node.properties['storage'].get('storage_size')
     current_size = ctx.instance.runtime_properties.get(VSPHERE_STORAGE_SIZE)
