@@ -14,8 +14,9 @@
 
 import os
 import re
+import sys
 import pathlib
-from setuptools import setup
+from setuptools import setup, find_packages
 
 
 def get_version():
@@ -27,10 +28,14 @@ def get_version():
         return re.search(r'\d+.\d+.\d+', var).group()
 
 
-setup(
-    zip_safe=True,
-    name='cloudify-vsphere-plugin',
-    version=get_version(),
+install_requires = [
+        'pyvmomi>=6.7.3,<8.0.0',
+        'netaddr>=0.7.19',
+        'cloudify-utilities-plugins-sdk',
+        'requests',
+]
+
+if sys.version_info.major == 3 and sys.version_info.minor == 6:
     packages=[
         'vsphere_plugin_common',
         'vsphere_plugin_common.clients',
@@ -47,15 +52,25 @@ setup(
         'cloudify_vsphere.resource_pool',
         'cloudify_vsphere.vm_folder',
         'cloudify_vsphere.ovf',
-    ],
+    ]
+    install_requires += [
+        'cloudify-common>=4.5,<7.0',
+        'deepdiff==3.3.0',
+    ]
+else:
+    packages = find_packages()
+    install_requires += [
+        'fusion-common',
+        'deepdiff==5.7.0',
+    ]
+
+
+setup(
+    zip_safe=True,
+    name='cloudify-vsphere-plugin',
+    version=get_version(),
+    packages=packages,
     license='LICENSE',
     description='Cloudify plugin for vSphere infrastructure.',
-    install_requires=[
-        "cloudify-common>=4.5",
-        "pyvmomi>=6.7.3,<8.0.0",
-        "netaddr>=0.7.19",
-        "cloudify-utilities-plugins-sdk>=0.0.61",
-        "requests",
-        'deepdiff==3.3.0'
-    ]
+    install_requires=install_requires
 )

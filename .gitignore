@@ -73,3 +73,8 @@ cloudify_vsphere_plugin.egg-info/
 *.vmdk
 *.qcow2
 *.wgn
+
+fusion-agent
+fusion-common
+fusion-manager
+cloudify-utilities-plugins-sdk
