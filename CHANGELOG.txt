@@ -1,3 +1,5 @@
+2.20.12:
+  - Skip update on external resources.
 2.20.11:
   - adjust python 3.11 patch.
 2.20.10:
