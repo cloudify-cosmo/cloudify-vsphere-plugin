@@ -194,7 +194,7 @@ requests-toolbelt==1.0.0
     # via
     #   cloudify-utilities-plugins-sdk
     #   fusion-common
-rsa==4.5
+rsa==4.9
     # via
     #   -r requirements.in
     #   google-auth
