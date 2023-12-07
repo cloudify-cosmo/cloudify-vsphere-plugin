@@ -1102,10 +1102,6 @@ def check_drift(server_client, **_):
             resource_name=server_obj.name))
     ctx.instance.refresh()
 
-    # if external we want to mark it as no drift , so we won't trigger upate
-    if ctx.node.properties.get('use_external_resource', False):
-        return False
-
     expected_configuration = ctx.instance.runtime_properties.get(
         'expected_configuration')
     current_configuration = {}
