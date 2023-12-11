@@ -6,7 +6,7 @@ plugins:
   vsphere:
     executor: central_deployment_agent
     package_name: cloudify-vsphere-plugin
-    package_version: '2.20.14'
+    package_version: '2.20.15'
     properties_description: |
       Manage vSphere resources.
     properties:
