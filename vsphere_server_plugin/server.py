@@ -1073,6 +1073,13 @@ def poststart(server_client, server, os_family, **_):
     server_obj = get_server_by_context(server_client, server, os_family)
     ctx.logger.debug("Summary config: {}".format(server_obj.summary.config))
     ctx.logger.debug("Network vm: {}".format(server_obj.network))
+    disk_size = None
+    for device in server_obj.summary.vm.config.hardware.device:
+        if isinstance(device, vim.vm.device.VirtualDisk):
+            disk_size = device.capacityInKB // 1024 // 1024
+            ctx.logger.debug("disk_size: {}".format(disk_size))
+            break
+
     expected_configuration = {}
     network = json.loads(json.dumps(server_obj.network,
                                     cls=VmomiSupport.VmomiJSONEncoder,
@@ -1082,6 +1089,7 @@ def poststart(server_client, server, os_family, **_):
                                     sort_keys=True, indent=4))
     expected_configuration['network'] = network
     expected_configuration['summary'] = summary
+    expected_configuration['disk_size'] = disk_size
 
     ctx.instance.runtime_properties[
         'expected_configuration'] = expected_configuration
@@ -1150,6 +1158,12 @@ def check_drift(server_client, **_):
         ctx.instance.runtime_properties['spec_update'] = True
         needs_update = True
 
+    # get new disk_size from update
+    disk_size = ctx.node.properties.get('server', {}).get('disk_size')
+    if disk_size and disk_size != expected_configuration['disk_size']:
+        ctx.instance.runtime_properties['disk_size_update'] = True
+        needs_update = True
+
     # handled and expected possible update
     if needs_update:
         return True
@@ -1166,6 +1180,8 @@ def update(server_client, **_):
     spec_update = ctx.instance.runtime_properties.pop('spec_update', None)
     network_update = \
         ctx.instance.runtime_properties.pop('network_update', None)
+    disk_size_update = \
+        ctx.instance.runtime_properties.pop('disk_size_update', None)
     if spec_update:
         cpus = ctx.node.properties.get('server', {}).get('cpus')
         memory = ctx.node.properties.get('server', {}).get('memory')
@@ -1181,6 +1197,31 @@ def update(server_client, **_):
             'summary']['memorySizeMB'] = memory
         ctx.instance.runtime_properties['expected_configuration'][
             'summary']['numCpu'] = cpus
+        ctx.instance.runtime_properties.dirty = True
+        ctx.instance.update()
+    if disk_size_update:
+        disk_size = ctx.node.properties.get('server', {}).get('disk_size')
+        server_obj = server_client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+        device_changes = []
+        for device in server_obj.config.hardware.device:
+            if isinstance(device, vim.vm.device.VirtualDisk):
+                diskspec = vim.vm.device.VirtualDeviceSpec()
+                diskspec.operation = \
+                    vim.vm.device.VirtualDeviceSpec.Operation.edit
+                diskspec.device = device
+                diskspec.device.capacityInKB = disk_size * 1024 * 1024
+                device_changes.append(diskspec)
+                break
+
+        vmconf = vim.vm.ConfigSpec()
+        vmconf.deviceChange = device_changes
+        task = server_obj.obj.ReconfigVM_Task(spec=vmconf)
+        server_client._wait_for_task(task)
+        ctx.instance.runtime_properties['expected_configuration'][
+            'disk_size'] = disk_size
+        ctx.instance.runtime_properties.dirty = True
+        ctx.instance.update()
     if network_update:
         server_obj = server_client.get_server_by_id(
             ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
@@ -1305,4 +1346,5 @@ def update(server_client, **_):
                     manager_network_ip = get_ip_from_vsphere_nic_ips(network)
             ctx.instance.runtime_properties[IP] = manager_network_ip or \
                 default_ip
+        ctx.instance.runtime_properties.dirty = True
         ctx.instance.update()
