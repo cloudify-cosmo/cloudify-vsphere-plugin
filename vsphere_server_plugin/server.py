@@ -1090,6 +1090,8 @@ def poststart(server_client, server, os_family, **_):
     expected_configuration['network'] = network
     expected_configuration['summary'] = summary
     expected_configuration['disk_size'] = disk_size
+    expected_configuration['extra_config'] = \
+        ctx.node.properties.get('extra_config', {})
 
     ctx.instance.runtime_properties[
         'expected_configuration'] = expected_configuration
@@ -1164,6 +1166,15 @@ def check_drift(server_client, **_):
         ctx.instance.runtime_properties['disk_size_update'] = True
         needs_update = True
 
+    current_extra_config = expected_configuration.get('extra_config', {})
+    new_extra_config = ctx.node.properties.get('extra_config', {})
+    extra_config_diff = utils_check_drift(ctx.logger,
+                                          current_extra_config,
+                                          new_extra_config)
+    if extra_config_diff:
+        ctx.instance.runtime_properties['extra_config_update'] = True
+        needs_update = True
+
     # handled and expected possible update
     if needs_update:
         return True
@@ -1182,6 +1193,8 @@ def update(server_client, **_):
         ctx.instance.runtime_properties.pop('network_update', None)
     disk_size_update = \
         ctx.instance.runtime_properties.pop('disk_size_update', None)
+    extra_config_update = \
+        ctx.instance.runtime_properties.pop('extra_config_update', None)
     if spec_update:
         cpus = ctx.node.properties.get('server', {}).get('cpus')
         memory = ctx.node.properties.get('server', {}).get('memory')
@@ -1220,6 +1233,28 @@ def update(server_client, **_):
         server_client._wait_for_task(task)
         ctx.instance.runtime_properties['expected_configuration'][
             'disk_size'] = disk_size
+        ctx.instance.runtime_properties.dirty = True
+        ctx.instance.update()
+    if extra_config_update:
+        extra_config = ctx.node.properties.get('extra_config', {})
+        previous_config = ctx.instance.runtime_properties.get(
+            'expected_configuration', {}).get('extra_config', {})
+        server_obj = server_client.get_server_by_id(
+            ctx.instance.runtime_properties[VSPHERE_SERVER_ID])
+        spec = vim.vm.ConfigSpec()
+        for option in server_obj.summary.vm.config.extraConfig:
+            if option.key in previous_config.keys() and \
+                    option.key not in extra_config.keys():
+                spec.extraConfig.append(
+                    vim.option.OptionValue(key=option.key, value=''))
+        if extra_config:
+            for k in extra_config:
+                spec.extraConfig.append(
+                    vim.option.OptionValue(key=k, value=extra_config[k]))
+        task = server_obj.obj.ReconfigVM_Task(spec=spec)
+        server_client._wait_for_task(task)
+        ctx.instance.runtime_properties['expected_configuration'][
+            'extra_config'] = extra_config
         ctx.instance.runtime_properties.dirty = True
         ctx.instance.update()
     if network_update:
@@ -1328,14 +1363,17 @@ def update(server_client, **_):
             management_network_name = (management_networks[0]
                                        if len(management_networks) == 1
                                        else None)
+            passed_time = 0
             # make sure that networks have IPs
-            while not server_obj.guest.net:
+            while not server_obj.guest.net and passed_time < 300:
                 server_obj = \
                     server_client._get_obj_by_id(
                         vim.VirtualMachine,
                         ctx.instance.runtime_properties[VSPHERE_SERVER_ID],
                         use_cache=False)
-                time.sleep(10)
+                time.sleep(30)
+                ctx.logger.debug('waiting to get ip')
+                passed_time += 30
             for network in server_obj.guest.net:
                 network_name = network.network
                 if not default_ip:

@@ -1,3 +1,6 @@
+2.20.16:
+  - support extra_config on server update.
+  - timeout logic while fetching IP on server network update.
 2.20.15:
   - support disk_size on server update.
 2.20.14:
